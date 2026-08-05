@@ -5,7 +5,7 @@ import React from "react";
 
 const Page = () => {
   return (
-    <main className=" w-full overflow-hidden">
+    <main className=" w-full h-full overflow-hidden">
       <PasswordReset />
     </main>
   );

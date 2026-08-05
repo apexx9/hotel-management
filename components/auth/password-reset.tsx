@@ -4,9 +4,11 @@ import AuthFooter from "./auth-footer";
 import Input from "../input";
 import Button from "../button";
 import { ArrowLeft } from "lucide-react";
+import ResetConfirmation from "./reset-confirmation";
 
 const PasswordReset = () => {
   const [resetMethod, setResetMethod] = useState<string>("");
+  const [isOpen, setIsOpen] = useState<boolean>(false);
 
   return (
     <div className="flex flex-col items-center justify-center h-screen px-20 md:px-25 lg:px-38.75 py-6 md:py-8 lg:py-12 bg-[#F6F6F6]">
@@ -54,8 +56,14 @@ const PasswordReset = () => {
                 : "Enter your Phone Number"
             }
           />
-          <div className="mt-8 flex flex-col items-center gap-6">
-            <Button type="primary" text="Reset Password" className="w-full" />
+          <div className="mt-8 flex flex-col items-center gap-6 relative">
+            <Button
+              type="primary"
+              text="Reset Password"
+              className="w-full"
+              onClick={() => setIsOpen(true)}
+            />
+            {isOpen == true ? <ResetConfirmation /> : null}
             <button className="flex items-center font-medium text-[12px] text-[#4C4747] text-center mt-4">
               <ArrowLeft /> Back to Login
             </button>

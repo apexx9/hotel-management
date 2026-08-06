@@ -5,10 +5,14 @@ import Input from "../input";
 import Button from "../button";
 import { ArrowLeft } from "lucide-react";
 import ResetConfirmation from "./reset-confirmation";
+import { useModalStore, useResetMode } from "@/store/store";
 
 const PasswordReset = () => {
-  const [resetMethod, setResetMethod] = useState<string>("");
-  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const resetMode = useResetMode((state) => state.mode);
+  const setMode = useResetMode((state) => state.setMode);
+
+  const isOpen = useModalStore((state) => state.isOpen);
+  const toggleOpen = useModalStore((state) => state.toggleOpen);
 
   return (
     <div className="flex flex-col items-center justify-center h-screen px-20 md:px-25 lg:px-38.75 py-6 md:py-8 lg:py-12 bg-[#F6F6F6]">
@@ -44,14 +48,14 @@ const PasswordReset = () => {
               { value: "email", label: "Email" },
               { value: "phone", label: "Phone Number" },
             ]}
-            value={resetMethod}
-            onChange={(val) => setResetMethod(val as string)}
+            value={resetMode}
+            onChange={(val) => setMode(val as "email" | "phone")}
           />
           <Input
-            type={resetMethod === "email" ? "email" : "tel"}
-            label={resetMethod === "email" ? "Email" : "Phone Number"}
+            type={resetMode === "email" ? "email" : "tel"}
+            label={resetMode === "email" ? "Email" : "Phone Number"}
             placeholder={
-              resetMethod === "email"
+              resetMode === "email"
                 ? "Enter your Email"
                 : "Enter your Phone Number"
             }
@@ -61,7 +65,7 @@ const PasswordReset = () => {
               type="primary"
               text="Reset Password"
               className="w-full"
-              onClick={() => setIsOpen(true)}
+              onClick={toggleOpen}
             />
             {isOpen == true ? <ResetConfirmation /> : null}
             <button className="flex items-center font-medium text-[12px] text-[#4C4747] text-center mt-4">

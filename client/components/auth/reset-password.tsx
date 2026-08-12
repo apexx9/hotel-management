@@ -16,7 +16,13 @@ import AuthFooter from "./auth-footer";
 
 const resetPasswordSchema = z
   .object({
-    password: z.string().min(8, "Password must be at least 8 characters"),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain an uppercase letter")
+      .regex(/[a-z]/, "Password must contain a lowercase letter")
+      .regex(/\d/, "Password must contain a number")
+      .regex(/[^A-Za-z0-9]/, "Password must contain a special character"),
     confirmPassword: z.string().min(1, "Please confirm your password"),
   })
   .superRefine((data, ctx) => {
@@ -52,6 +58,7 @@ const ResetPassword = () => {
     { label: "Contains an uppercase letter", valid: /[A-Z]/.test(password) },
     { label: "Contains a lowercase letter", valid: /[a-z]/.test(password) },
     { label: "Contains a number", valid: /\d/.test(password) },
+    { label: "Contains a special character", valid: /[^A-Za-z0-9]/.test(password) },
   ];
 
   const onSubmit = async (data: ResetPasswordFormValues) => {

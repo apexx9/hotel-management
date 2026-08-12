@@ -117,11 +117,11 @@ const VerifyReset = () => {
               <ShieldCheck size={25} className="text-[#1900FF]" />
             </div>
             <h1 className="text-3xl font-bold leading-tight tracking-tight text-[#0C0332] md:text-4xl">
-              Verify your account
+              Verify your reset code
             </h1>
             <p className="mt-2 max-w-md text-sm leading-6 text-[#6B6B6B]">
               Enter the 6-digit verification code we sent to your email or phone
-              number.
+              number so you can reset your password.
             </p>
           </header>
 

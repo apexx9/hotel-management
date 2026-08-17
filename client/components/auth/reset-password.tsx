@@ -58,16 +58,35 @@ const ResetPassword = () => {
     { label: "Contains an uppercase letter", valid: /[A-Z]/.test(password) },
     { label: "Contains a lowercase letter", valid: /[a-z]/.test(password) },
     { label: "Contains a number", valid: /\d/.test(password) },
-    { label: "Contains a special character", valid: /[^A-Za-z0-9]/.test(password) },
+    {
+      label: "Contains a special character",
+      valid: /[^A-Za-z0-9]/.test(password),
+    },
   ];
 
   const onSubmit = async (data: ResetPasswordFormValues) => {
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      console.log("Password reset:", data);
-      toast.success("Password updated successfully");
-      router.push("/reset-password/success");
+      const url = new URL(window.location.href);
+      const token = url.searchParams.get("token") || "";
+      if (!token) {
+        toast.error("Missing reset token");
+        setIsLoading(false);
+        return;
+      }
+
+      const res = await (
+        await import("@/actions/auth")
+      ).authApi.reset(token, data.password);
+      if (res.data?.ok) {
+        toast.success("Password updated successfully");
+        router.push("/reset-password/success");
+      } else {
+        toast.error(
+          res.data?.message ||
+            "Unable to reset your password. Please try again.",
+        );
+      }
     } catch {
       toast.error("Unable to reset your password. Please try again.");
     } finally {

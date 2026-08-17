@@ -32,26 +32,18 @@ const Invitation = () => {
 
     const validateInvitation = async () => {
       try {
-        /*
-         * Eventually:
-         *
-         * const response = await api.get(
-         *   `/invitations/${token}`
-         * );
-         *
-         * setInvitation(response.data);
-         */
-
-        await new Promise((resolve) => setTimeout(resolve, 800));
-
+        const res = await (
+          await import("@/actions/auth")
+        ).authApi.getInvitation(token);
         if (!isMounted) return;
-
         setInvitation({
-          hotelName: "Hotel Management System",
-          email: "staff@example.com",
-          role: "Receptionist",
+          hotelName:
+            res.data.invitation?.hotelName ||
+            res.data.invitation?.hotelName ||
+            "Hotel",
+          email: res.data.invitation?.email,
+          role: res.data.invitation?.role,
         });
-
         setState("valid");
       } catch {
         if (isMounted) {

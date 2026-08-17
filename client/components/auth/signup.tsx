@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, Check, Circle } from "lucide-react";
 import { toast } from "sonner";
@@ -14,45 +13,12 @@ import Input from "../input";
 import Button from "../button";
 import AuthFooter from "./auth-footer";
 
-const signupSchema = z
-  .object({
-    // Hotel information
-    hotelName: z.string().trim().min(2, "Enter your hotel name"),
-
-    hotelEmail: z.string().email("Enter a valid hotel email address"),
-
-    hotelPhone: z.string().trim().min(9, "Enter a valid hotel phone number"),
-
-    address: z.string().trim().min(3, "Enter your hotel address"),
-
-    // Owner information
-    fullName: z.string().trim().min(2, "Enter your full name"),
-
-    email: z.string().email("Enter a valid email address"),
-
-    phone: z.string().trim().min(9, "Enter a valid phone number"),
-
-    password: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .regex(/[A-Z]/, "Password must contain an uppercase letter")
-      .regex(/[a-z]/, "Password must contain a lowercase letter")
-      .regex(/\d/, "Password must contain a number")
-      .regex(/[^A-Za-z0-9]/, "Password must contain a special character"),
-
-    confirmPassword: z.string().min(1, "Confirm your password"),
-  })
-  .superRefine((data, ctx) => {
-    if (data.password !== data.confirmPassword) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["confirmPassword"],
-        message: "Passwords do not match",
-      });
-    }
-  });
-
-type SignupFormValues = z.infer<typeof signupSchema>;
+import AuthService from "../../services/auth.service";
+import {
+  registerSchema,
+  RegisterFormValues,
+  RegisterSchema,
+} from "../../schema/auth.schema";
 
 const Signup = () => {
   const router = useRouter();
@@ -64,23 +30,27 @@ const Signup = () => {
     handleSubmit,
     watch,
     formState: { errors },
-  } = useForm<SignupFormValues>({
-    resolver: zodResolver(signupSchema),
+  } = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
 
     defaultValues: {
-      hotelName: "",
-      hotelEmail: "",
-      hotelPhone: "",
-      address: "",
-      fullName: "",
-      email: "",
-      phone: "",
-      password: "",
+      hotel: {
+        name: "",
+        email: "",
+        phone: "",
+        address: "",
+      },
+      owner: {
+        fullName: "",
+        email: "",
+        phone: "",
+        password: "",
+      },
       confirmPassword: "",
     },
   });
 
-  const password = watch("password");
+  const password = watch("owner.password") || "";
 
   const requirements = [
     {
@@ -105,40 +75,25 @@ const Signup = () => {
     },
   ];
 
-  const onSubmit = async (data: SignupFormValues) => {
+  const onSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true);
 
     try {
-      /*
-       * Temporary API simulation.
-       *
-       * Eventually this will become something like:
-       *
-       * await authApi.registerHotel({
-       *   hotel: {
-       *     name: data.hotelName,
-       *     email: data.hotelEmail,
-       *     phone: data.hotelPhone,
-       *     address: data.address,
-       *   },
-       *   owner: {
-       *     fullName: data.fullName,
-       *     email: data.email,
-       *     phone: data.phone,
-       *     password: data.password,
-       *   },
-       * });
-       */
+      const payload: RegisterSchema = {
+        hotel: data.hotel,
+        owner: data.owner,
+      };
 
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-
-      console.log("Hotel registration:", data);
+      await AuthService().register(payload);
 
       toast.success("Hotel account created. Please verify your account.");
-
       router.push("/verify-account");
-    } catch {
-      toast.error("Unable to create your hotel account. Please try again.");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(
+        err?.response?.data?.message ||
+          "Unable to create your hotel account. Please try again.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -196,8 +151,8 @@ const Signup = () => {
               label="Hotel name"
               placeholder="Enter your hotel name"
               autoComplete="organization"
-              {...register("hotelName")}
-              error={errors.hotelName?.message}
+              {...register("hotel.name")}
+              error={errors.hotel?.name?.message}
             />
 
             <Input
@@ -205,8 +160,8 @@ const Signup = () => {
               label="Hotel email"
               placeholder="Enter your hotel email"
               autoComplete="email"
-              {...register("hotelEmail")}
-              error={errors.hotelEmail?.message}
+              {...register("hotel.email")}
+              error={errors.hotel?.email?.message}
             />
 
             <Input
@@ -214,8 +169,8 @@ const Signup = () => {
               label="Hotel phone number"
               placeholder="Enter your hotel phone number"
               autoComplete="tel"
-              {...register("hotelPhone")}
-              error={errors.hotelPhone?.message}
+              {...register("hotel.phone")}
+              error={errors.hotel?.phone?.message}
             />
 
             <Input
@@ -223,8 +178,8 @@ const Signup = () => {
               label="Hotel address"
               placeholder="Enter your hotel address"
               autoComplete="street-address"
-              {...register("address")}
-              error={errors.address?.message}
+              {...register("hotel.address")}
+              error={errors.hotel?.address?.message}
             />
 
             {/* ─────────────────────────────
@@ -246,8 +201,8 @@ const Signup = () => {
               label="Full name"
               placeholder="Enter your full name"
               autoComplete="name"
-              {...register("fullName")}
-              error={errors.fullName?.message}
+              {...register("owner.fullName")}
+              error={errors.owner?.fullName?.message}
             />
 
             <Input
@@ -255,8 +210,8 @@ const Signup = () => {
               label="Email address"
               placeholder="Enter your email"
               autoComplete="email"
-              {...register("email")}
-              error={errors.email?.message}
+              {...register("owner.email")}
+              error={errors.owner?.email?.message}
             />
 
             <Input
@@ -264,8 +219,8 @@ const Signup = () => {
               label="Phone number"
               placeholder="Enter your phone number"
               autoComplete="tel"
-              {...register("phone")}
-              error={errors.phone?.message}
+              {...register("owner.phone")}
+              error={errors.owner?.phone?.message}
             />
 
             <Input
@@ -273,8 +228,8 @@ const Signup = () => {
               label="Password"
               placeholder="Create a password"
               autoComplete="new-password"
-              {...register("password")}
-              error={errors.password?.message}
+              {...register("owner.password")}
+              error={errors.owner?.password?.message}
             />
 
             {/* Password requirements */}

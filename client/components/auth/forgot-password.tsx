@@ -74,8 +74,10 @@ const ForgotPassword = () => {
   const onSubmit = async (data: ForgotPasswordFormValues) => {
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      console.log("Password reset request:", data);
+      const identifier = data.resetMode === "email" ? data.email : data.phone;
+      const res = await (
+        await import("@/actions/auth")
+      ).authApi.requestReset(identifier);
       toast.success("Verification code sent");
       router.push("/verify-reset");
     } catch {

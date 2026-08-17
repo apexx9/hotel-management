@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
@@ -12,48 +11,8 @@ import Input from "../input";
 import Button from "../button";
 import AuthFooter from "./auth-footer";
 
-const loginSchema = z
-  .object({
-    loginMode: z.enum(["email", "phone"], {
-      message: "Select a login method",
-    }),
-    email: z.string(),
-    phone: z.string(),
-    password: z.string().min(6, "Password must be at least 6 characters"),
-  })
-  .superRefine((data, ctx) => {
-    if (data.loginMode === "email") {
-      const result = z
-        .string()
-        .email("Enter a valid email address")
-        .safeParse(data.email);
-      if (!result.success) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["email"],
-          message: "Enter a valid email address",
-        });
-      }
-    }
-    if (data.loginMode === "phone") {
-      const phone = data.phone.trim();
-      if (!phone) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["phone"],
-          message: "Phone number is required",
-        });
-      } else if (phone.length < 9) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["phone"],
-          message: "Enter a valid phone number",
-        });
-      }
-    }
-  });
-
-type LoginFormValues = z.infer<typeof loginSchema>;
+import AuthService from "../../services/auth.service";
+import { loginSchema, LoginSchema } from "../../schema/auth.schema";
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -61,29 +20,25 @@ const Login = () => {
   const {
     register,
     handleSubmit,
-    setValue,
-    watch,
     formState: { errors },
-  } = useForm<LoginFormValues>({
+  } = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      loginMode: "email",
-      email: "",
-      phone: "",
+      identifier: "",
       password: "",
     },
   });
 
-  const loginMode = watch("loginMode");
-
-  const onSubmit = async (data: LoginFormValues) => {
+  const onSubmit = async (payload: LoginSchema) => {
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      console.log("Login data:", data);
+      await AuthService().login(payload);
       toast.success("Login successful");
-    } catch {
-      toast.error("Unable to sign in. Please try again.");
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message ||
+          "Unable to sign in. Please try again.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -109,7 +64,7 @@ const Login = () => {
               Welcome back
             </h1>
             <p className="mt-2 max-w-md text-sm leading-6 text-[#6B6B6B]">
-              Sign in to continue to your hotel workspace.
+              Sign in with your email or phone number.
             </p>
             <div className="mt-4 h-0.5 w-10 rounded-full bg-[#1900FF]/20" />
           </header>
@@ -120,41 +75,13 @@ const Login = () => {
             noValidate
           >
             <Input
-              type="drop"
-              label="Login method"
-              placeholder="Select login method"
-              options={[
-                { value: "email", label: "Email" },
-                { value: "phone", label: "Phone number" },
-              ]}
-              value={loginMode}
-              onValueChange={(value) => {
-                setValue("loginMode", value as "email" | "phone", {
-                  shouldValidate: true,
-                });
-              }}
-              error={errors.loginMode?.message}
+              type="text"
+              label="Email or phone number"
+              placeholder="Enter your email or phone number"
+              autoComplete="username"
+              {...register("identifier")}
+              error={errors.identifier?.message}
             />
-
-            {loginMode === "email" ? (
-              <Input
-                type="email"
-                label="Email address"
-                placeholder="Enter your email"
-                autoComplete="email"
-                {...register("email")}
-                error={errors.email?.message}
-              />
-            ) : (
-              <Input
-                type="tel"
-                label="Phone number"
-                placeholder="Enter your phone number"
-                autoComplete="tel"
-                {...register("phone")}
-                error={errors.phone?.message}
-              />
-            )}
 
             <Input
               type="pass"

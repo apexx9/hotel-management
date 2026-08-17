@@ -91,24 +91,14 @@ const SetupAccount = () => {
     setIsLoading(true);
 
     try {
-      /*
-       * Eventually:
-       *
-       * await api.post(`/invitations/${token}/accept`, {
-       *   fullName: data.fullName,
-       *   password: data.password,
-       * });
-       */
-
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-
-      console.log("Staff account setup:", {
-        token,
-        ...data,
+      const res = await (
+        await import("@/actions/auth")
+      ).authApi.acceptInvitation(token, {
+        fullName: data.fullName,
+        password: data.password,
       });
 
       toast.success("Your account has been created.");
-
       router.push("/login");
     } catch {
       toast.error("Unable to complete account setup. Please try again.");

@@ -70,11 +70,15 @@ const VerifyAccount = () => {
     setIsLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      toast.success("Account verified successfully.");
-      router.push("/login");
-    } catch {
+      const res = await (await import("@/actions/auth")).authApi.verify(code);
+      if (res.data?.ok) {
+        toast.success("Account verified successfully.");
+        router.push("/login");
+      } else {
+        toast.error(res.data?.message || "Unable to verify your account.");
+      }
+    } catch (err) {
+      console.error(err);
       toast.error("Unable to verify your account.");
     } finally {
       setIsLoading(false);

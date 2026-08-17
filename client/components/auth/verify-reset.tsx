@@ -72,9 +72,19 @@ const VerifyReset = () => {
     }
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      toast.success("Code verified");
-      router.push("/reset-password");
+      const token = otp.join("");
+      const res = await (
+        await import("@/actions/auth")
+      ).authApi.validateToken(token);
+      if (res.data?.ok && res.data?.type === "password_reset") {
+        toast.success("Code verified");
+        router.push(`/reset-password?token=${token}`);
+      } else {
+        toast.error(
+          res.data?.message ||
+            "The verification code is invalid or has expired.",
+        );
+      }
     } catch {
       toast.error("The verification code is invalid or has expired.");
     } finally {

@@ -99,7 +99,7 @@ const SetupAccount = () => {
       });
 
       toast.success("Your account has been created.");
-      router.push("/login");
+      router.push(`/invite/${token}/success`);
     } catch {
       toast.error("Unable to complete account setup. Please try again.");
     } finally {
@@ -109,7 +109,7 @@ const SetupAccount = () => {
 
   return (
     <Wrapper>
-      <div className="flex min-h-dvh flex-col px-6 py-8 sm:px-10 md:px-14 lg:px-16 xl:px-24">
+      <div className="flex min-h-full flex-col px-6 py-8 sm:px-10 md:px-14 lg:px-16 xl:px-24">
         <div className="mx-auto flex w-full max-w-[520px] flex-1 flex-col">
           <div className="mb-8 flex flex-col items-center lg:hidden">
             <p className="text-4xl font-bold tracking-tight text-[#1900FF]">

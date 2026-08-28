@@ -10,7 +10,7 @@ import AuthFooter from "./auth-footer";
 const ResetSuccess = () => {
   return (
     <Wrapper>
-      <div className="flex h-full flex-col px-6 py-8 sm:px-10 md:px-14 lg:px-16 xl:px-24">
+      <div className="flex min-h-full flex-col px-6 py-8 sm:px-10 md:px-14 lg:px-16 xl:px-24">
         <div className="mx-auto flex w-full max-w-[480px] flex-1 flex-col items-center justify-center">
           {/* Mobile brand */}
           <div className="mb-10 flex flex-col items-center lg:hidden">

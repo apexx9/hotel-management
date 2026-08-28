@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-
+import { useRouter } from 'next/navigation';
 import Wrapper from "./wrapper";
 import Input from "../input";
 import Button from "../button";
@@ -14,8 +14,22 @@ import AuthFooter from "./auth-footer";
 import AuthService from "../../services/auth.service";
 import { loginSchema, LoginSchema } from "../../schema/auth.schema";
 
+const getErrorMessage = (error: unknown) => {
+  if (typeof error === "object" && error !== null) {
+    const response = error as {
+      response?: { data?: { message?: string } };
+      message?: string;
+    };
+
+    return response.response?.data?.message || response.message;
+  }
+
+  return undefined;
+};
+
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   const {
     register,
@@ -29,15 +43,17 @@ const Login = () => {
     },
   });
 
+
   const onSubmit = async (payload: LoginSchema) => {
     setIsLoading(true);
     try {
       await AuthService().login(payload);
+      router.push('/dashboard');
+      router.refresh(); // Optional: refresh server components
       toast.success("Login successful");
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
-        error?.response?.data?.message ||
-          "Unable to sign in. Please try again.",
+        getErrorMessage(error) || "Unable to sign in. Please try again.",
       );
     } finally {
       setIsLoading(false);
@@ -46,7 +62,7 @@ const Login = () => {
 
   return (
     <Wrapper>
-      <div className="flex h-full flex-col px-6 py-8 sm:px-10 md:px-14 lg:px-16 xl:px-24">
+      <div className="flex min-h-full flex-col px-6 py-8 sm:px-10 md:px-14 lg:px-16 xl:px-24">
         <div className="mx-auto flex w-full max-w-[480px] flex-1 flex-col justify-center">
           {/* Mobile brand */}
           <div className="mb-10 flex flex-col items-center lg:hidden">
@@ -110,6 +126,18 @@ const Login = () => {
               />
             </div>
           </form>
+
+          <div className="mt-6 rounded-2xl border border-[#E8E8E8] bg-[#F7F7FF] px-4 py-3 text-center">
+            <p className="text-sm font-medium text-[#4C4747]">
+              Don&apos;t have an account?{" "}
+              <Link
+                href="/signup"
+                className="font-bold text-[#1900FF] transition-colors hover:text-[#1200c9]"
+              >
+                Create one
+              </Link>
+            </p>
+          </div>
         </div>
 
         <AuthFooter />

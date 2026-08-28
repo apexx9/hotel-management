@@ -37,7 +37,7 @@ export class MailService {
       this.logger.log(`Sent mail to ${to}: ${info.messageId}`);
       return { ok: true, info };
     } catch (err) {
-      this.logger.error('Mail send error', err as any);
+      this.logger.error('Mail send error', err);
       return { ok: false, error: err };
     }
   }

@@ -79,7 +79,7 @@ const ForgotPassword = () => {
         await import("@/actions/auth")
       ).authApi.requestReset(identifier);
       toast.success("Verification code sent");
-      router.push("/verify-reset");
+      router.push("/forgot-password/verify");
     } catch {
       toast.error("Unable to process your request. Please try again.");
     } finally {
@@ -89,7 +89,7 @@ const ForgotPassword = () => {
 
   return (
     <Wrapper>
-      <div className="flex h-full flex-col px-6 py-8 sm:px-10 md:px-14 lg:px-16 xl:px-24">
+      <div className="flex min-h-full flex-col px-6 py-8 sm:px-10 md:px-14 lg:px-16 xl:px-24">
         <div className="mx-auto flex w-full max-w-[480px] flex-1 flex-col">
           {/* Mobile brand */}
           <div className="mb-8 flex flex-col items-center lg:hidden">

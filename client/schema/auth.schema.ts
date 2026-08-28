@@ -53,8 +53,25 @@ export const registerSchema = zod
     }
   });
 
-export const registerPayloadSchema = registerSchema.omit({
-  confirmPassword: true,
+export const registerPayloadSchema = zod.object({
+  hotel: zod.object({
+    name: zod.string().min(1, "Hotel name is required"),
+    email: zod.string().email("Invalid hotel email address"),
+    phone: zod.string().optional(),
+    address: zod.string().optional(),
+  }),
+  owner: zod.object({
+    fullName: zod.string().min(1, "Owner full name is required"),
+    email: zod.string().email("Invalid owner email address"),
+    phone: zod.string().optional(),
+    password: zod
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain an uppercase letter")
+      .regex(/[a-z]/, "Password must contain a lowercase letter")
+      .regex(/\d/, "Password must contain a number")
+      .regex(/[^A-Za-z0-9]/, "Password must contain a special character"),
+  }),
 });
 
 export type RegisterFormValues = zod.infer<typeof registerSchema>;

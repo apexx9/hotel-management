@@ -1,4 +1,4 @@
-import axios, { AxiosResponse } from "axios";
+import axios from "axios";
 
 const instance = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -6,10 +6,15 @@ const instance = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-//Get
-const get = async <T>(url: string): Promise<T> => {
-  const response: AxiosResponse<T> = await instance.get<T>(url);
-  return response.data;
-};
+instance.interceptors.request.use((config) => {
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
 
-export { instance, get };
+  return config;
+});
+
+export { instance };

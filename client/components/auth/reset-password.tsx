@@ -80,7 +80,7 @@ const ResetPassword = () => {
       ).authApi.reset(token, data.password);
       if (res.data?.ok) {
         toast.success("Password updated successfully");
-        router.push("/reset-password/success");
+        router.push("/forgot-password/success");
       } else {
         toast.error(
           res.data?.message ||
@@ -96,7 +96,7 @@ const ResetPassword = () => {
 
   return (
     <Wrapper>
-      <div className="flex h-full flex-col px-6 py-8 sm:px-10 md:px-14 lg:px-16 xl:px-24">
+      <div className="flex min-h-full flex-col px-6 py-8 sm:px-10 md:px-14 lg:px-16 xl:px-24">
         <div className="mx-auto flex w-full max-w-[480px] flex-1 flex-col">
           {/* Mobile brand */}
           <div className="mb-8 flex flex-col items-center lg:hidden">

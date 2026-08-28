@@ -89,22 +89,12 @@ const Invitation = () => {
     );
   }
 
-  if (state === "expired") {
+  if (state === "expired" || state === "invalid") {
     return (
       <InvitationError
         icon={<Clock3 size={32} />}
         title="Invitation expired"
         message="This invitation is no longer active. Please contact your hotel administrator for a new invitation."
-      />
-    );
-  }
-
-  if (state === "invalid") {
-    return (
-      <InvitationError
-        icon={<XCircle size={32} />}
-        title="Invalid invitation"
-        message="This invitation link is invalid or no longer available."
       />
     );
   }

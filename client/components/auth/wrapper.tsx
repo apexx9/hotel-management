@@ -29,13 +29,18 @@ const images = [
 
 const Wrapper = ({ children }: WrapperProps) => {
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-neutral-50 lg:flex-row">
+    <div className="flex h-screen w-full overflow-hidden bg-[#FBFBFC] lg:flex-row">
+      {/* Auth panel – scrollable */}
+      <section className="flex h-full flex-1 flex-col overflow-y-auto bg-white lg:w-1/2 lg:border-r lg:border-[#E8E8E8]">
+        {children}
+      </section>
+
       {/* Brand panel – fixed, no scroll */}
-      <section className="hidden h-full w-1/2 flex-col items-center justify-center bg-[#F8FAFC] px-10 py-12 lg:flex xl:px-16">
+      <section className="hidden h-full w-1/2 flex-col items-center justify-center bg-[#FBFBFC] px-10 py-12 lg:flex xl:px-16">
         <div className="flex w-full max-w-xl flex-col items-center">
           <Logo size="md" />
 
-          <p className="mt-3 text-center text-lg font-semibold tracking-tight text-slate-800">
+          <p className="mt-3 text-center text-lg font-semibold tracking-tight text-[#0C0332]">
             Intelligent Hotel Management System
           </p>
 
@@ -60,19 +65,14 @@ const Wrapper = ({ children }: WrapperProps) => {
             ))}
           </div>
 
-          <p className="mt-8 max-w-md text-center text-2xl font-bold leading-snug tracking-tight text-slate-800 xl:text-3xl">
+          <p className="mt-8 max-w-md text-center text-2xl font-bold leading-snug tracking-tight text-[#0C0332] xl:text-3xl">
             Run your hotel with clarity.
           </p>
 
-          <p className="mt-3 max-w-sm text-center text-sm leading-6 text-slate-500">
+          <p className="mt-3 max-w-sm text-center text-sm leading-6 text-[#8A8787]">
             Manage guests, rooms, payments and daily operations from one place.
           </p>
         </div>
-      </section>
-
-      {/* Auth panel – scrollable */}
-      <section className="flex h-full flex-1 flex-col overflow-y-auto bg-white lg:w-1/2 lg:border-l lg:border-slate-200">
-        {children}
       </section>
     </div>
   );

@@ -16,7 +16,7 @@ const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const baseClasses =
-    "rounded-xl font-bold text-sm flex items-center justify-center w-full py-3 px-6 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1900FF]/40";
+    "rounded-lg font-bold text-xs flex items-center justify-center w-full h-10 px-4 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#1900FF]/40";
   const primaryClasses =
     "bg-[#1900FF] text-white hover:bg-[#1500E0] active:scale-[0.98]";
   const secondaryClasses =
@@ -30,7 +30,7 @@ const Button: React.FC<ButtonProps> = ({
       disabled={disabled || isLoading}
       {...props}
     >
-      {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : text}
+      {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : text}
     </button>
   );
 };

@@ -20,6 +20,19 @@ import {
   RegisterSchema,
 } from "../../schema/auth.schema";
 
+const getErrorMessage = (error: unknown) => {
+  if (typeof error === "object" && error !== null) {
+    const response = error as {
+      response?: { data?: { message?: string } };
+      message?: string;
+    };
+
+    return response.response?.data?.message || response.message;
+  }
+
+  return undefined;
+};
+
 const Signup = () => {
   const router = useRouter();
 
@@ -87,11 +100,11 @@ const Signup = () => {
       await AuthService().register(payload);
 
       toast.success("Hotel account created. Please verify your account.");
-      router.push("/verify-account");
-    } catch (err: any) {
+      router.push("/signup/verify");
+    } catch (err: unknown) {
       console.error(err);
       toast.error(
-        err?.response?.data?.message ||
+        getErrorMessage(err) ||
           "Unable to create your hotel account. Please try again.",
       );
     } finally {
@@ -101,7 +114,7 @@ const Signup = () => {
 
   return (
     <Wrapper>
-      <div className="flex min-h-dvh flex-col px-6 py-8 sm:px-10 md:px-14 lg:px-16 xl:px-24">
+      <div className="flex min-h-full flex-col px-6 py-8 sm:px-10 md:px-14 lg:px-16 xl:px-24">
         <div className="mx-auto flex w-full max-w-[520px] flex-1 flex-col">
           {/* Mobile brand */}
           <div className="mb-8 flex flex-col items-center lg:hidden">

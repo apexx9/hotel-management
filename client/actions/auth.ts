@@ -16,7 +16,7 @@ export const authApi = {
   validateToken: (token: string) =>
     instance.post("/auth/validate-token", { token }),
   getInvitation: (token: string) => instance.get(`/invitations/${token}`),
-  acceptInvitation: (token: string, payload: any) =>
+  acceptInvitation: (token: string, payload: Record<string, unknown>) =>
     instance.post(`/invitations/${token}/accept`, payload),
 };
 

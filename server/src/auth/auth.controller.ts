@@ -72,8 +72,8 @@ export class AuthController {
     if (!token) return { ok: false, message: 'No token' };
     const rec = await this.authService.validateRefreshToken(token);
     if (!rec) return { ok: false, message: 'Invalid refresh token' };
-    // @ts-ignore
-    const userId = rec.user_id;
+    // Fix: use camelCase property from Drizzle schema
+    const userId = rec.userId;
     // rotate refresh token
     await this.authService.revokeRefreshToken(token);
     const newRefresh = await this.authService.createRefreshToken(userId);
@@ -84,7 +84,7 @@ export class AuthController {
       path: '/',
       maxAge: 1000 * 60 * 60 * 24 * 30,
     });
-    const access = this.authService['jwtService'].sign({ sub: userId });
+    const access = await this.authService.issueAccessTokenForUser(userId);
     return { ok: true, token: access };
   }
 

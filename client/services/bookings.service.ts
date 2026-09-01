@@ -16,6 +16,7 @@ export interface BookingData {
   roomTypeId?: string;
   guestsCount: number;
   nights: number;
+  expectedCheckInAt?: string;
   rate: number;
   discount?: number;
   taxes?: number;
@@ -40,7 +41,7 @@ const BookingsService = () => {
     stayId: string;
     overrideBalance?: boolean;
     amountPaid?: number;
-    paymentMethod?: string;
+    paymentMethod?: string | null;
   }) => {
     const response = await operationsApi.checkOut(data);
     return response.data;

@@ -1,145 +1,190 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { BedDouble, Search } from "lucide-react";
-import PageHeader from "@/components/operations/page-header";
-import SectionCard from "@/components/operations/section-card";
-import StatusChip from "@/components/operations/status-chip";
-import { formatCurrency } from "@/utils/hms.data";
-import RoomsService from "@/services/rooms.service";
+import { useEffect, useState } from "react";
+import RoomsService, { Room, RoomType } from "@/services/rooms.service";
+import { formatCurrency, formatNumber } from "@/utils/utils";
+import Link from "next/link";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { AlertCircle, ArrowRight, BedDouble, DoorOpen, Users, Wallet, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export default function RoomsPage() {
-  const [roomTypes, setRoomTypes] = useState<any[]>([]);
-  const [rooms, setRooms] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+export default function RoomsOverviewPage() {
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadData = async () => {
+    const fetchData = async () => {
       try {
-        const roomsService = RoomsService();
-        const [roomTypesData, roomsData] = await Promise.all([
-          roomsService.getRoomTypes(),
-          roomsService.getRooms(),
+        setLoading(true);
+        const [roomsData, typesData] = await Promise.all([
+          RoomsService().getRooms(),
+          RoomsService().getRoomTypes(),
         ]);
-        setRoomTypes(roomTypesData);
         setRooms(roomsData);
+        setRoomTypes(typesData);
       } catch (err) {
-        console.error("Failed to load rooms data:", err);
-        setError("Failed to load rooms data");
+        console.error("Failed to fetch rooms data:", err);
+        setError("Could not load rooms overview. Please try again.");
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     };
-    loadData();
+    fetchData();
   }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  const totalRooms = rooms.length;
+  const availableRooms = rooms.filter((r) => r.status === "available").length;
+  const occupiedRooms = rooms.filter((r) => r.status === "occupied").length;
+  const maintenanceRooms = rooms.filter(
+    (r) => r.status === "maintenance" || r.status === "out_of_service"
+  ).length;
+  const turningOverRooms = rooms.filter(
+    (r) => r.status === "cleaning" || r.status === "inspection"
+  ).length;
+
+  const stats = [
+    { label: "Total Rooms", value: formatNumber(totalRooms), icon: BedDouble },
+    { label: "Available", value: formatNumber(availableRooms), icon: DoorOpen },
+    { label: "Occupied", value: formatNumber(occupiedRooms), icon: Users },
+    { label: "Maintenance", value: formatNumber(maintenanceRooms), icon: Sparkles },
+  ];
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Rooms"
-        title="Room inventory"
-        description="Monitor room status, room type, rate, and operational readiness."
-      />
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Rooms</h1>
+        <p className="text-sm text-muted-foreground">
+          Manage your hotel's room inventory and categories.
+        </p>
+      </div>
 
-      {error && (
-        <div className="rounded-2xl border border-[#F3D3D3] bg-[#FFF7F7] px-4 py-3 text-sm font-medium text-[#B42318]">
-          {error}
-        </div>
-      )}
+      {/* Stats */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {stats.map((stat) => (
+          <Card key={stat.label}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {stat.label}
+              </CardTitle>
+              <stat.icon className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stat.value}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
-      {isLoading && (
-        <div className="rounded-2xl border border-[#E8E8E8] bg-white p-8 text-center">
-          <p className="text-[#6B6B6B]">Loading room data...</p>
-        </div>
-      )}
+      {/* Room Types */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Room Types</h2>
+        <Link
+          href="/rooms/types"
+          className="flex items-center text-sm text-primary hover:underline"
+        >
+          Manage types <ArrowRight className="ml-1 h-3 w-3" />
+        </Link>
+      </div>
 
-      {!isLoading && (
-        <>
-          <SectionCard eyebrow="Search" title="Filter rooms">
-            <div className="flex items-center gap-3 rounded-2xl border border-[#E8E8E8] bg-[#FBFBFC] px-4 py-3">
-              <Search size={16} className="text-[#8A8787]" />
-              <input
-                type="text"
-                placeholder="Search room number, floor, type, or status"
-                className="w-full bg-transparent text-sm outline-none placeholder:text-[#A19F9F]"
-              />
-            </div>
-          </SectionCard>
+      <Card>
+        <CardContent className="pt-6">
+          {roomTypes.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">
+              No room types found.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Base Price</TableHead>
+                  <TableHead>Capacity</TableHead>
+                  <TableHead>Bed Config</TableHead>
+                  <TableHead>Amenities</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {roomTypes.map((type) => (
+                  <TableRow key={type.id}>
+                    <TableCell className="font-medium">{type.name}</TableCell>
+                    <TableCell>{formatCurrency(type.basePrice)}</TableCell>
+                    <TableCell>{type.capacity}</TableCell>
+                    <TableCell>{type.bedConfiguration || "—"}</TableCell>
+                    <TableCell className="max-w-xs truncate">
+                      {type.amenities || "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={type.isActive ? "default" : "secondary"}>
+                        {type.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
-          <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-            <SectionCard eyebrow="Room types" title="Configured categories">
-              <div className="space-y-3">
-                {roomTypes.length > 0 ? roomTypes.map((roomType) => (
-                  <div key={roomType.id} className="rounded-2xl bg-[#FBFBFC] p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[13px] font-bold text-[#0C0332]">
-                          {roomType.name}
-                        </p>
-                        <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                          {roomType.description}
-                        </p>
-                      </div>
-                      <StatusChip label={roomType.isActive ? "active" : "inactive"} tone={roomType.isActive ? "success" : "neutral"} />
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-3 text-[12px] text-[#6B6B6B]">
-                      <span>Rate: {formatCurrency(Number(roomType.basePrice))}</span>
-                      <span>Capacity: {roomType.capacity}</span>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="rounded-2xl bg-[#FBFBFC] p-4 text-[12px] text-[#6B6B6B]">
-                    No room types configured.
-                  </div>
-                )}
-              </div>
-            </SectionCard>
-
-            <SectionCard eyebrow="Rooms" title="Current room status">
-              <div className="grid gap-3 md:grid-cols-2">
-                {rooms.length > 0 ? rooms.map((room) => (
-                  <div key={room.id} className="rounded-2xl bg-[#FBFBFC] p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[13px] font-bold text-[#0C0332]">
-                          Room {room.number}
-                        </p>
-                        <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                          Floor {room.floor} · {formatCurrency(Number(room.rate))}
-                        </p>
-                      </div>
-                      <StatusChip
-                        label={room.status}
-                        tone={
-                          room.status === "available"
-                            ? "success"
-                            : room.status === "occupied"
-                              ? "info"
-                              : room.status === "maintenance" || room.status === "out_of_service"
-                                ? "danger"
-                                : "warning"
-                        }
-                      />
-                    </div>
-
-                    <div className="mt-3 flex items-center gap-2">
-                      <BedDouble size={14} className="text-[#1900FF]" />
-                      <span className="text-[12px] text-[#6B6B6B]">
-                        Capacity {room.capacity}
-                      </span>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="col-span-2 rounded-2xl bg-[#FBFBFC] p-4 text-[12px] text-[#6B6B6B]">
-                    No rooms available.
-                  </div>
-                )}
-              </div>
-            </SectionCard>
+      {/* Quick link to room grid */}
+      <Card className="bg-muted/50 border-dashed">
+        <CardContent className="py-6 flex items-center justify-between">
+          <div>
+            <h3 className="font-medium">View Room Grid</h3>
+            <p className="text-sm text-muted-foreground">
+              See all rooms in a visual grid layout.
+            </p>
           </div>
-        </>
-      )}
+          <Link href="/rooms/grid">
+            <span className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+              Open Grid
+            </span>
+          </Link>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,582 +1,428 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import {
-  Banknote,
-  BellRing,
-  CalendarClock,
-  Hotel,
-  LogIn,
-  LogOut,
-  ShieldAlert,
-  Sparkles,
-} from "lucide-react";
-import PageHeader from "@/components/operations/page-header";
-import SectionCard from "@/components/operations/section-card";
-import MetricCard from "@/components/operations/metric-card";
-import StatusChip from "@/components/operations/status-chip";
+import { useEffect, useState } from "react";
 import DashboardService from "@/services/dashboard.service";
-import { formatCurrency, formatPercent } from "@/utils/hms.data";
 import type { DashboardSummaryResponse } from "@/actions/operations";
-
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 12 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
-  },
-};
-
-const loadingMetrics = Array.from({ length: 9 }, (_, index) => index);
+import { formatCurrency, formatDateTime, formatDate, formatNumber } from "@/utils/utils";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertCircle,
+  ArrowUpRight,
+  BedDouble,
+  CalendarClock,
+  Users,
+  Wallet,
+  Sparkles,
+  Bell,
+  Activity,
+  DoorOpen,
+  ArrowRight,
+  ShieldAlert,
+  CheckCircle2
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
-  const [summary, setSummary] = useState<DashboardSummaryResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [data, setData] = useState<DashboardSummaryResponse | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let mounted = true;
-
-    const load = async () => {
+    const fetchData = async () => {
       try {
-        setIsLoading(true);
-        setError(null);
-        const data = await DashboardService().getSummary();
-        if (mounted) {
-          setSummary(data);
-        }
-      } catch (err: unknown) {
-        if (mounted) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Unable to load dashboard data.",
-          );
-        }
+        setLoading(true);
+        const summary = await DashboardService().getSummary();
+        setData(summary);
+      } catch (err) {
+        console.error("Failed to load dashboard summary:", err);
+        setError("Could not load dashboard data. Please try again.");
       } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
+        setLoading(false);
       }
     };
-
-    void load();
-
-    return () => {
-      mounted = false;
-    };
+    fetchData();
   }, []);
 
-  const metrics = useMemo(() => {
-    if (!summary) {
-      return [];
-    }
+  if (loading) {
+    return (
+      <div className="space-y-8 p-2 md:p-6 max-w-7xl mx-auto animate-pulse">
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-28 rounded-full" />
+          <Skeleton className="h-10 w-96 rounded-xl" />
+        </div>
+        <div className="grid gap-6 md:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
+            <Skeleton key={i} className="h-80 rounded-3xl" />
+          ))}
+        </div>
+        <div className="grid gap-6 md:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-    return [
-      {
-        label: "Occupancy",
-        value: formatPercent(summary.dashboardStats.occupancy),
-        detail: `${summary.dashboardStats.occupiedRooms} occupied / ${summary.dashboardStats.availableRooms} available`,
-        icon: Hotel,
-      },
-      {
-        label: "Occupied rooms",
-        value: String(summary.dashboardStats.occupiedRooms),
-        detail: `${summary.dashboardStats.totalRooms} total rooms on property`,
-        icon: Hotel,
-      },
-      {
-        label: "Available rooms",
-        value: String(summary.dashboardStats.availableRooms),
-        detail: "Rooms ready for assignment now",
-        icon: CalendarClock,
-      },
-      {
-        label: "Revenue collected today",
-        value: formatCurrency(summary.dashboardStats.revenueCollectedToday),
-        detail: "Payments captured so far today",
-        icon: Banknote,
-      },
-      {
-        label: "Projected end-of-day revenue",
-        value: formatCurrency(summary.dashboardStats.projectedEndOfDayRevenue),
-        detail: "Includes expected remaining balances",
-        icon: Sparkles,
-      },
-      {
-        label: "Average Daily Rate",
-        value: formatCurrency(summary.dashboardStats.averageDailyRate),
-        detail: "Current occupied-room average",
-        icon: Banknote,
-      },
-      {
-        label: "RevPAR",
-        value: formatCurrency(summary.dashboardStats.revPar),
-        detail: "Revenue per available room",
-        icon: Banknote,
-      },
-      {
-        label: "Today's check-ins",
-        value: String(summary.dashboardStats.todayCheckIns),
-        detail: "Guests currently arriving or due",
-        icon: LogIn,
-      },
-      {
-        label: "Today's check-outs",
-        value: String(summary.dashboardStats.todayCheckOuts),
-        detail: "Departures scheduled for today",
-        icon: LogOut,
-      },
-    ];
-  }, [summary]);
+  if (error || !data) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <Alert variant="destructive" className="rounded-2xl border-destructive/30 bg-destructive/10">
+          <AlertCircle className="h-5 w-5" />
+          <AlertTitle className="font-semibold">System Notice</AlertTitle>
+          <AlertDescription>{error || "Something went wrong loading dashboard data."}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  const {
+    dashboardStats,
+    arrivals,
+    departures,
+    roomStatus,
+    housekeeping,
+    attentionItems,
+    recentActivity,
+    nextArrival,
+    nextDeparture
+  } = data;
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="w-full">
-      <div className="space-y-6">
-        <motion.div variants={item}>
-          <PageHeader
-            eyebrow="Hotel command center"
-            title="Operational dashboard"
-            description="Monitor occupancy, arrivals, departures, revenue, housekeeping, and exceptions from one place."
-          />
-        </motion.div>
+    <div className="space-y-10 p-2 sm:p-4 md:p-6 max-w-7xl mx-auto">
 
-        {error && (
-          <div className="rounded-2xl border border-[#F3D3D3] bg-[#FFF7F7] px-4 py-3 text-sm font-medium text-[#B42318]">
-            {error}
-          </div>
-        )}
-
-        <motion.div
-          variants={item}
-          className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
-        >
-          {isLoading
-            ? loadingMetrics.map((value) => (
-                <div
-                  key={value}
-                  className="h-[140px] animate-pulse rounded-2xl border border-[#E8E8E8] bg-white"
-                />
-              ))
-            : metrics.map((metric) => <MetricCard key={metric.label} {...metric} />)}
-        </motion.div>
-
-        {!isLoading && summary && (
-          <>
-            <motion.div variants={item} className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-              <SectionCard
-                eyebrow="Revenue & occupancy"
-                title="Today at a glance"
-                description="Revenue, occupancy, and current business pressure."
-                action={<StatusChip label="Live" tone="info" />}
-              >
-                <div className="grid gap-4 lg:grid-cols-[1.4fr_0.9fr]">
-                  <div className="rounded-2xl bg-[#0C0332] p-5 text-white">
-                    <div className="flex items-center gap-2">
-                      <Banknote size={15} className="text-[#8D80FF]" />
-                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#AAA5C0]">
-                        Revenue collected today
-                      </p>
-                    </div>
-
-                    <p className="mt-4 text-4xl font-bold tracking-tight">
-                      {formatCurrency(summary.dashboardStats.revenueCollectedToday)}
-                    </p>
-
-                    <div className="mt-4 grid grid-cols-2 gap-4 text-[12px]">
-                      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                        <p className="text-[#AAA5C0]">Projected EOD</p>
-                        <p className="mt-1 font-bold text-white">
-                          {formatCurrency(summary.dashboardStats.projectedEndOfDayRevenue)}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                        <p className="text-[#AAA5C0]">Current ADR</p>
-                        <p className="mt-1 font-bold text-white">
-                          {formatCurrency(summary.dashboardStats.averageDailyRate)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4">
-                    <div className="rounded-2xl border border-[#E8E8E8] bg-[#FBFBFC] p-4">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8A8787]">
-                        Occupancy trend
-                      </p>
-                      <div className="mt-4 h-28 rounded-xl border border-dashed border-[#E8E8E8] bg-white/60 px-4 py-3">
-                        <p className="text-[12px] text-[#6B6B6B]">
-                          Backend summary is now authoritative for occupancy, revenue, arrivals, and departures.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-[#E8E8E8] bg-[#FBFBFC] p-4">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8A8787]">
-                        Current cycle
-                      </p>
-                      <p className="mt-2 text-sm font-semibold text-[#0C0332]">
-                        Live hotel operations
-                      </p>
-                      <p className="mt-1 text-[12px] leading-6 text-[#6B6B6B]">
-                        {summary.dashboardStats.todayCheckIns} check-ins and {summary.dashboardStats.todayCheckOuts} check-outs are in scope today.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </SectionCard>
-
-              <SectionCard
-                eyebrow="Attention"
-                title="Operational exceptions"
-                description="Items that need intervention from front desk, housekeeping, or finance."
-              >
-                <div className="space-y-4">
-                  {summary.attentionItems.length > 0 ? (
-                    summary.attentionItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className="rounded-2xl border border-[#F0E8E8] bg-[#FFFDFD] p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-[13px] font-bold text-[#0C0332]">
-                              {item.title}
-                            </p>
-                            <p className="mt-1 text-[12px] leading-6 text-[#6B6B6B]">
-                              {item.description}
-                            </p>
-                          </div>
-                          <StatusChip label={item.type} tone="warning" />
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="rounded-2xl bg-[#FBFBFC] p-4 text-[12px] text-[#6B6B6B]">
-                      No active attention items.
-                    </div>
-                  )}
-                </div>
-              </SectionCard>
-            </motion.div>
-
-            <motion.div variants={item} className="grid gap-6 xl:grid-cols-2">
-              <SectionCard
-                eyebrow="Next arrival"
-                title={
-                  summary.nextArrival
-                    ? `${summary.nextArrival.reference}`
-                    : "No pending arrivals"
-                }
-                description={
-                  summary.nextArrival
-                    ? `Stay ${summary.nextArrival.reference} · Room ${summary.nextArrival.roomNumber ?? summary.nextArrival.roomId}`
-                    : "Arrivals will appear here once they are scheduled."
-                }
-                action={
-                  <StatusChip
-                    label={summary.nextArrival ? summary.nextArrival.status : "idle"}
-                    tone="info"
-                  />
-                }
-              >
-                {summary.nextArrival ? (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="rounded-2xl bg-[#FBFBFC] p-4">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8A8787]">
-                        Guest details
-                      </p>
-                      <p className="mt-2 text-[13px] font-semibold text-[#0C0332]">
-                        {summary.nextArrival.guestName ?? summary.nextArrival.reference}
-                      </p>
-                      <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                        {summary.nextArrival.guestsCount} guest(s)
-                      </p>
-                    </div>
-                    <div className="rounded-2xl bg-[#FBFBFC] p-4">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8A8787]">
-                        Timing
-                      </p>
-                      <p className="mt-2 text-[13px] font-semibold text-[#0C0332]">
-                        {new Date(summary.nextArrival.expectedCheckoutAt).toLocaleString()}
-                      </p>
-                      <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                        Scheduled arrival / next turnaround.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl bg-[#FBFBFC] p-4 text-[12px] text-[#6B6B6B]">
-                    No arrivals are queued right now.
-                  </div>
-                )}
-              </SectionCard>
-
-              <SectionCard
-                eyebrow="Next departure"
-                title={
-                  summary.nextDeparture
-                    ? `${summary.nextDeparture.reference}`
-                    : "No active departures"
-                }
-                description={
-                  summary.nextDeparture
-                    ? `Stay ${summary.nextDeparture.reference} · Room ${summary.nextDeparture.roomNumber ?? summary.nextDeparture.roomId}`
-                    : "Departures will appear once a guest is active."
-                }
-                action={
-                  <StatusChip
-                    label={summary.nextDeparture ? "active" : "idle"}
-                    tone={Number(summary.nextDeparture?.outstandingBalance ?? 0) > 0 ? "warning" : "success"}
-                  />
-                }
-              >
-                {summary.nextDeparture ? (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="rounded-2xl bg-[#FBFBFC] p-4">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8A8787]">
-                        Balance
-                      </p>
-                      <p className="mt-2 text-[13px] font-semibold text-[#0C0332]">
-                        {formatCurrency(Number(summary.nextDeparture.outstandingBalance))}
-                      </p>
-                      <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                        Settlement required before departure.
-                      </p>
-                    </div>
-                    <div className="rounded-2xl bg-[#FBFBFC] p-4">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8A8787]">
-                        Departure time
-                      </p>
-                      <p className="mt-2 text-[13px] font-semibold text-[#0C0332]">
-                        {new Date(summary.nextDeparture.expectedCheckoutAt).toLocaleString()}
-                      </p>
-                      <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                        Scheduled from an active stay.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl bg-[#FBFBFC] p-4 text-[12px] text-[#6B6B6B]">
-                    No departures are queued right now.
-                  </div>
-                )}
-              </SectionCard>
-            </motion.div>
-
-            <motion.div variants={item} className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
-              <SectionCard
-                eyebrow="Occupancy & rooms"
-                title="Room pressure today"
-                description="Rooms turning over, occupied inventory, and saleable capacity."
-                action={<StatusChip label="Operational" tone="success" />}
-              >
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="rounded-2xl bg-[#FBFBFC] p-4">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8A8787]">
-                      Occupied
-                    </p>
-                    <p className="mt-2 text-2xl font-bold text-[#0C0332]">
-                      {summary.roomStatus.occupied}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-[#FBFBFC] p-4">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8A8787]">
-                      Turning over
-                    </p>
-                    <p className="mt-2 text-2xl font-bold text-[#0C0332]">
-                      {summary.roomStatus.turningOver}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-[#FBFBFC] p-4">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8A8787]">
-                      Arrivals remaining
-                    </p>
-                    <p className="mt-2 text-2xl font-bold text-[#0C0332]">
-                      {summary.roomStatus.checkInsRemaining}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4 rounded-2xl border border-[#E8E8E8] bg-[#FBFBFC] p-4">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8A8787]">
-                    Sold-out risk
-                  </p>
-                  <div className="mt-3 h-2 rounded-full bg-[#EDEDED]">
-                    <div
-                      className="h-2 rounded-full bg-[#1900FF]"
-                      style={{
-                        width: `${Math.min(100, summary.roomStatus.occupancy)}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="mt-2 text-[12px] text-[#6B6B6B]">
-                    {summary.roomStatus.occupancy.toFixed(1)}% occupancy based on backend records.
-                  </p>
-                </div>
-              </SectionCard>
-
-              <SectionCard
-                eyebrow="Housekeeping"
-                title="Room readiness"
-                description="Track cleaning, inspection, and rooms ready for sale."
-              >
-                <div className="space-y-3">
-                  {[
-                    ["cleaning", summary.housekeeping.cleaning],
-                    ["inspection", summary.housekeeping.inspection],
-                    ["ready", summary.housekeeping.ready],
-                    ["maintenance", summary.housekeeping.maintenance],
-                  ].map(([status, value]) => (
-                    <div
-                      key={String(status)}
-                      className="flex items-center justify-between rounded-2xl bg-[#FBFBFC] p-4"
-                    >
-                      <span className="text-[13px] font-bold text-[#0C0332] capitalize">
-                        {String(status)}
-                      </span>
-                      <StatusChip label={String(value)} tone="neutral" />
-                    </div>
-                  ))}
-                </div>
-              </SectionCard>
-            </motion.div>
-
-            <motion.div variants={item} className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-              <SectionCard
-                eyebrow="Revenue by room type"
-                title="Yield mix"
-                description="Dynamic revenue split by each room type in the property."
-              >
-                <div className="space-y-4">
-                  {summary.revenue.byRoomType.length > 0 ? (
-                    summary.revenue.byRoomType.map((roomType) => (
-                      <div key={roomType.id} className="flex items-center gap-4">
-                        <span className="w-24 text-[12px] font-bold text-[#0C0332]">
-                          {roomType.type}
-                        </span>
-                        <div className="flex-1 h-2 overflow-hidden rounded-full bg-[#F1F1F1]">
-                          <div className="h-full rounded-full bg-[#1900FF]" style={{ width: "100%" }} />
-                        </div>
-                        <span className="w-24 text-right text-[12px] font-bold text-[#0C0332]">
-                          {formatCurrency(roomType.revenue)}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="rounded-2xl bg-[#FBFBFC] p-4 text-[12px] text-[#6B6B6B]">
-                      No room type revenue has been recorded yet.
-                    </div>
-                  )}
-                </div>
-              </SectionCard>
-
-              <SectionCard
-                eyebrow="Recent activity"
-                title="Operational trail"
-                description="The most recent hotel actions across rooms, guests, housekeeping, and finance."
-              >
-                <div className="space-y-4">
-                  {summary.recentActivity.length > 0 ? (
-                    summary.recentActivity.map((log) => (
-                      <div key={log.id} className="rounded-2xl bg-[#FBFBFC] p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-[13px] font-bold text-[#0C0332]">
-                              {log.event}
-                            </p>
-                            <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                              {log.actorName ?? "System"} {log.description ? `· ${log.description}` : ""}
-                            </p>
-                          </div>
-                          <StatusChip label={new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} tone="neutral" />
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="rounded-2xl bg-[#FBFBFC] p-4 text-[12px] text-[#6B6B6B]">
-                      No recent activity recorded.
-                    </div>
-                  )}
-                </div>
-              </SectionCard>
-            </motion.div>
-
-            <motion.div variants={item} className="grid gap-6 xl:grid-cols-3">
-              <SectionCard eyebrow="Attention queue" title="Needs attention">
-                <div className="space-y-3">
-                  {summary.attentionItems.length > 0 ? (
-                    summary.attentionItems.map((item) => (
-                      <div key={item.id} className="rounded-2xl bg-[#FBFBFC] p-4">
-                        <p className="text-[13px] font-bold text-[#0C0332]">{item.title}</p>
-                        <p className="mt-1 text-[12px] text-[#6B6B6B]">{item.description}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="rounded-2xl bg-[#FBFBFC] p-4 text-[12px] text-[#6B6B6B]">
-                      No active attention items.
-                    </div>
-                  )}
-                </div>
-              </SectionCard>
-
-              <SectionCard eyebrow="Notifications" title="Live alerts">
-                <div className="space-y-3">
-                  <div className="rounded-2xl bg-[#FBFBFC] p-4 text-[12px] text-[#6B6B6B]">
-                    Alert feed is driven by backend notifications.
-                  </div>
-                </div>
-              </SectionCard>
-
-              <SectionCard eyebrow="Quick status" title="Live counts">
-                <div className="space-y-3 text-[12px] text-[#6B6B6B]">
-                  <div className="flex items-center justify-between rounded-2xl bg-[#FBFBFC] p-4">
-                    <span className="inline-flex items-center gap-2 font-semibold text-[#0C0332]">
-                      <LogIn size={14} className="text-[#1900FF]" />
-                      Arrivals today
-                    </span>
-                    <span>{summary.dashboardStats.todayCheckIns}</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-[#FBFBFC] p-4">
-                    <span className="inline-flex items-center gap-2 font-semibold text-[#0C0332]">
-                      <LogOut size={14} className="text-[#1900FF]" />
-                      Departures today
-                    </span>
-                    <span>{summary.dashboardStats.todayCheckOuts}</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-[#FBFBFC] p-4">
-                    <span className="inline-flex items-center gap-2 font-semibold text-[#0C0332]">
-                      <BellRing size={14} className="text-[#1900FF]" />
-                      Rooms out of service
-                    </span>
-                    <span>{summary.roomStatus.total - summary.roomStatus.available - summary.roomStatus.occupied}</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-[#FBFBFC] p-4">
-                    <span className="inline-flex items-center gap-2 font-semibold text-[#0C0332]">
-                      <ShieldAlert size={14} className="text-[#1900FF]" />
-                      Unresolved balances
-                    </span>
-                    <span>{summary.attentionItems.length}</span>
-                  </div>
-                </div>
-              </SectionCard>
-            </motion.div>
-          </>
-        )}
-
-        {isLoading && (
-          <div className="grid gap-6 xl:grid-cols-2">
-            <div className="h-[240px] animate-pulse rounded-2xl border border-[#E8E8E8] bg-white" />
-            <div className="h-[240px] animate-pulse rounded-2xl border border-[#E8E8E8] bg-white" />
-          </div>
-        )}
+      {/* ─── HERO HEADER ────────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-border/40 pb-6">
+        <div className="space-y-2">
+          <Badge
+            variant="outline"
+            className="rounded-full px-3 py-1 font-medium text-xs bg-muted/60 text-muted-foreground border-border/60"
+          >
+            Hotel Overview
+          </Badge>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
+            Smarter Systems For Better <br className="hidden sm:inline" />
+            Hospitality Management
+          </h1>
+        </div>
+        <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
+          Real-time occupancy tracking, seamless guest check-ins, and live room maintenance.
+        </p>
       </div>
-    </motion.div>
+
+      {/* ─── TOP FEATURED CARDS (INSPIRED BY 3-CARD HERO ROW) ───────── */}
+      <div className="grid gap-6 md:grid-cols-3">
+
+        {/* Card 1: Guest Arrivals Spotlight */}
+        <div className="group relative flex flex-col justify-between rounded-3xl bg-muted/40 border border-border/50 p-6 transition-all hover:shadow-lg hover:border-border">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+              <Users className="h-4 w-4" />
+              <span>Arrivals ({arrivals.length})</span>
+            </div>
+
+            {/* Embedded Floating Inner Preview Card */}
+            <div className="bg-card border border-border/60 rounded-2xl p-4 shadow-sm space-y-3 mb-6 transition-transform group-hover:-translate-y-1">
+              {nextArrival ? (
+                <>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-xs text-muted-foreground font-medium">Next Check-In</p>
+                      <h4 className="font-bold text-base text-foreground mt-0.5">{nextArrival.guestName}</h4>
+                    </div>
+                    <Badge variant="secondary" className="rounded-lg text-[10px] font-mono">
+                      {nextArrival.roomNumber}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border/40 pt-2">
+                    <span>{nextArrival.roomTypeName}</span>
+                    <span className="font-semibold text-foreground">{formatDateTime(nextArrival.expectedCheckInAt)}</span>
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">No upcoming check-ins scheduled for today.</p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-bold text-lg text-foreground tracking-tight">Manage Guest Arrivals</h3>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              Track incoming guests, confirm booking details, and prepare keys seamlessly.
+            </p>
+          </div>
+        </div>
+
+        {/* Card 2: Guest Departures & Balances */}
+        <div className="group relative flex flex-col justify-between rounded-3xl bg-muted/40 border border-border/50 p-6 transition-all hover:shadow-lg hover:border-border">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+              <CalendarClock className="h-4 w-4" />
+              <span>Departures ({departures.length})</span>
+            </div>
+
+            {/* Embedded Floating Inner Preview Card */}
+            <div className="bg-card border border-border/60 rounded-2xl p-4 shadow-sm space-y-3 mb-6 transition-transform group-hover:-translate-y-1">
+              {nextDeparture ? (
+                <>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-xs text-muted-foreground font-medium">Next Checkout</p>
+                      <h4 className="font-bold text-base text-foreground mt-0.5">{nextDeparture.guestName}</h4>
+                    </div>
+                    <span className="text-xs font-mono bg-muted px-2 py-1 rounded-md">
+                      Room {nextDeparture.roomNumber}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs border-t border-border/40 pt-2">
+                    <span className="text-muted-foreground">Folio Balance</span>
+                    {nextDeparture.outstandingBalance && Number(nextDeparture.outstandingBalance) > 0 ? (
+                      <span className="font-bold text-destructive">
+                        Due: {formatCurrency(nextDeparture.outstandingBalance)}
+                      </span>
+                    ) : (
+                      <span className="font-semibold text-emerald-600 flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> Settled
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">No remaining departures today.</p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-bold text-lg text-foreground tracking-tight">Express Check-Out</h3>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              Handle billing, inspect mini-bars, and release room status instantly.
+            </p>
+          </div>
+        </div>
+
+        {/* Card 3: High-Contrast Hero Card (Matches Green/Dark Featured Card in Inspiration) */}
+        <div className="relative flex flex-col justify-between rounded-3xl bg-primary text-primary-foreground p-6 shadow-xl overflow-hidden">
+          {/* Subtle Ambient Background Highlight */}
+          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary-foreground/10 blur-2xl pointer-events-none" />
+
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <Badge className="bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30 border-none rounded-full px-3 py-0.5 text-xs">
+                Operations Status
+              </Badge>
+              <Bell className="h-4 w-4 text-primary-foreground/80" />
+            </div>
+
+            {/* Inner Dark Floating Panel */}
+            <div className="bg-primary-foreground/10 backdrop-blur-md rounded-2xl p-4 border border-primary-foreground/20 space-y-3 mb-6">
+              <div className="flex items-center gap-2 text-xs font-semibold text-primary-foreground/90">
+                <ShieldAlert className="h-4 w-4" />
+                <span>Action Items ({attentionItems.length})</span>
+              </div>
+              {attentionItems.length > 0 ? (
+                <div>
+                  <p className="text-sm font-bold leading-tight text-primary-foreground">
+                    {attentionItems[0].title}
+                  </p>
+                  <p className="text-xs text-primary-foreground/75 mt-1 line-clamp-2">
+                    {attentionItems[0].description}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-primary-foreground/80">
+                  All systems operational. No urgent issues reported.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-bold text-xl tracking-tight">System Controls & Alerts</h3>
+            <p className="text-xs text-primary-foreground/80 mt-1 leading-relaxed">
+              Configured workflows to optimize hotel turnaround times and prevent errors.
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ─── BIG STATS ROW (INSPIRED BY THE PERCENTAGE CALLOUTS) ─────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 py-4 border-y border-border/40">
+        <div className="space-y-1">
+          <p className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+            {dashboardStats.occupancy}%
+          </p>
+          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+            <BedDouble className="h-3.5 w-3.5" /> Total Occupancy
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+            {formatNumber(dashboardStats.availableRooms)}
+          </p>
+          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+            <DoorOpen className="h-3.5 w-3.5" /> Rooms Ready
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+            {formatCurrency(dashboardStats.revenueCollectedToday)}
+          </p>
+          <p className="text-xs font-medium text-emerald-600 dark:text-emerald-500 flex items-center gap-1">
+            <ArrowUpRight className="h-3.5 w-3.5" /> Revenue Today
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+            {formatCurrency(dashboardStats.projectedEndOfDayRevenue)}
+          </p>
+          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+            <Wallet className="h-3.5 w-3.5" /> Projected EOD
+          </p>
+        </div>
+      </div>
+
+      {/* ─── CORE MODULES / DETAILED BREAKDOWN ──────────────────────── */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <Badge
+              variant="outline"
+              className="rounded-full px-3 py-0.5 text-xs bg-muted/60 text-muted-foreground border-border/60"
+            >
+              Core Modules
+            </Badge>
+            <h2 className="text-2xl font-bold tracking-tight text-foreground">Operational Breakdown</h2>
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-12">
+
+          {/* Housekeeping Section */}
+          <Card className="md:col-span-6 rounded-3xl border border-border/50 bg-card shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Housekeeping Tracker
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-4">
+                  <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Cleaning</span>
+                  <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+                    {housekeeping.cleaning}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-blue-500/10 border border-blue-500/20 p-4">
+                  <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Inspection</span>
+                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
+                    {housekeeping.inspection}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4">
+                  <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Ready</span>
+                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                    {housekeeping.ready}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-destructive/10 border border-destructive/20 p-4">
+                  <span className="text-xs font-medium text-destructive">Maintenance</span>
+                  <p className="text-2xl font-bold text-destructive mt-1">
+                    {housekeeping.maintenance}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Room Inventory & Rates */}
+          <Card className="md:col-span-6 rounded-3xl border border-border/50 bg-card shadow-sm flex flex-col justify-between">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <BedDouble className="h-4 w-4 text-primary" />
+                Inventory & Yield
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Occupied Rooms</span>
+                  <span className="font-semibold">{roomStatus.occupied} / {roomStatus.total}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Turning Over</span>
+                  <span className="font-semibold">{roomStatus.turningOver}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Average Nightly Rate (ADR)</span>
+                  <span className="font-semibold text-primary">{formatCurrency(roomStatus.averageNightlyRate)}</span>
+                </div>
+              </div>
+
+              {/* Minimal Progress Visualizer */}
+              <div className="pt-2">
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                  <span>Capacity Utilization</span>
+                  <span>{dashboardStats.occupancy}%</span>
+                </div>
+                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(dashboardStats.occupancy, 100)}%` }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+        </div>
+      </div>
+
+      {/* ─── SYSTEM ACTIVITY STREAM ──────────────────────────────────── */}
+      <Card className="rounded-3xl border border-border/50 bg-card shadow-sm">
+        <CardHeader className="border-b border-border/40 pb-4">
+          <CardTitle className="text-base font-bold flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" />
+            Live Activity Feed
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {recentActivity.length === 0 ? (
+            <p className="p-6 text-sm text-muted-foreground">No recent activity recorded.</p>
+          ) : (
+            <div className="divide-y divide-border/30">
+              {recentActivity.slice(0, 6).map((act) => (
+                <div key={act.id} className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        <span className="font-semibold">{act.actorName || "System"}</span>{" "}
+                        <span className="text-muted-foreground">{act.event}</span>
+                      </p>
+                      {act.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{act.description}</p>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground font-mono shrink-0 ml-4">
+                    {formatDate(act.createdAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+    </div>
   );
 }

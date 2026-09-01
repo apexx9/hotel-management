@@ -30,12 +30,7 @@ const images = [
 const Wrapper = ({ children }: WrapperProps) => {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#FBFBFC] lg:flex-row">
-      {/* Auth panel – scrollable */}
-      <section className="flex h-full flex-1 flex-col overflow-y-auto bg-white lg:w-1/2 lg:border-r lg:border-[#E8E8E8]">
-        {children}
-      </section>
-
-      {/* Brand panel – fixed, no scroll */}
+      {/* Brand panel – fixed, no scroll, now on left */}
       <section className="hidden h-full w-1/2 flex-col items-center justify-center bg-[#FBFBFC] px-10 py-12 lg:flex xl:px-16">
         <div className="flex w-full max-w-xl flex-col items-center">
           <Logo size="md" />
@@ -73,6 +68,11 @@ const Wrapper = ({ children }: WrapperProps) => {
             Manage guests, rooms, payments and daily operations from one place.
           </p>
         </div>
+      </section>
+
+      {/* Auth panel – scrollable, now on right */}
+      <section className="flex h-full flex-1 flex-col overflow-y-auto bg-white lg:w-1/2 lg:border-l lg:border-[#E8E8E8]">
+        {children}
       </section>
     </div>
   );

@@ -1,15 +1,38 @@
 import {
+  boolean,
   pgTable,
+  timestamp,
   uuid,
   varchar,
-  timestamp,
-  boolean,
 } from 'drizzle-orm/pg-core';
 
-export const refresh_tokens = pgTable('refresh_tokens', {
+import { users } from './users.schema';
+
+export const refreshTokens = pgTable('refresh_tokens', {
   id: uuid('id').primaryKey().defaultRandom(),
-  token_hash: varchar('token_hash', { length: 255 }).notNull(),
-  user_id: uuid('user_id').notNull(),
-  expires_at: timestamp('expires_at').notNull(),
-  revoked: boolean('revoked').notNull().default(false),
+
+  tokenHash: varchar('token_hash', {
+    length: 255,
+  }).notNull(),
+
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, {
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    }),
+
+  expiresAt: timestamp('expires_at', {
+    withTimezone: true,
+  }).notNull(),
+
+  revoked: boolean('revoked')
+    .notNull()
+    .default(false),
+
+  createdAt: timestamp('created_at', {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
 });

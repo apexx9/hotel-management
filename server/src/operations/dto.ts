@@ -290,6 +290,10 @@ export class CreateBookingDto {
   @Min(1)
   nights: number;
 
+  @IsString()
+  @IsNotEmpty()
+  expectedCheckInAt: string;
+
   @IsNumber()
   rate: number;
 

@@ -1,20 +1,36 @@
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
-import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
-import * as dotenv from 'dotenv';
+import { AppModule } from './app.module';
 
 async function bootstrap() {
-  dotenv.config();
   const app = await NestFactory.create(AppModule);
+
+  const allowedOrigins = (process.env.CLIENT_ORIGIN ?? 'http://localhost:3000')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
   app.enableCors({
-    origin: process.env.CLIENT_ORIGIN || '*',
+    origin: allowedOrigins,
     credentials: true,
   });
+
   app.use(cookieParser());
+  app.setGlobalPrefix('api');
   app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false }),
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
   );
-  await app.listen(process.env.PORT ?? 3000);
+
+  const port = Number(process.env.PORT ?? 3001);
+  await app.listen(port);
 }
-bootstrap();
+
+void bootstrap();

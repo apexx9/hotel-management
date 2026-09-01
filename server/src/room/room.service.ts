@@ -28,11 +28,19 @@ export class RoomService {
       throw new ForbiddenException('User not found');
     }
 
-    return user.hotel_id;
+    return user.hotelId;
+  }
+
+  private async getRequiredHotelId(userId: string): Promise<string> {
+    const hotelId = await this.getUserHotelId(userId);
+    if (!hotelId) {
+      throw new BadRequestException('Hotel context not found');
+    }
+    return hotelId;
   }
 
   private async writeActivity(
-    hotelId: string | null,
+    hotelId: string,
     actorUserId: string | null,
     actorName: string | null,
     event: string,
@@ -52,8 +60,8 @@ export class RoomService {
   }
 
   async create(userId: string, dto: CreateRoomDto) {
-    const hotelId = await this.getUserHotelId(userId);
-    const hotelFilter = hotelId ? eq(rooms.hotelId, hotelId) : sql`true`;
+    const hotelId = await this.getRequiredHotelId(userId);
+    const hotelFilter = eq(rooms.hotelId, hotelId);
 
     const [existing] = await this.db
       .select()
@@ -120,8 +128,8 @@ export class RoomService {
   }
 
   async update(id: string, userId: string, dto: UpdateRoomDto) {
-    const hotelId = await this.getUserHotelId(userId);
-    const hotelFilter = hotelId ? eq(rooms.hotelId, hotelId) : sql`true`;
+    const hotelId = await this.getRequiredHotelId(userId);
+    const hotelFilter = eq(rooms.hotelId, hotelId);
 
     const [existing] = await this.db
       .select()
@@ -164,8 +172,8 @@ export class RoomService {
   }
 
   async updateStatus(id: string, userId: string, dto: UpdateRoomStatusDto) {
-    const hotelId = await this.getUserHotelId(userId);
-    const hotelFilter = hotelId ? eq(rooms.hotelId, hotelId) : sql`true`;
+    const hotelId = await this.getRequiredHotelId(userId);
+    const hotelFilter = eq(rooms.hotelId, hotelId);
 
     const [existing] = await this.db
       .select()
@@ -211,8 +219,8 @@ export class RoomService {
   }
 
   async remove(id: string, userId: string) {
-    const hotelId = await this.getUserHotelId(userId);
-    const hotelFilter = hotelId ? eq(rooms.hotelId, hotelId) : sql`true`;
+    const hotelId = await this.getRequiredHotelId(userId);
+    const hotelFilter = eq(rooms.hotelId, hotelId);
 
     const [existing] = await this.db
       .select()

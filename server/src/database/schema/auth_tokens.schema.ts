@@ -1,10 +1,51 @@
-import { pgTable, uuid, varchar, boolean } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  pgTable,
+  timestamp,
+  uuid,
+  varchar,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 
-export const auth_tokens = pgTable('auth_tokens', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  token: varchar('token', { length: 255 }).notNull(),
-  user_id: uuid('user_id').notNull(),
-  type: varchar('type', { length: 64 }).notNull(), // e.g., verify, password_reset
-  expires_at: varchar('expires_at', { length: 64 }),
-  used: boolean('used').notNull().default(false),
-});
+import { users } from './users.schema';
+
+export const authTokens = pgTable(
+  'auth_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    token: varchar('token', {
+      length: 255,
+    }).notNull(),
+
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, {
+        onDelete: 'cascade',
+        onUpdate: 'cascade',
+      }),
+
+    type: varchar('type', {
+      length: 64,
+    }).notNull(),
+
+    expiresAt: timestamp('expires_at', {
+      withTimezone: true,
+    }).notNull(),
+
+    used: boolean('used')
+      .notNull()
+      .default(false),
+
+    createdAt: timestamp('created_at', {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    tokenUnique: uniqueIndex('auth_tokens_token_unique').on(
+      table.token,
+    ),
+  }),
+);

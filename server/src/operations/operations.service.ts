@@ -25,7 +25,7 @@ import {
   stays,
   users,
 } from '../database/schema';
-import { and, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql, or, inArray } from 'drizzle-orm';
 import {
   CheckInDto,
   CheckOutDto,
@@ -50,9 +50,9 @@ import * as crypto from 'crypto';
 type UserContext = {
   id: string;
   email: string;
-  full_name: string;
+  fullName: string;
   role: string;
-  hotel_id: string | null;
+  hotelId: string | null;
 };
 
 const money = (value: unknown) => Number(value ?? 0);
@@ -77,12 +77,20 @@ export class OperationsService {
       throw new ForbiddenException('User not found');
     }
 
-    return user;
+    return user as UserContext;
   }
 
   private async getDefaultHotelId(userId: string): Promise<string | null> {
     const user = await this.getUserContext(userId);
-    return user.hotel_id ?? null;
+    return user.hotelId ?? null;
+  }
+
+  private async getRequiredHotelId(userId: string): Promise<string> {
+    const hotelId = await this.getDefaultHotelId(userId);
+    if (!hotelId) {
+      throw new BadRequestException('Hotel context not found');
+    }
+    return hotelId;
   }
 
   private async getCurrentUser(userId: string) {
@@ -90,7 +98,7 @@ export class OperationsService {
   }
 
   private async writeActivity(
-    hotelId: string | null,
+    hotelId: string,
     actorUserId: string | null,
     actorName: string | null,
     event: string,
@@ -110,7 +118,7 @@ export class OperationsService {
   }
 
   private async writeNotification(
-    hotelId: string | null,
+    hotelId: string,
     type:
       | 'checkout_overdue'
       | 'payment_outstanding'
@@ -193,10 +201,10 @@ export class OperationsService {
     const availableRooms = allRooms.filter(
       (room) => room.status === 'available',
     );
-    const revenueCollectedToday = allPayments.reduce(
-      (sum, payment) => sum + money(payment.amount),
-      0,
-    );
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const revenueCollectedToday = allPayments.filter(
+      (payment) => new Date(payment.createdAt).toISOString().slice(0, 10) === todayIso,
+    ).reduce((sum, payment) => sum + money(payment.amount), 0);
     const totalRooms = allRooms.length;
     const occupancy = totalRooms
       ? (occupiedRooms.length / totalRooms) * 100
@@ -212,8 +220,6 @@ export class OperationsService {
         currentStays.length
       : 0;
     const revpar = totalRooms ? revenueCollectedToday / totalRooms : 0;
-    const todayIso = new Date().toISOString().slice(0, 10);
-
     const roomTypeRevenue = allRoomTypes.map((roomType) => {
       const roomTypeStays = allStays.filter(
         (stay) => stay.roomTypeId === roomType.id,
@@ -232,7 +238,7 @@ export class OperationsService {
       .filter((stay) => ['reserved', 'pending_arrival'].includes(stay.status))
       .sort(
         (a, b) =>
-          a.expectedCheckoutAt.getTime() - b.expectedCheckoutAt.getTime(),
+          a.expectedCheckInAt.getTime() - b.expectedCheckInAt.getTime(),
       )[0];
 
     const nextDeparture = currentStays.sort(
@@ -382,7 +388,7 @@ export class OperationsService {
   }
 
   async createRoomType(userId: string, dto: CreateRoomTypeDto) {
-    const hotelId = await this.getDefaultHotelId(userId);
+    const hotelId = await this.getRequiredHotelId(userId);
     const [created] = await this.db
       .insert(roomTypes)
       .values({
@@ -410,8 +416,8 @@ export class OperationsService {
   }
 
   async updateRoomType(userId: string, id: string, dto: UpdateRoomTypeDto) {
-    const hotelId = await this.getDefaultHotelId(userId);
-    const filter = hotelId ? eq(roomTypes.hotelId, hotelId) : sql`true`;
+    const hotelId = await this.getRequiredHotelId(userId);
+    const filter = eq(roomTypes.hotelId, hotelId);
 
     const updateFields: any = { updatedAt: new Date() };
     if (dto.name !== undefined) updateFields.name = dto.name;
@@ -444,8 +450,8 @@ export class OperationsService {
   }
 
   async deleteRoomType(userId: string, id: string) {
-    const hotelId = await this.getDefaultHotelId(userId);
-    const filter = hotelId ? eq(roomTypes.hotelId, hotelId) : sql`true`;
+    const hotelId = await this.getRequiredHotelId(userId);
+    const filter = eq(roomTypes.hotelId, hotelId);
 
     const [existing] = await this.db
       .select()
@@ -517,8 +523,8 @@ export class OperationsService {
   }
 
   async createGuest(userId: string, dto: CreateGuestDto) {
-    const hotelId = await this.getDefaultHotelId(userId);
-    const hotelFilter = hotelId ? eq(guests.hotelId, hotelId) : sql`true`;
+    const hotelId = await this.getRequiredHotelId(userId);
+    const hotelFilter = eq(guests.hotelId, hotelId);
     const [existing] = await this.db
       .select()
       .from(guests)
@@ -569,8 +575,8 @@ export class OperationsService {
   }
 
   async updateGuest(userId: string, id: string, dto: UpdateGuestDto) {
-    const hotelId = await this.getDefaultHotelId(userId);
-    const filter = hotelId ? eq(guests.hotelId, hotelId) : sql`true`;
+    const hotelId = await this.getRequiredHotelId(userId);
+    const filter = eq(guests.hotelId, hotelId);
 
     const updateFields: any = { updatedAt: new Date() };
     if (dto.firstName !== undefined) updateFields.firstName = dto.firstName;
@@ -608,20 +614,34 @@ export class OperationsService {
   // ==========================================
   // STAYS & BOOKINGS
   // ==========================================
-  async listStays(userId: string, filters?: { status?: string; guestId?: string; roomId?: string }) {
+  async listStays(
+    userId: string,
+    filters?: { status?: string; guestId?: string; roomId?: string },
+  ) {
     const hotelId = await this.getDefaultHotelId(userId);
-    const hotelFilter = hotelId ? eq(stays.hotelId, hotelId) : sql`true`;
 
-    const conditions = [hotelFilter];
+    // Proper table-specific hotel filters
+    const stayHotelFilter = hotelId ? eq(stays.hotelId, hotelId) : sql`true`;
+    const roomHotelFilter = hotelId ? eq(rooms.hotelId, hotelId) : sql`true`;
+    const guestHotelFilter = hotelId ? eq(guests.hotelId, hotelId) : sql`true`;
+    const roomTypeHotelFilter = hotelId
+      ? eq(roomTypes.hotelId, hotelId)
+      : sql`true`;
+
+    const conditions = [stayHotelFilter];
     if (filters?.status) conditions.push(eq(stays.status, filters.status as any));
     if (filters?.guestId) conditions.push(eq(stays.guestId, filters.guestId));
     if (filters?.roomId) conditions.push(eq(stays.roomId, filters.roomId));
 
     const [allStays, allRooms, allGuests, allRoomTypes] = await Promise.all([
-      this.db.select().from(stays).where(and(...conditions)).orderBy(desc(stays.createdAt)),
-      this.db.select().from(rooms).where(hotelFilter),
-      this.db.select().from(guests).where(hotelFilter),
-      this.db.select().from(roomTypes).where(hotelFilter),
+      this.db
+        .select()
+        .from(stays)
+        .where(and(...conditions))
+        .orderBy(desc(stays.createdAt)),
+      this.db.select().from(rooms).where(roomHotelFilter),
+      this.db.select().from(guests).where(guestHotelFilter),
+      this.db.select().from(roomTypes).where(roomTypeHotelFilter),
     ]);
 
     const roomById = new Map(allRooms.map((r) => [r.id, r]));
@@ -714,8 +734,9 @@ export class OperationsService {
   async createBooking(userId: string, dto: CreateBookingDto) {
     return this.db.transaction(async (tx) => {
       const user = await this.getCurrentUser(userId);
-      const hotelId = user.hotel_id;
-      const hotelFilter = hotelId ? eq(guests.hotelId, hotelId) : sql`true`;
+      const hotelId = user.hotelId;
+      if (!hotelId) throw new BadRequestException('Hotel context not found');
+      const hotelFilter = eq(guests.hotelId, hotelId);
 
       let guestRecord = dto.guestId
         ? (
@@ -840,7 +861,7 @@ export class OperationsService {
           roomId: roomRecord.id,
           roomTypeId: roomTypeRecord.id,
           status: stayStatus,
-          checkInAt: dto.checkInNow ? new Date() : null,
+          expectedCheckInAt: dto.checkInNow ? new Date() : (dto.expectedCheckInAt ? new Date(dto.expectedCheckInAt) : new Date()), // <-- ADD THIS LINE
           expectedCheckoutAt: new Date(Date.now() + dto.nights * 86400000),
           guestsCount: dto.guestsCount,
           nights: dto.nights,
@@ -945,7 +966,7 @@ export class OperationsService {
       await this.writeActivity(
         hotelId,
         user.id,
-        user.full_name,
+        user.fullName,
         'booking created',
         `Stay ${reference} created for ${guestRecord.firstName} ${guestRecord.lastName}.`,
         'stay',
@@ -1023,7 +1044,7 @@ export class OperationsService {
       await this.writeActivity(
         stay.hotelId,
         user.id,
-        user.full_name,
+        user.fullName,
         'check-in completed',
         `Stay ${stay.reference} checked in.`,
         'stay',
@@ -1130,7 +1151,7 @@ export class OperationsService {
       await this.writeActivity(
         stay.hotelId,
         user.id,
-        user.full_name,
+        user.fullName,
         'checkout completed',
         `Stay ${stay.reference} checked out. Room sent to housekeeping.`,
         'stay',
@@ -1276,7 +1297,7 @@ export class OperationsService {
       await this.writeActivity(
         stay.hotelId,
         user.id,
-        user.full_name,
+        user.fullName,
         'payment recorded',
         `Payment ${payment.reference} of GHS ${dto.amount} recorded for stay ${stay.reference}.`,
         'payment',
@@ -1310,7 +1331,7 @@ export class OperationsService {
   }
 
   async createService(userId: string, dto: CreateServiceDto) {
-    const hotelId = await this.getDefaultHotelId(userId);
+    const hotelId = await this.getRequiredHotelId(userId);
     const [created] = await this.db
       .insert(services)
       .values({
@@ -1337,8 +1358,8 @@ export class OperationsService {
   }
 
   async updateService(userId: string, id: string, dto: UpdateServiceDto) {
-    const hotelId = await this.getDefaultHotelId(userId);
-    const filter = hotelId ? eq(services.hotelId, hotelId) : sql`true`;
+    const hotelId = await this.getRequiredHotelId(userId);
+    const filter = eq(services.hotelId, hotelId);
 
     const updateFields: any = { updatedAt: new Date() };
     if (dto.name !== undefined) updateFields.name = dto.name;
@@ -1369,8 +1390,8 @@ export class OperationsService {
   }
 
   async deleteService(userId: string, id: string) {
-    const hotelId = await this.getDefaultHotelId(userId);
-    const filter = hotelId ? eq(services.hotelId, hotelId) : sql`true`;
+    const hotelId = await this.getRequiredHotelId(userId);
+    const filter = eq(services.hotelId, hotelId);
 
     const [existing] = await this.db
       .select()
@@ -1467,7 +1488,7 @@ export class OperationsService {
       await this.writeActivity(
         stay.hotelId,
         user.id,
-        user.full_name,
+        user.fullName,
         'service charge added',
         `${service.name} (GHS ${total}) added to stay ${stay.reference}.`,
         'stay',
@@ -1539,7 +1560,7 @@ export class OperationsService {
     await this.writeActivity(
       room.hotelId,
       user.id,
-      user.full_name,
+      user.fullName,
       'housekeeping task created',
       `Housekeeping task created for Room ${room.number}.`,
       'room',
@@ -1621,7 +1642,7 @@ export class OperationsService {
     await this.writeActivity(
       room.hotelId,
       user.id,
-      user.full_name,
+      user.fullName,
       'housekeeping updated',
       `Room ${room.number} marked ${dto.status}.`,
       'room',
@@ -1705,17 +1726,17 @@ export class OperationsService {
         id: users.id,
         email: users.email,
         phone: users.phone,
-        fullName: users.full_name,
+        fullName: users.fullName,
         role: users.role,
-        isVerified: users.is_verified,
+        isVerified: users.isVerified,
       })
       .from(users)
-      .where(eq(users.hotel_id, hotelId));
+      .where(eq(users.hotelId, hotelId));
 
     const pendingInvitations = await this.db
       .select()
       .from(invitations)
-      .where(and(eq(invitations.hotel_id, hotelId), eq(invitations.accepted, 'pending')));
+      .where(and(eq(invitations.hotelId, hotelId), isNull(invitations.acceptedAt)));
 
     return {
       staff: staffUsers,
@@ -1724,20 +1745,19 @@ export class OperationsService {
   }
 
   async getStaffMember(userId: string, id: string) {
-    const hotelId = await this.getDefaultHotelId(userId);
-    if (!hotelId) throw new BadRequestException('Hotel context not found');
+    const hotelId = await this.getRequiredHotelId(userId);
 
     const [staff] = await this.db
       .select({
         id: users.id,
         email: users.email,
         phone: users.phone,
-        fullName: users.full_name,
+        fullName: users.fullName,
         role: users.role,
-        isVerified: users.is_verified,
+        isVerified: users.isVerified,
       })
       .from(users)
-      .where(and(eq(users.hotel_id, hotelId), eq(users.id, id)))
+      .where(and(eq(users.hotelId, hotelId), eq(users.id, id)))
       .limit(1);
 
     if (!staff) throw new NotFoundException('Staff member not found');
@@ -1746,28 +1766,28 @@ export class OperationsService {
 
   async inviteStaff(userId: string, dto: InviteStaffDto) {
     const user = await this.getCurrentUser(userId);
-    const hotelId = user.hotel_id;
+    const hotelId = user.hotelId;
     if (!hotelId) throw new BadRequestException('Hotel not found for user');
 
     const token = crypto.randomBytes(24).toString('hex');
-    const expiresAt = String(Date.now() + 1000 * 60 * 60 * 24 * 7); // 7 days
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); // 7 days
 
     const [invitation] = await this.db
       .insert(invitations)
       .values({
         token,
         email: dto.email,
-        hotel_id: hotelId,
+        hotelId: hotelId,
         role: dto.role,
-        expires_at: expiresAt,
-        accepted: 'pending',
+        expiresAt: expiresAt,
+        // acceptedAt is null by default
       })
       .returning();
 
     await this.writeActivity(
       hotelId,
       user.id,
-      user.full_name,
+      user.fullName,
       'staff invited',
       `Invitation sent to ${dto.email} for role ${dto.role}.`,
       'invitation',
@@ -1783,37 +1803,37 @@ export class OperationsService {
 
   async updateStaff(userId: string, id: string, dto: UpdateStaffDto) {
     const currentUser = await this.getCurrentUser(userId);
-    const hotelId = currentUser.hotel_id;
+    const hotelId = currentUser.hotelId;
     if (!hotelId) throw new BadRequestException('Hotel context not found');
 
     const [existing] = await this.db
       .select()
       .from(users)
-      .where(and(eq(users.hotel_id, hotelId), eq(users.id, id)))
+      .where(and(eq(users.hotelId, hotelId), eq(users.id, id)))
       .limit(1);
 
     if (!existing) throw new NotFoundException('Staff member not found');
 
     const updateFields: any = {};
     if (dto.role !== undefined) updateFields.role = dto.role;
-    if (dto.isVerified !== undefined) updateFields.is_verified = dto.isVerified;
+    if (dto.isVerified !== undefined) updateFields.isVerified = dto.isVerified;
 
     const [updated] = await this.db
       .update(users)
       .set(updateFields)
-      .where(and(eq(users.hotel_id, hotelId), eq(users.id, id)))
+      .where(and(eq(users.hotelId, hotelId), eq(users.id, id)))
       .returning({
         id: users.id,
         email: users.email,
-        fullName: users.full_name,
+        fullName: users.fullName,
         role: users.role,
-        isVerified: users.is_verified,
+        isVerified: users.isVerified,
       });
 
     await this.writeActivity(
       hotelId,
       currentUser.id,
-      currentUser.full_name,
+      currentUser.fullName,
       'staff updated',
       `Staff ${updated.fullName} role updated to ${updated.role}.`,
       'user',
@@ -1827,8 +1847,7 @@ export class OperationsService {
   // SETTINGS PERSISTENCE
   // ==========================================
   async getSettings(userId: string) {
-    const hotelId = await this.getDefaultHotelId(userId);
-    if (!hotelId) throw new BadRequestException('Hotel context not found');
+    const hotelId = await this.getRequiredHotelId(userId);
 
     let [settings] = await this.db
       .select()
@@ -1870,7 +1889,7 @@ export class OperationsService {
 
   async updateSettings(userId: string, dto: UpdateSettingsDto) {
     const user = await this.getCurrentUser(userId);
-    const hotelId = user.hotel_id;
+    const hotelId = user.hotelId;
     if (!hotelId) throw new BadRequestException('Hotel context not found');
 
     await this.getSettings(userId); // ensure row exists
@@ -1917,7 +1936,7 @@ export class OperationsService {
     await this.writeActivity(
       hotelId,
       user.id,
-      user.full_name,
+      user.fullName,
       'settings updated',
       'Hotel operational settings were updated.',
       'settings',

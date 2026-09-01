@@ -1,4 +1,20 @@
 import { instance } from "./api";
+import { z } from "zod";
+import {
+  roomSchema, updateRoomSchema, updateRoomStatusSchema,
+  roomTypeSchema, updateRoomTypeSchema,
+  guestSchema, updateGuestSchema,
+  createBookingSchema, checkInSchema, checkOutSchema,
+  recordPaymentSchema,
+  serviceSchema, updateServiceSchema,
+  addServiceChargeSchema,
+  createHousekeepingTaskSchema, updateHousekeepingSchema,
+  inviteStaffSchema, updateStaffSchema,
+  updateSettingsSchema,
+  staysQuerySchema, reportsSummaryQuerySchema, searchQuerySchema,
+} from "../schema/operations.schema";
+
+// Response types (kept as TypeScript types, not Zod, for read operations)
 
 export type DashboardSummaryResponse = {
   dashboardStats: {
@@ -59,6 +75,7 @@ export type DashboardStaySummary = {
   guestPhone?: string | null;
   guestEmail?: string | null;
   status: string;
+  expectedCheckInAt: string | Date;
   checkInAt: string | Date | null;
   expectedCheckoutAt: string | Date;
   actualCheckoutAt: string | Date | null;
@@ -164,116 +181,97 @@ const operationsApi = {
   // Rooms
   getRooms: () => instance.get("/rooms"),
   getRoom: (id: string) => instance.get(`/rooms/${id}`),
-  createRoom: (data: any) => instance.post("/rooms", data),
-  updateRoom: (id: string, data: any) => instance.patch(`/rooms/${id}`, data),
-  updateRoomStatus: (id: string, status: string) =>
-    instance.patch(`/rooms/${id}/status`, { status }),
+  createRoom: (data: z.infer<typeof roomSchema>) => instance.post("/rooms", data),
+  updateRoom: (id: string, data: z.infer<typeof updateRoomSchema>) =>
+    instance.patch(`/rooms/${id}`, data),
+  updateRoomStatus: (id: string, data: z.infer<typeof updateRoomStatusSchema>) =>
+    instance.patch(`/rooms/${id}/status`, data),
   deleteRoom: (id: string) => instance.delete(`/rooms/${id}`),
 
   // Room Types
   getRoomTypes: () => instance.get("/room-types"),
   getRoomType: (id: string) => instance.get(`/room-types/${id}`),
-  createRoomType: (data: any) => instance.post("/room-types", data),
-  updateRoomType: (id: string, data: any) =>
+  createRoomType: (data: z.infer<typeof roomTypeSchema>) => instance.post("/room-types", data),
+  updateRoomType: (id: string, data: z.infer<typeof updateRoomTypeSchema>) =>
     instance.patch(`/room-types/${id}`, data),
   deleteRoomType: (id: string) => instance.delete(`/room-types/${id}`),
 
   // Guests
-  getGuests: (q?: string) =>
-    instance.get("/guests", { params: q ? { q } : undefined }),
+  getGuests: (params?: z.infer<typeof searchQuerySchema>) =>
+    instance.get("/guests", { params }),
   getGuest: (id: string) => instance.get(`/guests/${id}`),
-  createGuest: (data: any) => instance.post("/guests", data),
-  updateGuest: (id: string, data: any) => instance.patch(`/guests/${id}`, data),
+  createGuest: (data: z.infer<typeof guestSchema>) => instance.post("/guests", data),
+  updateGuest: (id: string, data: z.infer<typeof updateGuestSchema>) =>
+    instance.patch(`/guests/${id}`, data),
 
   // Stays & Bookings
-  getStays: (params?: { status?: string; guestId?: string; roomId?: string }) =>
-    instance.get<DashboardStaySummary[]>("/stays", { params }),
-  getActiveStays: () =>
-    instance.get<DashboardStaySummary[]>("/stays/active"),
-  getArrivals: () =>
-    instance.get<DashboardStaySummary[]>("/stays/arrivals"),
-  getDepartures: () =>
-    instance.get<DashboardStaySummary[]>("/stays/departures"),
-  getStaysByGuest: (guestId: string) =>
-    instance.get<DashboardStaySummary[]>(`/stays/guest/${guestId}`),
+  getStays: (params?: z.infer<typeof staysQuerySchema>) =>
+    instance.get("/stays", { params }),
+  getActiveStays: () => instance.get("/stays/active"),
+  getArrivals: () => instance.get("/stays/arrivals"),
+  getDepartures: () => instance.get("/stays/departures"),
+  getStaysByGuest: (guestId: string) => instance.get(`/stays/guest/${guestId}`),
   getStay: (id: string) => instance.get(`/stays/${id}`),
-  createBooking: (data: any) => instance.post("/bookings", data),
-  checkIn: (data: { stayId: string }) => instance.post("/check-in", data),
-  checkOut: (data: {
-    stayId: string;
-    overrideBalance?: boolean;
-    amountPaid?: number;
-    paymentMethod?: string;
-  }) => instance.post("/check-out", data),
+  createBooking: (data: z.infer<typeof createBookingSchema>) =>
+    instance.post("/bookings", data),
+  checkIn: (data: z.infer<typeof checkInSchema>) => instance.post("/check-in", data),
+  checkOut: (data: z.infer<typeof checkOutSchema>) => instance.post("/check-out", data),
 
   // Invoices
-  getInvoices: (stayId?: string) =>
-    instance.get("/invoices", { params: stayId ? { stayId } : undefined }),
+  getInvoices: (params?: { stayId?: string }) =>
+    instance.get("/invoices", { params }),
   getInvoice: (id: string) => instance.get(`/invoices/${id}`),
   getInvoiceItems: (id: string) => instance.get(`/invoices/${id}/items`),
 
   // Payments
-  getPayments: (stayId?: string) =>
-    instance.get("/payments", { params: stayId ? { stayId } : undefined }),
+  getPayments: (params?: { stayId?: string }) =>
+    instance.get("/payments", { params }),
   getPayment: (id: string) => instance.get(`/payments/${id}`),
-  recordPayment: (data: {
-    stayId: string;
-    invoiceId: string;
-    amount: number;
-    method: string;
-    notes?: string;
-  }) => instance.post("/payments", data),
+  recordPayment: (data: z.infer<typeof recordPaymentSchema>) =>
+    instance.post("/payments", data),
 
   // Services & Service Charges
   getServices: () => instance.get("/services"),
   getService: (id: string) => instance.get(`/services/${id}`),
-  createService: (data: any) => instance.post("/services", data),
-  updateService: (id: string, data: any) =>
+  createService: (data: z.infer<typeof serviceSchema>) => instance.post("/services", data),
+  updateService: (id: string, data: z.infer<typeof updateServiceSchema>) =>
     instance.patch(`/services/${id}`, data),
   deleteService: (id: string) => instance.delete(`/services/${id}`),
-  getServiceCharges: (stayId?: string) =>
-    instance.get("/service-charges", {
-      params: stayId ? { stayId } : undefined,
-    }),
-  addServiceCharge: (data: {
-    stayId: string;
-    serviceId: string;
-    quantity: number;
-  }) => instance.post("/service-charges", data),
+  getServiceCharges: (params?: { stayId?: string }) =>
+    instance.get("/service-charges", { params }),
+  addServiceCharge: (data: z.infer<typeof addServiceChargeSchema>) =>
+    instance.post("/service-charges", data),
 
   // Housekeeping
   getHousekeeping: () => instance.get("/housekeeping"),
   getHousekeepingTask: (id: string) => instance.get(`/housekeeping/${id}`),
-  createHousekeepingTask: (data: any) => instance.post("/housekeeping", data),
-  updateHousekeeping: (data: {
-    roomId: string;
-    status: string;
-    note?: string;
-  }) => instance.patch("/housekeeping", data),
+  createHousekeepingTask: (data: z.infer<typeof createHousekeepingTaskSchema>) =>
+    instance.post("/housekeeping", data),
+  updateHousekeeping: (data: z.infer<typeof updateHousekeepingSchema>) =>
+    instance.patch("/housekeeping", data),
 
   // Activity & Notifications
-  getActivity: () => instance.get<DashboardActivityItem[]>("/activity"),
+  getActivity: () => instance.get("/activity"),
   getActivityLog: (id: string) => instance.get(`/activity/${id}`),
   getNotifications: () => instance.get("/notifications"),
-  markNotificationRead: (id: string) =>
-    instance.patch(`/notifications/${id}/read`),
+  markNotificationRead: (id: string) => instance.patch(`/notifications/${id}/read`),
   markAllNotificationsRead: () => instance.post("/notifications/mark-all-read"),
 
   // Staff
   getStaff: () => instance.get("/staff"),
   getStaffMember: (id: string) => instance.get(`/staff/${id}`),
-  inviteStaff: (data: { email: string; role: string; fullName?: string }) =>
+  inviteStaff: (data: z.infer<typeof inviteStaffSchema>) =>
     instance.post("/staff/invite", data),
-  updateStaff: (id: string, data: { role?: string; isVerified?: boolean }) =>
+  updateStaff: (id: string, data: z.infer<typeof updateStaffSchema>) =>
     instance.patch(`/staff/${id}`, data),
 
   // Settings
   getSettings: () => instance.get<HotelSettingsResponse>("/settings"),
-  updateSettings: (data: Partial<HotelSettingsResponse>) =>
+  updateSettings: (data: z.infer<typeof updateSettingsSchema>) =>
     instance.patch<HotelSettingsResponse>("/settings", data),
 
   // Reports
-  getReportsSummary: (params?: { range?: string; startDate?: string; endDate?: string }) =>
+  getReportsSummary: (params?: z.infer<typeof reportsSummaryQuerySchema>) =>
     instance.get<ReportsSummaryResponse>("/reports/summary", { params }),
 };
 

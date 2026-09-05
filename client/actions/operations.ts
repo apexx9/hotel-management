@@ -1,17 +1,28 @@
 import { instance } from "./api";
 import { z } from "zod";
 import {
-  roomSchema, updateRoomSchema, updateRoomStatusSchema,
-  roomTypeSchema, updateRoomTypeSchema,
-  guestSchema, updateGuestSchema,
-  createBookingSchema, checkInSchema, checkOutSchema,
+  roomSchema,
+  updateRoomSchema,
+  updateRoomStatusSchema,
+  roomTypeSchema,
+  updateRoomTypeSchema,
+  guestSchema,
+  updateGuestSchema,
+  createBookingSchema,
+  checkInSchema,
+  checkOutSchema,
   recordPaymentSchema,
-  serviceSchema, updateServiceSchema,
+  serviceSchema,
+  updateServiceSchema,
   addServiceChargeSchema,
-  createHousekeepingTaskSchema, updateHousekeepingSchema,
-  inviteStaffSchema, updateStaffSchema,
+  createHousekeepingTaskSchema,
+  updateHousekeepingSchema,
+  inviteStaffSchema,
+  updateStaffSchema,
   updateSettingsSchema,
-  staysQuerySchema, reportsSummaryQuerySchema, searchQuerySchema,
+  staysQuerySchema,
+  reportsSummaryQuerySchema,
+  searchQuerySchema,
 } from "../schema/operations.schema";
 
 // Response types (kept as TypeScript types, not Zod, for read operations)
@@ -164,7 +175,7 @@ export type HotelSettingsResponse = {
   checkOutTime: string;
   bookingPolicy: string | null;
   guestIdRequired: boolean;
-  taxRate: string;
+  taxRate: string | number;
   invoicePrefix: string;
   acceptedPaymentMethods: string | null;
   serviceConfig: string | null;
@@ -181,17 +192,21 @@ const operationsApi = {
   // Rooms
   getRooms: () => instance.get("/rooms"),
   getRoom: (id: string) => instance.get(`/rooms/${id}`),
-  createRoom: (data: z.infer<typeof roomSchema>) => instance.post("/rooms", data),
+  createRoom: (data: z.infer<typeof roomSchema>) =>
+    instance.post("/rooms", data),
   updateRoom: (id: string, data: z.infer<typeof updateRoomSchema>) =>
     instance.patch(`/rooms/${id}`, data),
-  updateRoomStatus: (id: string, data: z.infer<typeof updateRoomStatusSchema>) =>
-    instance.patch(`/rooms/${id}/status`, data),
+  updateRoomStatus: (
+    id: string,
+    data: z.infer<typeof updateRoomStatusSchema>,
+  ) => instance.patch(`/rooms/${id}/status`, data),
   deleteRoom: (id: string) => instance.delete(`/rooms/${id}`),
 
   // Room Types
   getRoomTypes: () => instance.get("/room-types"),
   getRoomType: (id: string) => instance.get(`/room-types/${id}`),
-  createRoomType: (data: z.infer<typeof roomTypeSchema>) => instance.post("/room-types", data),
+  createRoomType: (data: z.infer<typeof roomTypeSchema>) =>
+    instance.post("/room-types", data),
   updateRoomType: (id: string, data: z.infer<typeof updateRoomTypeSchema>) =>
     instance.patch(`/room-types/${id}`, data),
   deleteRoomType: (id: string) => instance.delete(`/room-types/${id}`),
@@ -200,7 +215,8 @@ const operationsApi = {
   getGuests: (params?: z.infer<typeof searchQuerySchema>) =>
     instance.get("/guests", { params }),
   getGuest: (id: string) => instance.get(`/guests/${id}`),
-  createGuest: (data: z.infer<typeof guestSchema>) => instance.post("/guests", data),
+  createGuest: (data: z.infer<typeof guestSchema>) =>
+    instance.post("/guests", data),
   updateGuest: (id: string, data: z.infer<typeof updateGuestSchema>) =>
     instance.patch(`/guests/${id}`, data),
 
@@ -214,14 +230,19 @@ const operationsApi = {
   getStay: (id: string) => instance.get(`/stays/${id}`),
   createBooking: (data: z.infer<typeof createBookingSchema>) =>
     instance.post("/bookings", data),
-  checkIn: (data: z.infer<typeof checkInSchema>) => instance.post("/check-in", data),
-  checkOut: (data: z.infer<typeof checkOutSchema>) => instance.post("/check-out", data),
+  checkIn: (data: z.infer<typeof checkInSchema>) =>
+    instance.post("/check-in", data),
+  checkOut: (data: z.infer<typeof checkOutSchema>) =>
+    instance.post("/check-out", data),
 
   // Invoices
   getInvoices: (params?: { stayId?: string }) =>
     instance.get("/invoices", { params }),
   getInvoice: (id: string) => instance.get(`/invoices/${id}`),
   getInvoiceItems: (id: string) => instance.get(`/invoices/${id}/items`),
+  getInvoiceReceipt: (id: string) => instance.get(`/invoices/${id}/receipt`),
+  sendInvoiceReceipt: (id: string, data?: { to?: string }) =>
+    instance.post(`/invoices/${id}/send-receipt`, data || {}),
 
   // Payments
   getPayments: (params?: { stayId?: string }) =>
@@ -233,7 +254,8 @@ const operationsApi = {
   // Services & Service Charges
   getServices: () => instance.get("/services"),
   getService: (id: string) => instance.get(`/services/${id}`),
-  createService: (data: z.infer<typeof serviceSchema>) => instance.post("/services", data),
+  createService: (data: z.infer<typeof serviceSchema>) =>
+    instance.post("/services", data),
   updateService: (id: string, data: z.infer<typeof updateServiceSchema>) =>
     instance.patch(`/services/${id}`, data),
   deleteService: (id: string) => instance.delete(`/services/${id}`),
@@ -245,8 +267,9 @@ const operationsApi = {
   // Housekeeping
   getHousekeeping: () => instance.get("/housekeeping"),
   getHousekeepingTask: (id: string) => instance.get(`/housekeeping/${id}`),
-  createHousekeepingTask: (data: z.infer<typeof createHousekeepingTaskSchema>) =>
-    instance.post("/housekeeping", data),
+  createHousekeepingTask: (
+    data: z.infer<typeof createHousekeepingTaskSchema>,
+  ) => instance.post("/housekeeping", data),
   updateHousekeeping: (data: z.infer<typeof updateHousekeepingSchema>) =>
     instance.patch("/housekeeping", data),
 
@@ -254,7 +277,8 @@ const operationsApi = {
   getActivity: () => instance.get("/activity"),
   getActivityLog: (id: string) => instance.get(`/activity/${id}`),
   getNotifications: () => instance.get("/notifications"),
-  markNotificationRead: (id: string) => instance.patch(`/notifications/${id}/read`),
+  markNotificationRead: (id: string) =>
+    instance.patch(`/notifications/${id}/read`),
   markAllNotificationsRead: () => instance.post("/notifications/mark-all-read"),
 
   // Staff

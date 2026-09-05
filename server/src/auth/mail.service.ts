@@ -18,7 +18,17 @@ export class MailService {
     });
   }
 
-  async sendMail(to: string, subject: string, text: string, html?: string) {
+  async sendMail(
+    to: string,
+    subject: string,
+    text: string,
+    html?: string,
+    attachments?: {
+      filename: string;
+      content: Buffer | string;
+      contentType?: string;
+    }[],
+  ) {
     try {
       if (!process.env.SMTP_HOST) {
         this.logger.log(`SMTP not configured — skipping sending mail to ${to}`);
@@ -32,6 +42,7 @@ export class MailService {
         subject,
         text,
         html,
+        attachments,
       });
 
       this.logger.log(`Sent mail to ${to}: ${info.messageId}`);

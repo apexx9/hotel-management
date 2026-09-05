@@ -35,10 +35,15 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 const InvoicesService = () => {
   const getInvoices = async (stayId?: string): Promise<Invoice[]> => {
     try {
-      const response = await operationsApi.getInvoices(stayId);
+      const response = await operationsApi.getInvoices(
+        stayId ? { stayId } : undefined,
+      );
       return response.data ?? [];
     } catch (error) {
-      console.error("Failed to fetch invoices:", getErrorMessage(error, "Failed to fetch invoices"));
+      console.error(
+        "Failed to fetch invoices:",
+        getErrorMessage(error, "Failed to fetch invoices"),
+      );
       throw error;
     }
   };
@@ -48,7 +53,10 @@ const InvoicesService = () => {
       const response = await operationsApi.getInvoice(id);
       return response.data;
     } catch (error) {
-      console.error("Failed to fetch invoice:", getErrorMessage(error, "Failed to fetch invoice"));
+      console.error(
+        "Failed to fetch invoice:",
+        getErrorMessage(error, "Failed to fetch invoice"),
+      );
       throw error;
     }
   };
@@ -58,7 +66,36 @@ const InvoicesService = () => {
       const response = await operationsApi.getInvoiceItems(id);
       return response.data ?? [];
     } catch (error) {
-      console.error("Failed to fetch invoice items:", getErrorMessage(error, "Failed to fetch invoice items"));
+      console.error(
+        "Failed to fetch invoice items:",
+        getErrorMessage(error, "Failed to fetch invoice items"),
+      );
+      throw error;
+    }
+  };
+
+  const getInvoiceReceipt = async (id: string): Promise<string> => {
+    try {
+      const response = await operationsApi.getInvoiceReceipt(id);
+      return response.data?.html ?? "";
+    } catch (error) {
+      console.error(
+        "Failed to fetch invoice receipt:",
+        getErrorMessage(error, "Failed to fetch invoice receipt"),
+      );
+      throw error;
+    }
+  };
+
+  const sendInvoiceReceipt = async (id: string, to?: string): Promise<any> => {
+    try {
+      const response = await operationsApi.sendInvoiceReceipt(id, { to });
+      return response.data;
+    } catch (error) {
+      console.error(
+        "Failed to send invoice receipt:",
+        getErrorMessage(error, "Failed to send invoice receipt"),
+      );
       throw error;
     }
   };
@@ -67,6 +104,8 @@ const InvoicesService = () => {
     getInvoices,
     getInvoice,
     getInvoiceItems,
+    getInvoiceReceipt,
+    sendInvoiceReceipt,
   };
 };
 

@@ -16,7 +16,7 @@ export interface BookingData {
   roomTypeId?: string;
   guestsCount: number;
   nights: number;
-  expectedCheckInAt?: string;
+  expectedCheckInAt: string;
   rate: number;
   discount?: number;
   taxes?: number;
@@ -28,12 +28,18 @@ export interface BookingData {
 
 const BookingsService = () => {
   const createBooking = async (data: BookingData) => {
-    const response = await operationsApi.createBooking(data);
+    const response = await operationsApi.createBooking({
+      ...data,
+      discount: data.discount ?? 0,
+      taxes: data.taxes ?? 0,
+      checkInNow: data.checkInNow ?? false,
+      amountPaid: data.amountPaid ?? 0,
+    });
     return response.data;
   };
 
   const checkIn = async (data: { stayId: string }) => {
-    const response = await operationsApi.checkIn(data);
+    const response = await operationsApi.checkIn({ stayId: data.stayId });
     return response.data;
   };
 
@@ -43,7 +49,12 @@ const BookingsService = () => {
     amountPaid?: number;
     paymentMethod?: string | null;
   }) => {
-    const response = await operationsApi.checkOut(data);
+    const response = await operationsApi.checkOut({
+      stayId: data.stayId,
+      overrideBalance: data.overrideBalance ?? false,
+      amountPaid: data.amountPaid ?? 0,
+      paymentMethod: data.paymentMethod,
+    });
     return response.data;
   };
 

@@ -33,7 +33,7 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 const GuestsService = () => {
   const getGuests = async (query?: string): Promise<Guest[]> => {
     try {
-      const response = await operationsApi.getGuests(query);
+      const response = await operationsApi.getGuests(query ? { q: query } : undefined);
       return response.data ?? [];
     } catch (error) {
       console.error("Failed to fetch guests:", getErrorMessage(error, "Failed to fetch guests"));
@@ -64,7 +64,17 @@ const GuestsService = () => {
     notes?: string;
   }): Promise<Guest> => {
     try {
-      const response = await operationsApi.createGuest(data);
+      const response = await operationsApi.createGuest({
+        fullName: `${data.firstName} ${data.lastName}`,
+        phone: data.phone,
+        email: data.email ?? null,
+        nationality: data.nationality ?? null,
+        identificationType: data.identificationType ?? null,
+        identificationNumber: data.identificationNumber ?? null,
+        address: data.address ?? null,
+        emergencyContact: data.emergencyContact ?? null,
+        notes: data.notes ?? null,
+      });
       return response.data;
     } catch (error) {
       console.error("Failed to create guest:", getErrorMessage(error, "Failed to create guest"));

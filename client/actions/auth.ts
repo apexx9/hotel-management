@@ -18,6 +18,7 @@ export const authApi = {
   getInvitation: (token: string) => instance.get(`/invitations/${token}`),
   acceptInvitation: (token: string, payload: Record<string, unknown>) =>
     instance.post(`/invitations/${token}/accept`, payload),
+  getCurrentUser: () => instance.get("/auth/me"),
 };
 
 export default authApi;

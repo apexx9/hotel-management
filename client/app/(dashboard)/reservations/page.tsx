@@ -41,8 +41,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, Plus, Search, CalendarClock } from "lucide-react";
+import { AlertCircle, Plus, Search, CalendarClock, CreditCard, User, Info, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function ReservationsPage() {
   const [reservations, setReservations] = useState<DashboardStaySummary[]>([]);
@@ -150,226 +151,296 @@ export default function ReservationsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full rounded-xl" />
+      <div className="space-y-8 p-2 md:p-6 max-w-7xl mx-auto animate-pulse">
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-28 rounded-full" />
+          <Skeleton className="h-10 w-96 rounded-xl" />
+        </div>
+        <Skeleton className="h-14 w-full max-w-md rounded-2xl" />
+        <Skeleton className="h-96 w-full rounded-3xl" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <div className="p-6 max-w-7xl mx-auto">
+        <Alert variant="destructive" className="rounded-2xl border-destructive/30 bg-destructive/10">
+          <AlertCircle className="h-5 w-5" />
+          <AlertTitle className="font-semibold">System Notice</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Reservations</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage upcoming and past reservations.
-          </p>
+    <div className="space-y-10 p-2 sm:p-4 md:p-6 max-w-7xl mx-auto">
+      
+      {/* ─── HERO HEADER ────────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-border/40 pb-6">
+        <div className="space-y-2">
+          <Badge
+            variant="outline"
+            className="rounded-full px-3 py-1 font-medium text-xs bg-muted/60 text-muted-foreground border-border/60"
+          >
+            Booking Management
+          </Badge>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
+            Reservations
+          </h1>
         </div>
+        <p className="text-sm text-muted-foreground max-w-xs leading-relaxed md:text-right">
+          Manage upcoming stays, create new bookings, and overview guest schedules.
+        </p>
+      </div>
+
+      {/* ─── ACTION BAR ────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="relative w-full sm:max-w-md">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search by name, reference, or room..."
+            className="pl-10 h-12 rounded-full bg-muted/40 border-border/50 focus-visible:ring-primary/20 shadow-sm"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
+          <DialogTrigger>
+            <Button className="rounded-full h-12 px-6 shadow-md hover:shadow-lg transition-all w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               New Reservation
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Create Reservation</DialogTitle>
-              <DialogDescription>
-                Enter guest and stay details.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>First Name</Label>
-                  <Input
-                    value={form.firstName}
-                    onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                  />
+          <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto rounded-3xl p-0 border-border/50">
+            <div className="sticky top-0 bg-background/80 backdrop-blur-md z-10 p-6 border-b border-border/40">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-bold tracking-tight">Create Reservation</DialogTitle>
+                <DialogDescription className="text-muted-foreground">
+                  Enter guest and stay details to confirm a new booking.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+            
+            <div className="p-6 space-y-8">
+              {/* Guest Details Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/40 pb-2">
+                  <User className="h-4 w-4" /> Guest Information
                 </div>
-                <div className="space-y-2">
-                  <Label>Last Name</Label>
-                  <Input
-                    value={form.lastName}
-                    onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Phone *</Label>
-                <Input
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Expected Check-in</Label>
-                  <Input
-                    type="datetime-local"
-                    value={form.expectedCheckInAt}
-                    onChange={(e) => setForm({ ...form, expectedCheckInAt: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Nights</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={form.nights}
-                    onChange={(e) => setForm({ ...form, nights: Number(e.target.value) })}
-                  />
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground">First Name</Label>
+                    <Input
+                      className="h-11 rounded-xl bg-muted/20"
+                      value={form.firstName}
+                      onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground">Last Name</Label>
+                    <Input
+                      className="h-11 rounded-xl bg-muted/20"
+                      value={form.lastName}
+                      onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground">Phone *</Label>
+                    <Input
+                      className="h-11 rounded-xl bg-muted/20"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground">Email</Label>
+                    <Input
+                      type="email"
+                      className="h-11 rounded-xl bg-muted/20"
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Guests</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={form.guestsCount}
-                    onChange={(e) => setForm({ ...form, guestsCount: Number(e.target.value) })}
-                  />
+
+              {/* Stay Details Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/40 pb-2">
+                  <CalendarDays className="h-4 w-4" /> Stay Details
                 </div>
-                <div className="space-y-2">
-                  <Label>Rate (per night)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.rate}
-                    onChange={(e) => setForm({ ...form, rate: Number(e.target.value) })}
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground">Expected Check-in</Label>
+                    <Input
+                      type="datetime-local"
+                      className="h-11 rounded-xl bg-muted/20"
+                      value={form.expectedCheckInAt}
+                      onChange={(e) => setForm({ ...form, expectedCheckInAt: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground">Nights</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      className="h-11 rounded-xl bg-muted/20"
+                      value={form.nights}
+                      onChange={(e) => setForm({ ...form, nights: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground">Guests</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      className="h-11 rounded-xl bg-muted/20"
+                      value={form.guestsCount}
+                      onChange={(e) => setForm({ ...form, guestsCount: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground">Special Requests</Label>
+                    <Input
+                      className="h-11 rounded-xl bg-muted/20"
+                      value={form.specialRequests}
+                      placeholder="e.g. Extra pillows"
+                      onChange={(e) => setForm({ ...form, specialRequests: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 border border-primary/10 mt-2">
+                  <input
+                    type="checkbox"
+                    id="checkInNow"
+                    checked={form.checkInNow}
+                    onChange={(e) => setForm({ ...form, checkInNow: e.target.checked })}
+                    className="h-4 w-4 rounded border-primary/30 text-primary focus:ring-primary"
                   />
+                  <Label htmlFor="checkInNow" className="font-medium cursor-pointer">Check in immediately</Label>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Discount</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.discount}
-                    onChange={(e) => setForm({ ...form, discount: Number(e.target.value) })}
-                  />
+
+              {/* Billing Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/40 pb-2">
+                  <CreditCard className="h-4 w-4" /> Billing Overview
                 </div>
-                <div className="space-y-2">
-                  <Label>Taxes</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.taxes}
-                    onChange={(e) => setForm({ ...form, taxes: Number(e.target.value) })}
-                  />
+                <div className="grid grid-cols-3 gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground">Rate (per night)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      className="h-11 rounded-xl bg-muted/20"
+                      value={form.rate}
+                      onChange={(e) => setForm({ ...form, rate: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground">Discount</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      className="h-11 rounded-xl bg-muted/20"
+                      value={form.discount}
+                      onChange={(e) => setForm({ ...form, discount: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground">Taxes</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      className="h-11 rounded-xl bg-muted/20"
+                      value={form.taxes}
+                      onChange={(e) => setForm({ ...form, taxes: Number(e.target.value) })}
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Special Requests</Label>
-                <Input
-                  value={form.specialRequests}
-                  onChange={(e) => setForm({ ...form, specialRequests: e.target.value })}
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="checkInNow"
-                  checked={form.checkInNow}
-                  onChange={(e) => setForm({ ...form, checkInNow: e.target.checked })}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <Label htmlFor="checkInNow">Check in immediately</Label>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+
+            <div className="sticky bottom-0 bg-background/80 backdrop-blur-md p-6 border-t border-border/40 flex justify-end gap-3">
+              <Button variant="outline" className="rounded-full h-11 px-6" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleCreateReservation} disabled={creating}>
-                {creating ? "Creating..." : "Create Reservation"}
+              <Button onClick={handleCreateReservation} disabled={creating} className="rounded-full h-11 px-6">
+                {creating ? "Creating..." : "Confirm Booking"}
               </Button>
-            </DialogFooter>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          type="search"
-          placeholder="Search reservations..."
-          className="pl-8"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-      </div>
-
+      {/* ─── DATA TABLE ────────────────────────────────────────────── */}
       {filteredReservations.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            No reservations found.
-          </CardContent>
+        <Card className="rounded-3xl border border-border/50 bg-muted/20 shadow-sm flex flex-col items-center justify-center p-12 min-h-[300px]">
+          <div className="h-12 w-12 rounded-full bg-muted/60 flex items-center justify-center mb-4 text-muted-foreground">
+            <Info className="h-6 w-6" />
+          </div>
+          <p className="text-lg font-medium text-foreground">No reservations found</p>
+          <p className="text-sm text-muted-foreground mt-1">Try adjusting your search criteria or create a new booking.</p>
         </Card>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg font-medium flex items-center gap-2">
-              <CalendarClock className="h-5 w-5" />
+        <Card className="rounded-3xl border border-border/50 bg-card shadow-sm overflow-hidden">
+          <CardHeader className="border-b border-border/40 pb-4 bg-muted/10">
+            <CardTitle className="text-base font-bold flex items-center gap-2">
+              <CalendarClock className="h-5 w-5 text-primary" />
               Upcoming Reservations ({filteredReservations.length})
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Reference</TableHead>
-                  <TableHead>Guest</TableHead>
-                  <TableHead>Room</TableHead>
-                  <TableHead>Check-in</TableHead>
-                  <TableHead>Nights</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Outstanding</TableHead>
+              <TableHeader className="bg-muted/30">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider">Reference</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider">Guest</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider">Room</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider">Check-in</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider">Nights</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-right">Total</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-right pr-6">Outstanding</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredReservations.map((res) => (
-                  <TableRow key={res.id}>
-                    <TableCell className="font-medium">{res.reference}</TableCell>
-                    <TableCell>{res.guestName}</TableCell>
-                    <TableCell>{res.roomNumber || "—"}</TableCell>
-                    <TableCell>{formatDateTime(res.expectedCheckInAt)}</TableCell>
-                    <TableCell>{res.nights}</TableCell>
-                    <TableCell>{formatCurrency(res.total)}</TableCell>
+                  <TableRow key={res.id} className="hover:bg-muted/20 transition-colors group">
+                    <TableCell className="font-mono text-xs">{res.reference}</TableCell>
+                    <TableCell className="font-medium text-foreground">{res.guestName}</TableCell>
                     <TableCell>
-                      <span className={Number(res.outstandingBalance) > 0 ? "text-red-600" : "text-green-600"}>
-                        {formatCurrency(res.outstandingBalance)}
-                      </span>
+                      {res.roomNumber ? (
+                        <Badge variant="secondary" className="rounded-md font-mono text-xs bg-muted/60">
+                          {res.roomNumber}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">{formatDateTime(res.expectedCheckInAt)}</TableCell>
+                    <TableCell className="text-sm">{res.nights}</TableCell>
+                    <TableCell className="text-sm font-medium text-right">{formatCurrency(res.total)}</TableCell>
+                    <TableCell className="text-right pr-6">
+                      {Number(res.outstandingBalance) > 0 ? (
+                        <span className="inline-flex items-center gap-1 font-semibold text-destructive text-sm bg-destructive/10 px-2 py-0.5 rounded-md">
+                          {formatCurrency(res.outstandingBalance)}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 font-medium text-emerald-600 text-sm bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                          Settled
+                        </span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </CardContent>
+          </div>
         </Card>
       )}
     </div>

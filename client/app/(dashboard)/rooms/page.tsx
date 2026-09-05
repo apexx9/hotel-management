@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AlertCircle, ArrowRight, BedDouble, DoorOpen, Users, Wallet, Sparkles } from "lucide-react";
+import { AlertCircle, ArrowRight, BedDouble, DoorOpen, Users, Wallet, Sparkles, Box, Settings, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function RoomsOverviewPage() {
@@ -52,25 +52,30 @@ export default function RoomsOverviewPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="space-y-8 p-2 md:p-6 max-w-7xl mx-auto animate-pulse">
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-28 rounded-full" />
+          <Skeleton className="h-10 w-96 rounded-xl" />
+        </div>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-xl" />
+            <Skeleton key={i} className="h-40 rounded-3xl" />
           ))}
         </div>
-        <Skeleton className="h-64 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-3xl" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <div className="p-6 max-w-7xl mx-auto">
+        <Alert variant="destructive" className="rounded-2xl border-destructive/30 bg-destructive/10">
+          <AlertCircle className="h-5 w-5" />
+          <AlertTitle className="font-semibold">System Notice</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
     );
   }
 
@@ -79,9 +84,6 @@ export default function RoomsOverviewPage() {
   const occupiedRooms = rooms.filter((r) => r.status === "occupied").length;
   const maintenanceRooms = rooms.filter(
     (r) => r.status === "maintenance" || r.status === "out_of_service"
-  ).length;
-  const turningOverRooms = rooms.filter(
-    (r) => r.status === "cleaning" || r.status === "inspection"
   ).length;
 
   const stats = [
@@ -92,99 +94,129 @@ export default function RoomsOverviewPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Rooms</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your hotel's room inventory and categories.
+    <div className="space-y-10 p-2 sm:p-4 md:p-6 max-w-7xl mx-auto">
+      
+      {/* ─── HERO HEADER ────────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-border/40 pb-6">
+        <div className="space-y-2">
+          <Badge
+            variant="outline"
+            className="rounded-full px-3 py-1 font-medium text-xs bg-muted/60 text-muted-foreground border-border/60"
+          >
+            Inventory Overview
+          </Badge>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
+            Rooms & Types
+          </h1>
+        </div>
+        <p className="text-sm text-muted-foreground max-w-xs leading-relaxed md:text-right">
+          Manage your hotel's room inventory, capacities, and category configurations.
         </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* ─── STATS ────────────────────────────────────────────── */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.label}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.label}
-              </CardTitle>
-              <stat.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-            </CardContent>
-          </Card>
+          <div key={stat.label} className="relative flex flex-col justify-between rounded-3xl bg-muted/40 border border-border/50 p-6 transition-all hover:shadow-lg h-full group">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+                <stat.icon className="h-4 w-4" />
+                <span>{stat.label}</span>
+              </div>
+              
+              <div className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm space-y-1 transition-transform group-hover:-translate-y-1">
+                <p className="text-4xl font-extrabold tracking-tight text-foreground">{stat.value}</p>
+                <p className="text-xs text-muted-foreground">Current Count</p>
+              </div>
+            </div>
+          </div>
         ))}
       </div>
 
-      {/* Room Types */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Room Types</h2>
-        <Link
-          href="/rooms/types"
-          className="flex items-center text-sm text-primary hover:underline"
-        >
-          Manage types <ArrowRight className="ml-1 h-3 w-3" />
-        </Link>
+      {/* ─── ROOM TYPES ────────────────────────────────────────────── */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Box className="h-5 w-5 text-primary" />
+            <h2 className="text-xl font-bold tracking-tight">Room Types</h2>
+          </div>
+          <Link
+            href="/rooms/types"
+            className="flex items-center text-sm font-medium text-primary hover:text-primary/80 transition-colors bg-primary/10 px-3 py-1.5 rounded-full"
+          >
+            <Settings className="mr-1.5 h-4 w-4" /> Manage types
+          </Link>
+        </div>
+
+        <Card className="rounded-3xl border border-border/50 bg-card shadow-sm overflow-hidden">
+          <CardContent className="p-0">
+            {roomTypes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-12 text-center">
+                <div className="h-12 w-12 rounded-full bg-muted/60 flex items-center justify-center mb-4 text-muted-foreground">
+                  <Box className="h-6 w-6" />
+                </div>
+                <p className="text-lg font-medium text-foreground">No room types defined</p>
+                <p className="text-sm text-muted-foreground mt-1">Create categories like "Standard" or "Suite" to group your inventory.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-muted/30">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Name</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Base Price</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Capacity</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Bed Config</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Amenities</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {roomTypes.map((type) => (
+                      <TableRow key={type.id} className="hover:bg-muted/20 transition-colors">
+                        <TableCell className="font-semibold text-foreground">{type.name}</TableCell>
+                        <TableCell className="font-medium text-primary">{formatCurrency(type.basePrice)}</TableCell>
+                        <TableCell className="text-sm"><Users className="inline-block h-3.5 w-3.5 mr-1 text-muted-foreground" /> {type.capacity}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{type.bedConfiguration || "—"}</TableCell>
+                        <TableCell className="max-w-xs truncate text-xs text-muted-foreground">
+                          {type.amenities || "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={type.isActive ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-muted text-muted-foreground"}>
+                            {type.isActive ? "Active" : "Inactive"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      <Card>
-        <CardContent className="pt-6">
-          {roomTypes.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">
-              No room types found.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Base Price</TableHead>
-                  <TableHead>Capacity</TableHead>
-                  <TableHead>Bed Config</TableHead>
-                  <TableHead>Amenities</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {roomTypes.map((type) => (
-                  <TableRow key={type.id}>
-                    <TableCell className="font-medium">{type.name}</TableCell>
-                    <TableCell>{formatCurrency(type.basePrice)}</TableCell>
-                    <TableCell>{type.capacity}</TableCell>
-                    <TableCell>{type.bedConfiguration || "—"}</TableCell>
-                    <TableCell className="max-w-xs truncate">
-                      {type.amenities || "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={type.isActive ? "default" : "secondary"}>
-                        {type.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Quick link to room grid */}
-      <Card className="bg-muted/50 border-dashed">
-        <CardContent className="py-6 flex items-center justify-between">
-          <div>
-            <h3 className="font-medium">View Room Grid</h3>
-            <p className="text-sm text-muted-foreground">
-              See all rooms in a visual grid layout.
-            </p>
-          </div>
-          <Link href="/rooms/grid">
-            <span className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-              Open Grid
+      {/* ─── QUICK LINK TO ROOM GRID ────────────────────────────────────────────── */}
+      <Link href="/rooms/grid" className="block group">
+        <Card className="rounded-3xl border border-primary/20 bg-primary/5 shadow-sm transition-all hover:bg-primary/10 hover:border-primary/30">
+          <CardContent className="p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-primary/20 flex items-center justify-center text-primary">
+                <LayoutGrid className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-primary">Visual Room Grid</h3>
+                <p className="text-sm text-primary/80 mt-0.5">
+                  See all rooms, their status, and availability in a birds-eye floorplan view.
+                </p>
+              </div>
+            </div>
+            <span className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-md transition-transform group-hover:scale-105 shrink-0">
+              Open Grid <ArrowRight className="ml-2 h-4 w-4" />
             </span>
-          </Link>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </Link>
     </div>
   );
 }

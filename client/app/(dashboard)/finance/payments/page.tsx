@@ -5,12 +5,7 @@ import PaymentsService, { Payment } from "@/services/payments.service";
 import InvoicesService, { Invoice } from "@/services/invoices.service";
 import StaysService from "@/services/stays.service";
 import { formatCurrency, formatDateTime } from "@/utils/utils";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,8 +118,10 @@ export default function PaymentsPage() {
       payment.reference.toLowerCase().includes(q) ||
       payment.method.toLowerCase().includes(q) ||
       payment.status.toLowerCase().includes(q);
-    const matchesMethod = methodFilter === "all" || payment.method === methodFilter;
-    const matchesStatus = statusFilter === "all" || payment.status === statusFilter;
+    const matchesMethod =
+      methodFilter === "all" || payment.method === methodFilter;
+    const matchesStatus =
+      statusFilter === "all" || payment.status === statusFilter;
     return matchesSearch && matchesMethod && matchesStatus;
   });
 
@@ -186,12 +183,14 @@ export default function PaymentsPage() {
           </p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Record Payment
-            </Button>
-          </DialogTrigger>
+          <DialogTrigger
+            render={
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Record Payment
+              </Button>
+            }
+          />
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Record Payment</DialogTitle>
@@ -204,7 +203,9 @@ export default function PaymentsPage() {
                 <Label>Stay *</Label>
                 <Select
                   value={form.stayId}
-                  onValueChange={(value) => setForm({ ...form, stayId: value })}
+                  onValueChange={(value) =>
+                    setForm({ ...form, stayId: value || "" })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select stay" />
@@ -212,7 +213,8 @@ export default function PaymentsPage() {
                   <SelectContent>
                     {stays.map((stay: any) => (
                       <SelectItem key={stay.id} value={stay.id}>
-                        {stay.guestName || stay.reference} - Room {stay.roomNumber}
+                        {stay.guestName || stay.reference} - Room{" "}
+                        {stay.roomNumber}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -222,7 +224,9 @@ export default function PaymentsPage() {
                 <Label>Invoice *</Label>
                 <Select
                   value={form.invoiceId}
-                  onValueChange={(value) => setForm({ ...form, invoiceId: value })}
+                  onValueChange={(value) =>
+                    setForm({ ...form, invoiceId: value || "" })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select invoice" />
@@ -230,7 +234,8 @@ export default function PaymentsPage() {
                   <SelectContent>
                     {invoices.map((inv) => (
                       <SelectItem key={inv.id} value={inv.id}>
-                        {inv.reference} - {formatCurrency(inv.outstanding)} outstanding
+                        {inv.reference} - {formatCurrency(inv.outstanding)}{" "}
+                        outstanding
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -243,7 +248,9 @@ export default function PaymentsPage() {
                   min={0}
                   step="0.01"
                   value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setForm({ ...form, amount: Number(e.target.value) })
+                  }
                   required
                 />
               </div>
@@ -251,7 +258,9 @@ export default function PaymentsPage() {
                 <Label>Method *</Label>
                 <Select
                   value={form.method}
-                  onValueChange={(value) => setForm({ ...form, method: value })}
+                  onValueChange={(value) =>
+                    setForm({ ...form, method: value || "cash" })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select method" />
@@ -297,7 +306,10 @@ export default function PaymentsPage() {
           />
         </div>
         <div className="w-40">
-          <Select value={methodFilter} onValueChange={setMethodFilter}>
+          <Select
+            value={methodFilter}
+            onValueChange={(value) => setMethodFilter(value || "all")}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Method" />
             </SelectTrigger>
@@ -311,7 +323,10 @@ export default function PaymentsPage() {
           </Select>
         </div>
         <div className="w-40">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => setStatusFilter(value || "all")}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -356,20 +371,30 @@ export default function PaymentsPage() {
               <TableBody>
                 {filteredPayments.map((payment) => (
                   <TableRow key={payment.id}>
-                    <TableCell className="font-medium">{payment.reference}</TableCell>
+                    <TableCell className="font-medium">
+                      {payment.reference}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={methodColors[payment.method]}>
+                      <Badge
+                        variant="outline"
+                        className={methodColors[payment.method]}
+                      >
                         {payment.method.replace("_", " ")}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={statusColors[payment.status]}>
+                      <Badge
+                        variant="outline"
+                        className={statusColors[payment.status]}
+                      >
                         {payment.status.replace("_", " ")}
                       </Badge>
                     </TableCell>
                     <TableCell>{formatCurrency(payment.amount)}</TableCell>
                     <TableCell>{formatDateTime(payment.createdAt)}</TableCell>
-                    <TableCell className="max-w-xs truncate">{payment.notes || "—"}</TableCell>
+                    <TableCell className="max-w-xs truncate">
+                      {payment.notes || "—"}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

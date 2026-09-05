@@ -3,12 +3,7 @@
 import { useEffect, useState } from "react";
 import InvoicesService, { Invoice } from "@/services/invoices.service";
 import { formatCurrency, formatDateTime } from "@/utils/utils";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -138,7 +133,10 @@ export default function InvoicesPage() {
           />
         </div>
         <div className="w-40">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => setStatusFilter(value || "all")}
+          >
             <SelectTrigger>
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
@@ -184,26 +182,53 @@ export default function InvoicesPage() {
               <TableBody>
                 {filteredInvoices.map((invoice) => (
                   <TableRow key={invoice.id}>
-                    <TableCell className="font-medium">{invoice.reference}</TableCell>
+                    <TableCell className="font-medium">
+                      {invoice.reference}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={statusColors[invoice.status]}>
+                      <Badge
+                        variant="outline"
+                        className={statusColors[invoice.status]}
+                      >
                         {invoice.status.replace("_", " ")}
                       </Badge>
                     </TableCell>
                     <TableCell>{formatCurrency(invoice.total)}</TableCell>
                     <TableCell>{formatCurrency(invoice.amountPaid)}</TableCell>
-                    <TableCell className={Number(invoice.outstanding) > 0 ? "text-red-600 font-medium" : "text-green-600"}>
+                    <TableCell
+                      className={
+                        Number(invoice.outstanding) > 0
+                          ? "text-red-600 font-medium"
+                          : "text-green-600"
+                      }
+                    >
                       {formatCurrency(invoice.outstanding)}
                     </TableCell>
-                    <TableCell>{invoice.issuedAt ? formatDateTime(invoice.issuedAt) : "—"}</TableCell>
+                    <TableCell>
+                      {invoice.issuedAt
+                        ? formatDateTime(invoice.issuedAt)
+                        : "—"}
+                    </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openInvoiceDetail(invoice)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openInvoiceDetail(invoice)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            const url = `/api/invoices/${invoice.id}/receipt.pdf`;
+                            window.open(url, "_blank");
+                          }}
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -214,12 +239,16 @@ export default function InvoicesPage() {
       )}
 
       {/* Invoice Detail Dialog */}
-      <Dialog open={!!selectedInvoice} onOpenChange={(open) => !open && setSelectedInvoice(null)}>
+      <Dialog
+        open={!!selectedInvoice}
+        onOpenChange={(open) => !open && setSelectedInvoice(null)}
+      >
         <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Invoice Details</DialogTitle>
             <DialogDescription>
-              {selectedInvoice?.reference} · {selectedInvoice?.status.replace("_", " ")}
+              {selectedInvoice?.reference} ·{" "}
+              {selectedInvoice?.status.replace("_", " ")}
             </DialogDescription>
           </DialogHeader>
           {selectedInvoice && (
@@ -227,27 +256,39 @@ export default function InvoicesPage() {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <p className="text-muted-foreground">Subtotal</p>
-                  <p className="font-medium">{formatCurrency(selectedInvoice.subtotal)}</p>
+                  <p className="font-medium">
+                    {formatCurrency(selectedInvoice.subtotal)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Discount</p>
-                  <p className="font-medium">{formatCurrency(selectedInvoice.discount)}</p>
+                  <p className="font-medium">
+                    {formatCurrency(selectedInvoice.discount)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Taxes</p>
-                  <p className="font-medium">{formatCurrency(selectedInvoice.taxes)}</p>
+                  <p className="font-medium">
+                    {formatCurrency(selectedInvoice.taxes)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Total</p>
-                  <p className="font-medium">{formatCurrency(selectedInvoice.total)}</p>
+                  <p className="font-medium">
+                    {formatCurrency(selectedInvoice.total)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Amount Paid</p>
-                  <p className="font-medium text-green-600">{formatCurrency(selectedInvoice.amountPaid)}</p>
+                  <p className="font-medium text-green-600">
+                    {formatCurrency(selectedInvoice.amountPaid)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Outstanding</p>
-                  <p className="font-medium text-red-600">{formatCurrency(selectedInvoice.outstanding)}</p>
+                  <p className="font-medium text-red-600">
+                    {formatCurrency(selectedInvoice.outstanding)}
+                  </p>
                 </div>
               </div>
 
@@ -260,17 +301,79 @@ export default function InvoicesPage() {
                     <Skeleton className="h-4 w-full" />
                   </div>
                 ) : invoiceItems.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No items found.</p>
+                  <p className="text-sm text-muted-foreground">
+                    No items found.
+                  </p>
                 ) : (
                   <div className="border rounded-lg divide-y">
                     {invoiceItems.map((item: any, index: number) => (
-                      <div key={index} className="flex justify-between py-2 px-3 text-sm">
-                        <span>{item.description || item.serviceName || "Item"}</span>
-                        <span className="font-medium">{formatCurrency(item.amount || item.price)}</span>
+                      <div
+                        key={index}
+                        className="flex justify-between py-2 px-3 text-sm"
+                      >
+                        <span>
+                          {item.description || item.serviceName || "Item"}
+                        </span>
+                        <span className="font-medium">
+                          {formatCurrency(item.amount || item.price)}
+                        </span>
                       </div>
                     ))}
                   </div>
                 )}
+                <div className="flex gap-2 mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      if (!selectedInvoice) return;
+                      try {
+                        const html = await InvoicesService().getInvoiceReceipt(
+                          selectedInvoice.id,
+                        );
+                        const win = window.open("", "_blank");
+                        if (win) {
+                          win.document.open();
+                          win.document.write(html);
+                          win.document.close();
+                        } else {
+                          toast.error("Unable to open preview window");
+                        }
+                      } catch (err) {
+                        console.error(err);
+                        toast.error("Failed to load receipt preview");
+                      }
+                    }}
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    Preview Receipt
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      if (!selectedInvoice) return;
+                      try {
+                        await InvoicesService().sendInvoiceReceipt(
+                          selectedInvoice.id,
+                        );
+                        toast.success("Receipt sent");
+                      } catch (err) {
+                        console.error(err);
+                        toast.error("Failed to send receipt");
+                      }
+                    }}
+                  >
+                    Send Receipt
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      if (!selectedInvoice) return;
+                      const url = `/api/invoices/${selectedInvoice.id}/receipt.pdf`;
+                      window.open(url, "_blank");
+                    }}
+                  >
+                    Download PDF
+                  </Button>
+                </div>
               </div>
             </div>
           )}

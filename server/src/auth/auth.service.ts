@@ -113,6 +113,32 @@ export class AuthService {
     };
   }
 
+  // auth.service.ts
+  async getUserFromAccessToken(token: string) {
+    try {
+      const payload = this.jwtService.verify(token);
+      const userId = payload.sub;
+
+      const [user] = await this.db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user) return null;
+
+      return {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.fullName,
+        hotelId: user.hotelId,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   /** Login using email or phone. */
   async login(body: any) {
     const identifier = String(body?.identifier ?? '').trim();

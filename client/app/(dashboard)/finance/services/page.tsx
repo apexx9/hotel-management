@@ -149,9 +149,9 @@ export default function ServicesPage() {
         await ServicesService().updateService(editingService.id, {
           name: serviceForm.name,
           category: serviceForm.category,
-          price: serviceForm.price,
+          price: String(serviceForm.price),
           description: serviceForm.description || null,
-          isActive: serviceForm.isActive,
+          isActive: serviceForm.isActive ?? true,
         });
         toast.success("Service updated");
       } else {
@@ -438,7 +438,7 @@ export default function ServicesPage() {
               <Label>Stay *</Label>
               <Select
                 value={chargeForm.stayId}
-                onValueChange={(value) => setChargeForm({ ...chargeForm, stayId: value })}
+                onValueChange={(value) => setChargeForm({ ...chargeForm, stayId: value || "" })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select stay" />
@@ -456,7 +456,7 @@ export default function ServicesPage() {
               <Label>Service *</Label>
               <Select
                 value={chargeForm.serviceId}
-                onValueChange={(value) => setChargeForm({ ...chargeForm, serviceId: value })}
+                onValueChange={(value) => setChargeForm({ ...chargeForm, serviceId: value || "" })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select service" />

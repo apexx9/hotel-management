@@ -67,7 +67,10 @@ const RoomsService = () => {
     capacity?: number;
   }): Promise<Room> => {
     try {
-      const response = await operationsApi.createRoom(data);
+      const response = await operationsApi.createRoom({
+        ...data,
+        status: 'available' as const,
+      });
       return response.data;
     } catch (error) {
       console.error("Failed to create room:", getErrorMessage(error, "Failed to create room"));
@@ -77,7 +80,12 @@ const RoomsService = () => {
 
   const updateRoom = async (id: string, data: Partial<Room>): Promise<Room> => {
     try {
-      const response = await operationsApi.updateRoom(id, data);
+      const { status, ...rest } = data;
+      const updateData: any = { ...rest };
+      if (status && ['available', 'occupied', 'maintenance', 'turning_over'].includes(status)) {
+        updateData.status = status;
+      }
+      const response = await operationsApi.updateRoom(id, updateData);
       return response.data;
     } catch (error) {
       console.error("Failed to update room:", getErrorMessage(error, "Failed to update room"));
@@ -87,7 +95,16 @@ const RoomsService = () => {
 
   const updateRoomStatus = async (id: string, status: Room["status"]): Promise<Room> => {
     try {
-      const response = await operationsApi.updateRoomStatus(id, status);
+      const statusMap: Record<string, "available" | "occupied" | "maintenance" | "turning_over"> = {
+        available: "available",
+        occupied: "occupied",
+        cleaning: "turning_over",
+        inspection: "turning_over",
+        maintenance: "maintenance",
+        out_of_service: "maintenance",
+        reserved: "available",
+      };
+      const response = await operationsApi.updateRoomStatus(id, { status: statusMap[status] });
       return response.data;
     } catch (error) {
       console.error("Failed to update room status:", getErrorMessage(error, "Failed to update room status"));
@@ -134,7 +151,10 @@ const RoomsService = () => {
     amenities?: string;
   }): Promise<RoomType> => {
     try {
-      const response = await operationsApi.createRoomType(data);
+      const response = await operationsApi.createRoomType({
+        ...data,
+        amenities: data.amenities ? [data.amenities] : undefined,
+      });
       return response.data;
     } catch (error) {
       console.error("Failed to create room type:", getErrorMessage(error, "Failed to create room type"));
@@ -144,7 +164,15 @@ const RoomsService = () => {
 
   const updateRoomType = async (id: string, data: Partial<RoomType>): Promise<RoomType> => {
     try {
-      const response = await operationsApi.updateRoomType(id, data);
+      const { basePrice, amenities, ...rest } = data;
+      const updateData: any = { ...rest };
+      if (basePrice !== undefined) {
+        updateData.basePrice = typeof basePrice === 'string' ? parseFloat(basePrice) : basePrice;
+      }
+      if (amenities !== undefined) {
+        updateData.amenities = typeof amenities === 'string' ? [amenities] : amenities;
+      }
+      const response = await operationsApi.updateRoomType(id, updateData);
       return response.data;
     } catch (error) {
       console.error("Failed to update room type:", getErrorMessage(error, "Failed to update room type"));

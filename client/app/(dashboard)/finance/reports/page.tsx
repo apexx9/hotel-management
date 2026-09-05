@@ -148,7 +148,7 @@ export default function ReportsPage() {
           </p>
         </div>
         <div className="w-40">
-          <Select value={range} onValueChange={handleRangeChange}>
+          <Select value={range} onValueChange={(value) => handleRangeChange(value || "today")}>
             <SelectTrigger>
               <SelectValue placeholder="Select range" />
             </SelectTrigger>

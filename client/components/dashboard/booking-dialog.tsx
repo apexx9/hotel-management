@@ -24,10 +24,11 @@ import {
   CalendarDays,
   CreditCard,
   MessageSquare,
-  BedDouble
+  BedDouble,
 } from "lucide-react";
 import { toast } from "sonner";
 import BookingsService from "@/services/bookings.service";
+import InvoicesService from "@/services/invoices.service";
 import RoomsService from "@/services/rooms.service";
 import { LoadingSpinner } from "@/components/loading-spinner";
 
@@ -45,7 +46,7 @@ const initialForm = {
   roomTypeId: "",
   guestsCount: 1,
   nights: 1,
-  expectedCheckInAt: "",
+  expectedCheckInAt: new Date().toISOString().slice(0, 16),
   rate: 0,
   discount: 0,
   taxes: 0,
@@ -65,7 +66,11 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 10 },
-  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { type: "spring" as const, stiffness: 300, damping: 24 },
+  },
 };
 
 export function NewBookingDialog({
@@ -105,7 +110,7 @@ export function NewBookingDialog({
     }
     setCreating(true);
     try {
-      await BookingsService().createBooking({
+      const result = await BookingsService().createBooking({
         ...form,
         email: form.email || undefined,
         roomTypeId: form.roomTypeId || undefined,
@@ -113,6 +118,21 @@ export function NewBookingDialog({
         paymentMethod: form.paymentMethod || undefined,
       });
       toast.success("Booking created successfully");
+      // open receipt preview for generated invoice when available
+      try {
+        const invoice = (result as any)?.invoice;
+        if (invoice?.id) {
+          const html = await InvoicesService().getInvoiceReceipt(invoice.id);
+          const win = window.open("", "_blank");
+          if (win) {
+            win.document.open();
+            win.document.write(html);
+            win.document.close();
+          }
+        }
+      } catch (err) {
+        // non-fatal — booking succeeded
+      }
       onOpenChange(false);
       onSuccess?.();
     } catch (err) {
@@ -146,18 +166,21 @@ export function NewBookingDialog({
           >
             {/* LEFT COLUMN: Guest Info */}
             <div className="flex-1 p-8 pt-6 space-y-8">
-
               <motion.section variants={itemVariants} className="space-y-5">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
                   <User className="h-4 w-4 text-blue-600" />
-                  <h3 className="text-sm font-medium text-slate-900">Guest Information</h3>
+                  <h3 className="text-sm font-medium text-slate-900">
+                    Guest Information
+                  </h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div className="space-y-2">
                     <Label className="text-slate-600 text-sm">First Name</Label>
                     <Input
                       value={form.firstName}
-                      onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, firstName: e.target.value })
+                      }
                       className="h-10 rounded-lg border-slate-200 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all shadow-sm"
                       placeholder="Jane"
                     />
@@ -166,16 +189,22 @@ export function NewBookingDialog({
                     <Label className="text-slate-600 text-sm">Last Name</Label>
                     <Input
                       value={form.lastName}
-                      onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, lastName: e.target.value })
+                      }
                       className="h-10 rounded-lg border-slate-200 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all shadow-sm"
                       placeholder="Doe"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-slate-600 text-sm">Phone <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 text-sm">
+                      Phone <span className="text-red-500">*</span>
+                    </Label>
                     <Input
                       value={form.phone}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, phone: e.target.value })
+                      }
                       required
                       className="h-10 rounded-lg border-slate-200 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all shadow-sm"
                       placeholder="+1 (555) 000-0000"
@@ -186,7 +215,9 @@ export function NewBookingDialog({
                     <Input
                       type="email"
                       value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, email: e.target.value })
+                      }
                       className="h-10 rounded-lg border-slate-200 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all shadow-sm"
                       placeholder="jane@example.com"
                     />
@@ -197,14 +228,20 @@ export function NewBookingDialog({
               <motion.section variants={itemVariants} className="space-y-5">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
                   <MessageSquare className="h-4 w-4 text-blue-600" />
-                  <h3 className="text-sm font-medium text-slate-900">Preferences</h3>
+                  <h3 className="text-sm font-medium text-slate-900">
+                    Preferences
+                  </h3>
                 </div>
                 <div className="space-y-5">
                   <div className="space-y-2">
-                    <Label className="text-slate-600 text-sm">Special Requests</Label>
+                    <Label className="text-slate-600 text-sm">
+                      Special Requests
+                    </Label>
                     <Input
                       value={form.specialRequests}
-                      onChange={(e) => setForm({ ...form, specialRequests: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, specialRequests: e.target.value })
+                      }
                       placeholder="Dietary needs, late arrival..."
                       className="h-10 rounded-lg border-slate-200 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all shadow-sm"
                     />
@@ -219,15 +256,31 @@ export function NewBookingDialog({
                     }`}
                   >
                     <div className="flex flex-col gap-1">
-                      <span className={`text-sm font-medium ${form.checkInNow ? 'text-blue-700' : 'text-slate-700'}`}>
+                      <span
+                        className={`text-sm font-medium ${form.checkInNow ? "text-blue-700" : "text-slate-700"}`}
+                      >
                         Check In Immediately
                       </span>
-                      <span className="text-xs text-slate-500">Update guest status to checked-in upon saving.</span>
+                      <span className="text-xs text-slate-500">
+                        Update guest status to checked-in upon saving.
+                      </span>
                     </div>
-                    <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${form.checkInNow ? 'border-blue-600 bg-blue-600' : 'border-slate-300'}`}>
+                    <div
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${form.checkInNow ? "border-blue-600 bg-blue-600" : "border-slate-300"}`}
+                    >
                       {form.checkInNow && (
-                        <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        <svg
+                          className="w-3.5 h-3.5 text-white"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={3}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M5 13l4 4L19 7"
+                          />
                         </svg>
                       )}
                     </div>
@@ -235,7 +288,9 @@ export function NewBookingDialog({
                       type="checkbox"
                       id="checkInNow"
                       checked={form.checkInNow}
-                      onChange={(e) => setForm({ ...form, checkInNow: e.target.checked })}
+                      onChange={(e) =>
+                        setForm({ ...form, checkInNow: e.target.checked })
+                      }
                       className="hidden"
                     />
                   </label>
@@ -245,19 +300,22 @@ export function NewBookingDialog({
 
             {/* RIGHT COLUMN: Reservation & Financials */}
             <div className="w-full lg:w-[420px] bg-slate-50/50 border-l border-slate-100 p-8 pt-6 flex flex-col gap-8 shrink-0">
-
               <motion.section variants={itemVariants} className="space-y-5">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                   <CalendarDays className="h-4 w-4 text-blue-600" />
-                  <h3 className="text-sm font-medium text-slate-900">Stay Details</h3>
+                  <h3 className="text-sm font-medium text-slate-900">
+                    Stay Details
+                  </h3>
                 </div>
 
                 <div className="space-y-5">
                   <div className="space-y-2">
                     <Label className="text-slate-600 text-sm">Room Type</Label>
                     <Select
-                      value={form.roomTypeId}
-                      onValueChange={(value) => setForm({ ...form, roomTypeId: value })}
+                      value={form.roomTypeId || ""}
+                      onValueChange={(value) =>
+                        setForm({ ...form, roomTypeId: value || "" })
+                      }
                     >
                       <SelectTrigger className="h-10 rounded-lg bg-white border-slate-200 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all shadow-sm">
                         <div className="flex items-center gap-2">
@@ -272,9 +330,15 @@ export function NewBookingDialog({
                           </div>
                         ) : (
                           roomTypes.map((type) => (
-                            <SelectItem key={type.id} value={type.id} className="py-2 cursor-pointer">
+                            <SelectItem
+                              key={type.id}
+                              value={type.id}
+                              className="py-2 cursor-pointer"
+                            >
                               <span className="font-medium">{type.name}</span>
-                              <span className="text-slate-500 ml-2">— ${type.basePrice}/nt</span>
+                              <span className="text-slate-500 ml-2">
+                                — ${type.basePrice}/nt
+                              </span>
                             </SelectItem>
                           ))
                         )}
@@ -283,11 +347,16 @@ export function NewBookingDialog({
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-slate-600 text-sm">Check-in Date & Time <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 text-sm">
+                      Check-in Date & Time{" "}
+                      <span className="text-red-500">*</span>
+                    </Label>
                     <Input
                       type="datetime-local"
                       value={form.expectedCheckInAt}
-                      onChange={(e) => setForm({ ...form, expectedCheckInAt: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, expectedCheckInAt: e.target.value })
+                      }
                       required
                       className="h-10 rounded-lg bg-white border-slate-200 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all shadow-sm"
                     />
@@ -300,17 +369,26 @@ export function NewBookingDialog({
                         type="number"
                         min={1}
                         value={form.guestsCount}
-                        onChange={(e) => setForm({ ...form, guestsCount: Number(e.target.value) })}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            guestsCount: Number(e.target.value),
+                          })
+                        }
                         className="h-10 rounded-lg bg-white border-slate-200 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all shadow-sm text-center"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-slate-600 text-sm">Nights <span className="text-red-500">*</span></Label>
+                      <Label className="text-slate-600 text-sm">
+                        Nights <span className="text-red-500">*</span>
+                      </Label>
                       <Input
                         type="number"
                         min={1}
                         value={form.nights}
-                        onChange={(e) => setForm({ ...form, nights: Number(e.target.value) })}
+                        onChange={(e) =>
+                          setForm({ ...form, nights: Number(e.target.value) })
+                        }
                         required
                         className="h-10 rounded-lg bg-white border-slate-200 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all shadow-sm text-center"
                       />
@@ -322,18 +400,24 @@ export function NewBookingDialog({
               <motion.section variants={itemVariants} className="space-y-5">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                   <CreditCard className="h-4 w-4 text-blue-600" />
-                  <h3 className="text-sm font-medium text-slate-900">Financials</h3>
+                  <h3 className="text-sm font-medium text-slate-900">
+                    Financials
+                  </h3>
                 </div>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between gap-4">
                     <Label className="text-slate-600">Nightly Rate</Label>
                     <div className="relative w-32">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                        $
+                      </span>
                       <Input
                         type="number"
                         min={0}
                         value={form.rate}
-                        onChange={(e) => setForm({ ...form, rate: Number(e.target.value) })}
+                        onChange={(e) =>
+                          setForm({ ...form, rate: Number(e.target.value) })
+                        }
                         className="h-9 pl-7 text-right rounded-md bg-white border-slate-200 focus:border-blue-600 shadow-sm"
                       />
                     </div>
@@ -342,12 +426,16 @@ export function NewBookingDialog({
                   <div className="flex items-center justify-between gap-4">
                     <Label className="text-slate-600">Discount</Label>
                     <div className="relative w-32">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                        $
+                      </span>
                       <Input
                         type="number"
                         min={0}
                         value={form.discount}
-                        onChange={(e) => setForm({ ...form, discount: Number(e.target.value) })}
+                        onChange={(e) =>
+                          setForm({ ...form, discount: Number(e.target.value) })
+                        }
                         className="h-9 pl-7 text-right text-green-600 font-medium rounded-md bg-white border-slate-200 focus:border-blue-600 shadow-sm"
                       />
                     </div>
@@ -356,12 +444,16 @@ export function NewBookingDialog({
                   <div className="flex items-center justify-between gap-4">
                     <Label className="text-slate-600">Taxes</Label>
                     <div className="relative w-32">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                        $
+                      </span>
                       <Input
                         type="number"
                         min={0}
                         value={form.taxes}
-                        onChange={(e) => setForm({ ...form, taxes: Number(e.target.value) })}
+                        onChange={(e) =>
+                          setForm({ ...form, taxes: Number(e.target.value) })
+                        }
                         className="h-9 pl-7 text-right rounded-md bg-white border-slate-200 focus:border-blue-600 shadow-sm"
                       />
                     </div>

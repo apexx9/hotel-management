@@ -63,6 +63,22 @@ export class AuthController {
     return this.authService.resetPassword(body.token, body.password);
   }
 
+  // auth.controller.ts
+  @Get('me')
+  async me(@Req() req: Request) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return { ok: false, message: 'Unauthorized' };
+    }
+
+    const token = authHeader.split(' ')[1];
+    const user = await this.authService.getUserFromAccessToken(token);
+
+    if (!user) return { ok: false, message: 'Invalid token' };
+
+    return { ok: true, user };
+  }
+
   @Post('refresh')
   async refresh(
     @Req() req: Request,
@@ -98,6 +114,7 @@ export class AuthController {
     return { ok: true };
   }
 }
+
 
 @Controller('invitations')
 export class InvitationsController {

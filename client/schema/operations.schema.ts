@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 // ---------- Base / Utility Schemas ----------
 const optionalString = z.string().trim().optional().nullable();
@@ -6,24 +6,30 @@ const dateString = z.string().datetime().or(z.date()).optional().nullable();
 
 // ---------- Room Schema ----------
 export const roomSchema = z.object({
-  number: z.string().min(1, 'Room number is required'),
+  number: z.string().min(1, "Room number is required"),
   floor: z.string().optional().nullable(),
-  roomTypeId: z.string().uuid('Invalid room type ID'),
-  status: z.enum(['available', 'occupied', 'maintenance', 'turning_over']).default('available'),
+  roomTypeId: z.string().uuid("Invalid room type ID"),
+  status: z
+    .enum(["available", "occupied", "maintenance", "turning_over"])
+    .default("available"),
   notes: z.string().optional().nullable(),
 });
 
 export const updateRoomSchema = roomSchema.partial();
 
 export const updateRoomStatusSchema = z.object({
-  status: z.enum(['available', 'occupied', 'maintenance', 'turning_over']),
+  status: z.enum(["available", "occupied", "maintenance", "turning_over"]),
 });
 
 // ---------- Room Type Schema ----------
 export const roomTypeSchema = z.object({
-  name: z.string().min(1, 'Room type name is required'),
-  basePrice: z.number().positive('Base price must be positive'),
-  capacity: z.number().int().positive('Capacity must be a positive integer').default(1),
+  name: z.string().min(1, "Room type name is required"),
+  basePrice: z.number().positive("Base price must be positive"),
+  capacity: z
+    .number()
+    .int()
+    .positive("Capacity must be a positive integer")
+    .default(1),
   description: z.string().optional().nullable(),
   amenities: z.array(z.string()).optional().nullable(),
 });
@@ -32,8 +38,8 @@ export const updateRoomTypeSchema = roomTypeSchema.partial();
 
 // ---------- Guest Schema ----------
 export const guestSchema = z.object({
-  fullName: z.string().min(1, 'Full name is required'),
-  email: z.string().email('Invalid email').optional().nullable(),
+  fullName: z.string().min(1, "Full name is required"),
+  email: z.string().email("Invalid email").optional().nullable(),
   phone: z.string().optional().nullable(),
   nationality: z.string().optional().nullable(),
   identificationType: z.string().optional().nullable(),
@@ -47,19 +53,19 @@ export const updateGuestSchema = guestSchema.partial();
 
 // ---------- Booking / Stay Schema ----------
 export const createBookingSchema = z.object({
-  guestId: z.string().uuid('Invalid guest ID').optional().nullable(),
+  guestId: z.string().uuid("Invalid guest ID").optional().nullable(),
   firstName: z.string().optional().nullable(),
   lastName: z.string().optional().nullable(),
-  phone: z.string().min(1, 'Phone is required'),
-  email: z.string().email('Invalid email').optional().nullable(),
+  phone: z.string().min(1, "Phone is required"),
+  email: z.string().email("Invalid email").optional().nullable(),
   nationality: z.string().optional().nullable(),
   identificationType: z.string().optional().nullable(),
   identificationNumber: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   emergencyContact: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
-  roomId: z.string().uuid('Invalid room ID').optional().nullable(),
-  roomTypeId: z.string().uuid('Invalid room type ID').optional().nullable(),
+  roomId: z.string().uuid("Invalid room ID").optional().nullable(),
+  roomTypeId: z.string().uuid("Invalid room type ID").optional().nullable(),
   guestsCount: z.number().int().positive().default(1),
   nights: z.number().int().positive(),
   expectedCheckInAt: z.string().datetime(),
@@ -73,11 +79,11 @@ export const createBookingSchema = z.object({
 });
 
 export const checkInSchema = z.object({
-  stayId: z.string().uuid('Invalid stay ID'),
+  stayId: z.string().uuid("Invalid stay ID"),
 });
 
 export const checkOutSchema = z.object({
-  stayId: z.string().uuid('Invalid stay ID'),
+  stayId: z.string().uuid("Invalid stay ID"),
   overrideBalance: z.boolean().optional().default(false),
   amountPaid: z.number().nonnegative().optional().default(0),
   paymentMethod: z.string().optional().nullable(),
@@ -85,17 +91,17 @@ export const checkOutSchema = z.object({
 
 // ---------- Payment Schema ----------
 export const recordPaymentSchema = z.object({
-  stayId: z.string().uuid('Invalid stay ID'),
-  invoiceId: z.string().uuid('Invalid invoice ID'),
-  amount: z.number().positive('Amount must be positive'),
-  method: z.string().min(1, 'Payment method is required'),
+  stayId: z.string().uuid("Invalid stay ID"),
+  invoiceId: z.string().uuid("Invalid invoice ID"),
+  amount: z.number().positive("Amount must be positive"),
+  method: z.string().min(1, "Payment method is required"),
   notes: z.string().optional().nullable(),
 });
 
 // ---------- Service Schema ----------
 export const serviceSchema = z.object({
-  name: z.string().min(1, 'Service name is required'),
-  price: z.number().nonnegative('Price must be non-negative'),
+  name: z.string().min(1, "Service name is required"),
+  price: z.number().nonnegative("Price must be non-negative"),
   description: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
 });
@@ -104,28 +110,30 @@ export const updateServiceSchema = serviceSchema.partial();
 
 // ---------- Service Charge Schema ----------
 export const addServiceChargeSchema = z.object({
-  stayId: z.string().uuid('Invalid stay ID'),
-  serviceId: z.string().uuid('Invalid service ID'),
+  stayId: z.string().uuid("Invalid stay ID"),
+  serviceId: z.string().uuid("Invalid service ID"),
   quantity: z.number().int().positive().default(1),
 });
 
 // ---------- Housekeeping Schema ----------
 export const createHousekeepingTaskSchema = z.object({
-  roomId: z.string().uuid('Invalid room ID'),
-  status: z.enum(['cleaning', 'inspection', 'ready', 'maintenance']).default('cleaning'),
+  roomId: z.string().uuid("Invalid room ID"),
+  status: z
+    .enum(["cleaning", "inspection", "ready", "maintenance"])
+    .default("cleaning"),
   note: z.string().optional().nullable(),
 });
 
 export const updateHousekeepingSchema = z.object({
-  roomId: z.string().uuid('Invalid room ID'),
-  status: z.enum(['cleaning', 'inspection', 'ready', 'maintenance']),
+  roomId: z.string().uuid("Invalid room ID"),
+  status: z.enum(["cleaning", "inspection", "ready", "maintenance"]),
   note: z.string().optional().nullable(),
 });
 
 // ---------- Staff Schema ----------
 export const inviteStaffSchema = z.object({
-  email: z.string().email('Invalid email'),
-  role: z.string().min(1, 'Role is required'),
+  email: z.string().email("Invalid email"),
+  role: z.string().min(1, "Role is required"),
   fullName: z.string().optional().nullable(),
 });
 
@@ -141,15 +149,15 @@ export const settingsSchema = z.object({
   phone: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   logoUrl: z.string().url().optional().nullable(),
-  timezone: z.string().default('UTC'),
-  currency: z.string().default('USD'),
-  language: z.string().default('en'),
-  checkInTime: z.string().default('14:00'),
-  checkOutTime: z.string().default('11:00'),
+  timezone: z.string().default("UTC"),
+  currency: z.string().default("USD"),
+  language: z.string().default("en"),
+  checkInTime: z.string().default("14:00"),
+  checkOutTime: z.string().default("11:00"),
   bookingPolicy: z.string().optional().nullable(),
   guestIdRequired: z.boolean().default(true),
-  taxRate: z.string().default('0'),
-  invoicePrefix: z.string().default('INV-'),
+  taxRate: z.number().default(0),
+  invoicePrefix: z.string().default("INV-"),
   acceptedPaymentMethods: z.string().optional().nullable(),
   serviceConfig: z.string().optional().nullable(),
   notificationPrefs: z.string().optional().nullable(),
@@ -196,7 +204,9 @@ export type RecordPaymentSchema = z.infer<typeof recordPaymentSchema>;
 export type ServiceSchema = z.infer<typeof serviceSchema>;
 export type UpdateServiceSchema = z.infer<typeof updateServiceSchema>;
 export type AddServiceChargeSchema = z.infer<typeof addServiceChargeSchema>;
-export type CreateHousekeepingTaskSchema = z.infer<typeof createHousekeepingTaskSchema>;
+export type CreateHousekeepingTaskSchema = z.infer<
+  typeof createHousekeepingTaskSchema
+>;
 export type UpdateHousekeepingSchema = z.infer<typeof updateHousekeepingSchema>;
 export type InviteStaffSchema = z.infer<typeof inviteStaffSchema>;
 export type UpdateStaffSchema = z.infer<typeof updateStaffSchema>;

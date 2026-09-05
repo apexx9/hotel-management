@@ -8,8 +8,10 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import type { Request } from 'express';
 import { OperationsService } from './operations.service';
 import {
@@ -89,10 +91,7 @@ export class OperationsController {
 
   @Delete('room-types/:id')
   @Roles('admin', 'manager', 'owner')
-  deleteRoomType(
-    @Req() req: AuthenticatedRequest,
-    @Param('id') id: string,
-  ) {
+  deleteRoomType(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.operations.deleteRoomType(req.user.userId, id);
   }
 
@@ -100,10 +99,7 @@ export class OperationsController {
   // GUESTS
   // ==========================================
   @Get('guests')
-  listGuests(
-    @Req() req: AuthenticatedRequest,
-    @Query('q') query?: string,
-  ) {
+  listGuests(@Req() req: AuthenticatedRequest, @Query('q') query?: string) {
     return this.operations.listGuests(req.user.userId, query);
   }
 
@@ -138,7 +134,11 @@ export class OperationsController {
     @Query('guestId') guestId?: string,
     @Query('roomId') roomId?: string,
   ) {
-    return this.operations.listStays(req.user.userId, { status, guestId, roomId });
+    return this.operations.listStays(req.user.userId, {
+      status,
+      guestId,
+      roomId,
+    });
   }
 
   @Get('stays/active')
@@ -148,7 +148,9 @@ export class OperationsController {
 
   @Get('stays/arrivals')
   listArrivals(@Req() req: AuthenticatedRequest) {
-    return this.operations.listStays(req.user.userId, { status: 'pending_arrival' });
+    return this.operations.listStays(req.user.userId, {
+      status: 'pending_arrival',
+    });
   }
 
   @Get('stays/departures')
@@ -206,11 +208,40 @@ export class OperationsController {
     return this.operations.getInvoice(req.user.userId, id);
   }
 
-  @Get('invoices/:id/items')
-  getInvoiceItems(
+  @Get('invoices/:id/receipt')
+  getInvoiceReceipt(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.operations.getInvoiceReceipt(req.user.userId, id);
+  }
+
+  @Get('invoices/:id/receipt.pdf')
+  async getInvoiceReceiptPdf(
     @Req() req: AuthenticatedRequest,
+    @Res() res: Response,
     @Param('id') id: string,
   ) {
+    const result = await this.operations.getInvoiceReceiptPdf(
+      req.user.userId,
+      id,
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${result.filename}"`,
+    );
+    res.send(result.pdf);
+  }
+
+  @Post('invoices/:id/send-receipt')
+  sendInvoiceReceipt(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body?: { to?: string },
+  ) {
+    return this.operations.sendInvoiceReceipt(req.user.userId, id, body?.to);
+  }
+
+  @Get('invoices/:id/items')
+  getInvoiceItems(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.operations.getInvoiceItems(req.user.userId, id);
   }
 
@@ -364,19 +395,13 @@ export class OperationsController {
 
   @Get('staff/:id')
   @Roles('admin', 'manager', 'owner')
-  getStaffMember(
-    @Req() req: AuthenticatedRequest,
-    @Param('id') id: string,
-  ) {
+  getStaffMember(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.operations.getStaffMember(req.user.userId, id);
   }
 
   @Post('staff/invite')
   @Roles('admin', 'manager', 'owner')
-  inviteStaff(
-    @Req() req: AuthenticatedRequest,
-    @Body() dto: InviteStaffDto,
-  ) {
+  inviteStaff(@Req() req: AuthenticatedRequest, @Body() dto: InviteStaffDto) {
     return this.operations.inviteStaff(req.user.userId, dto);
   }
 

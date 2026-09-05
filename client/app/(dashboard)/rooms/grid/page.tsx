@@ -19,17 +19,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertCircle, BedDouble, Users, Wallet, DoorOpen } from "lucide-react";
+import { AlertCircle, BedDouble, Users, Wallet, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const statusColors: Record<Room["status"], string> = {
-  available: "bg-green-50 border-green-300 text-green-700",
-  occupied: "bg-blue-50 border-blue-300 text-blue-700",
-  cleaning: "bg-amber-50 border-amber-300 text-amber-700",
-  inspection: "bg-purple-50 border-purple-300 text-purple-700",
-  maintenance: "bg-red-50 border-red-300 text-red-700",
-  out_of_service: "bg-gray-50 border-gray-300 text-gray-700",
-  reserved: "bg-indigo-50 border-indigo-300 text-indigo-700",
+const statusColors: Record<Room["status"], { bg: string, text: string, border: string }> = {
+  available: { bg: "bg-emerald-500/10", text: "text-emerald-600", border: "border-emerald-500/20" },
+  occupied: { bg: "bg-blue-500/10", text: "text-blue-600", border: "border-blue-500/20" },
+  cleaning: { bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-500", border: "border-amber-500/20" },
+  inspection: { bg: "bg-purple-500/10", text: "text-purple-600 dark:text-purple-400", border: "border-purple-500/20" },
+  maintenance: { bg: "bg-destructive/10", text: "text-destructive", border: "border-destructive/20" },
+  out_of_service: { bg: "bg-muted", text: "text-muted-foreground", border: "border-border" },
+  reserved: { bg: "bg-indigo-500/10", text: "text-indigo-600 dark:text-indigo-400", border: "border-indigo-500/20" },
 };
 
 export default function RoomGridPage() {
@@ -63,12 +63,19 @@ export default function RoomGridPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-10 w-64" />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="space-y-8 p-2 md:p-6 max-w-7xl mx-auto animate-pulse">
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-28 rounded-full" />
+          <Skeleton className="h-10 w-96 rounded-xl" />
+        </div>
+        <div className="flex gap-4">
+          <Skeleton className="h-12 w-40 rounded-full" />
+          <Skeleton className="h-12 w-48 rounded-full" />
+          <Skeleton className="h-12 w-40 rounded-full" />
+        </div>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {[...Array(8)].map((_, i) => (
-            <Skeleton key={i} className="h-36 rounded-xl" />
+            <Skeleton key={i} className="h-44 rounded-3xl" />
           ))}
         </div>
       </div>
@@ -77,11 +84,13 @@ export default function RoomGridPage() {
 
   if (error) {
     return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <div className="p-6 max-w-7xl mx-auto">
+        <Alert variant="destructive" className="rounded-2xl border-destructive/30 bg-destructive/10">
+          <AlertCircle className="h-5 w-5" />
+          <AlertTitle className="font-semibold">System Notice</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
     );
   }
 
@@ -96,22 +105,34 @@ export default function RoomGridPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Room Grid</h1>
-        <p className="text-sm text-muted-foreground">
-          Visual overview of all rooms and their current status.
+    <div className="space-y-10 p-2 sm:p-4 md:p-6 max-w-7xl mx-auto">
+      
+      {/* ─── HERO HEADER ────────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-border/40 pb-6">
+        <div className="space-y-2">
+          <Badge
+            variant="outline"
+            className="rounded-full px-3 py-1 font-medium text-xs bg-muted/60 text-muted-foreground border-border/60"
+          >
+            Inventory Management
+          </Badge>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
+            Visual Room Grid
+          </h1>
+        </div>
+        <p className="text-sm text-muted-foreground max-w-xs leading-relaxed md:text-right">
+          Birds-eye view of your entire property, color-coded by real-time status.
         </p>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4">
-        <div className="w-40">
-          <Select value={floorFilter} onValueChange={setFloorFilter}>
-            <SelectTrigger>
+      {/* ─── FILTERS ────────────────────────────────────────────── */}
+      <div className="flex flex-wrap gap-4 items-center bg-muted/30 p-4 rounded-3xl border border-border/40">
+        <div className="w-full sm:w-40">
+          <Select value={floorFilter} onValueChange={(value) => setFloorFilter(value || "all")}>
+            <SelectTrigger className="h-11 rounded-xl bg-background border-border/60 shadow-sm">
               <SelectValue placeholder="All floors" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="rounded-xl">
               <SelectItem value="all">All floors</SelectItem>
               {floors.map((floor) => (
                 <SelectItem key={floor} value={floor}>
@@ -121,12 +142,12 @@ export default function RoomGridPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="w-48">
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger>
+        <div className="w-full sm:w-48">
+          <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value || "all")}>
+            <SelectTrigger className="h-11 rounded-xl bg-background border-border/60 shadow-sm">
               <SelectValue placeholder="All types" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="rounded-xl">
               <SelectItem value="all">All types</SelectItem>
               {roomTypes.map((type) => (
                 <SelectItem key={type.id} value={type.id}>
@@ -136,16 +157,16 @@ export default function RoomGridPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="w-40">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger>
+        <div className="w-full sm:w-40">
+          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value || "all")}>
+            <SelectTrigger className="h-11 rounded-xl bg-background border-border/60 shadow-sm">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="rounded-xl">
               <SelectItem value="all">All statuses</SelectItem>
               {statuses.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {status.replace("_", " ")}
+                <SelectItem key={status} value={status} className="capitalize">
+                  {status.replace(/_/g, " ")}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -153,53 +174,61 @@ export default function RoomGridPage() {
         </div>
       </div>
 
-      {/* Room cards */}
+      {/* ─── ROOM CARDS ────────────────────────────────────────────── */}
       {filteredRooms.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            No rooms match the current filters.
-          </CardContent>
+        <Card className="rounded-3xl border border-border/50 bg-muted/20 shadow-sm flex flex-col items-center justify-center p-12 min-h-[300px]">
+          <div className="h-12 w-12 rounded-full bg-muted/60 flex items-center justify-center mb-4 text-muted-foreground">
+            <Info className="h-6 w-6" />
+          </div>
+          <p className="text-lg font-medium text-foreground">No rooms found</p>
+          <p className="text-sm text-muted-foreground mt-1">Try adjusting your filters to see more results.</p>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredRooms.map((room) => (
-            <Card
-              key={room.id}
-              className={cn("border-2 transition-colors", statusColors[room.status])}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg font-semibold">
-                      Room {room.number}
-                    </CardTitle>
-                    <p className="text-xs opacity-70">
-                      Floor {room.floor || "—"}
-                    </p>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredRooms.map((room) => {
+            const style = statusColors[room.status] || { bg: "bg-muted", text: "text-muted-foreground", border: "border-border" };
+            
+            return (
+              <Card
+                key={room.id}
+                className={cn("relative rounded-3xl border shadow-sm hover:shadow-md transition-all flex flex-col", style.border, style.bg)}
+              >
+                <CardHeader className="pb-3 border-b border-background/40">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-xl font-bold text-foreground">
+                        Room {room.number}
+                      </CardTitle>
+                      <p className="text-xs font-medium opacity-80 mt-0.5">
+                        Floor {room.floor || "—"}
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className={cn("capitalize px-2.5 py-0.5 border font-semibold bg-background/50", style.text, style.border)}>
+                      {room.status.replace(/_/g, " ")}
+                    </Badge>
                   </div>
-                  <Badge variant="outline" className="capitalize">
-                    {room.status.replace("_", " ")}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <BedDouble className="h-4 w-4 opacity-70" />
-                  <span>
-                    {roomTypes.find((t) => t.id === room.roomTypeId)?.name || "Unknown type"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 opacity-70" />
-                  <span>Capacity: {room.capacity}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Wallet className="h-4 w-4 opacity-70" />
-                  <span>{formatCurrency(room.rate)} / night</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardHeader>
+                <CardContent className="pt-4 flex-1">
+                  <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-sm opacity-90">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5"><BedDouble className="h-3 w-3" /> Type</span>
+                      <p className="font-semibold truncate" title={roomTypes.find((t) => t.id === room.roomTypeId)?.name || "Unknown type"}>
+                        {roomTypes.find((t) => t.id === room.roomTypeId)?.name || "Unknown"}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5"><Users className="h-3 w-3" /> Max</span>
+                      <p className="font-semibold">{room.capacity} Guests</p>
+                    </div>
+                    <div className="space-y-1 col-span-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5"><Wallet className="h-3 w-3" /> Rate</span>
+                      <p className="font-semibold">{formatCurrency(room.rate)} <span className="opacity-70 text-xs font-normal">/ night</span></p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

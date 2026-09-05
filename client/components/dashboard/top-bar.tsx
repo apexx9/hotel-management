@@ -47,38 +47,43 @@ export function Topbar() {
     try {
       const [guests, rooms, stays] = await Promise.all([
         GuestsService().getGuests(query.trim()),
-        RoomsService().getRooms().then((rooms) =>
-          rooms.filter((r) =>
-            r.number.toLowerCase().includes(query.toLowerCase())
-          )
-        ),
-        StaysService().getActiveStays().then((stays) =>
-          stays.filter((s) =>
-            s.guestName?.toLowerCase().includes(query.toLowerCase()) ||
-            s.reference?.toLowerCase().includes(query.toLowerCase())
-          )
-        ),
+        RoomsService()
+          .getRooms()
+          .then((rooms) =>
+            rooms.filter((r) =>
+              r.number.toLowerCase().includes(query.toLowerCase()),
+            ),
+          ),
+        StaysService()
+          .getActiveStays()
+          .then((stays) =>
+            stays.filter(
+              (s) =>
+                s.guestName?.toLowerCase().includes(query.toLowerCase()) ||
+                s.reference?.toLowerCase().includes(query.toLowerCase()),
+            ),
+          ),
       ]);
 
       const guestResults: SearchResult[] = guests.map((g) => ({
         id: g.id,
         type: "guest",
         title: `${g.firstName} ${g.lastName}`,
-        subtitle: g.phone,
+        subtitle: g.phone ?? undefined,
         href: `/guests/${g.id}`,
       }));
       const roomResults: SearchResult[] = rooms.map((r) => ({
         id: r.id,
         type: "room",
         title: `Room ${r.number}`,
-        subtitle: r.status,
+        subtitle: r.status ?? undefined,
         href: `/rooms/${r.id}`,
       }));
       const stayResults: SearchResult[] = stays.map((s) => ({
         id: s.id,
         type: "stay",
         title: `Stay ${s.reference} - ${s.guestName}`,
-        subtitle: s.roomNumber,
+        subtitle: s.roomNumber ?? undefined,
         href: `/stays/${s.id}`,
       }));
 
@@ -156,7 +161,7 @@ export function Topbar() {
           {/* New Booking button - updated to use teal accent */}
           <button
             onClick={() => setBookingDialogOpen(true)}
-            className="hidden h-10 items-center gap-2 rounded-xl bg-[#0F766E] px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#0d5e58] md:flex"
+            className="hidden h-10 items-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 md:flex"
           >
             <Plus className="h-4 w-4" />
             New Booking
@@ -164,14 +169,19 @@ export function Topbar() {
 
           {/* Notifications */}
           <DropdownMenu>
-            <DropdownMenuTrigger className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900">
+            <DropdownMenuTrigger className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl text-blue-500 transition-colors hover:bg-blue-100 hover:text-blue-900">
               <Bell className="h-5 w-5" />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#0F766E]" />
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full text-blue-600 " />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 rounded-2xl border-slate-100 shadow-lg">
-              <DropdownMenuLabel className="text-slate-900">Notifications</DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-slate-100" />
-              <div className="p-4 text-sm text-slate-500">
+            <DropdownMenuContent
+              align="end"
+              className="w-80 rounded-2xl border-blue-100 shadow-lg"
+            >
+              <DropdownMenuLabel className="text-blue-900">
+                Notifications
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-blue-100" />
+              <div className="p-4 text-sm text-blue-500">
                 No new notifications
               </div>
             </DropdownMenuContent>
@@ -232,7 +242,9 @@ export function Topbar() {
                         {result.type}
                       </Badge>
                       <div className="flex-1">
-                        <div className="text-sm font-medium text-slate-900">{result.title}</div>
+                        <div className="text-sm font-medium text-slate-900">
+                          {result.title}
+                        </div>
                         {result.subtitle && (
                           <div className="text-xs text-slate-500 mt-0.5">
                             {result.subtitle}

@@ -52,7 +52,12 @@ const ServicesService = () => {
     isActive?: boolean;
   }): Promise<Service> => {
     try {
-      const response = await operationsApi.createService(data);
+      const response = await operationsApi.createService({
+        name: data.name,
+        price: data.price,
+        description: data.description ?? null,
+        isActive: data.isActive ?? true,
+      });
       return response.data;
     } catch (error) {
       console.error("Failed to create service:", getErrorMessage(error, "Failed to create service"));
@@ -62,7 +67,12 @@ const ServicesService = () => {
 
   const updateService = async (id: string, data: Partial<Service>): Promise<Service> => {
     try {
-      const response = await operationsApi.updateService(id, data);
+      const { price, ...rest } = data;
+      const updateData: any = { ...rest };
+      if (price !== undefined) {
+        updateData.price = typeof price === 'string' ? parseFloat(price) : price;
+      }
+      const response = await operationsApi.updateService(id, updateData);
       return response.data;
     } catch (error) {
       console.error("Failed to update service:", getErrorMessage(error, "Failed to update service"));
@@ -82,7 +92,7 @@ const ServicesService = () => {
 
   const getServiceCharges = async (stayId?: string): Promise<any[]> => {
     try {
-      const response = await operationsApi.getServiceCharges(stayId);
+      const response = await operationsApi.getServiceCharges(stayId ? { stayId } : undefined);
       return response.data ?? [];
     } catch (error) {
       console.error("Failed to fetch service charges:", getErrorMessage(error, "Failed to fetch service charges"));

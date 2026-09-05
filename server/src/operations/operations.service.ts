@@ -46,6 +46,8 @@ import {
   UpdateStaffDto,
 } from './dto';
 import * as crypto from 'crypto';
+import * as puppeteer from 'puppeteer';
+import { MailService } from '../auth/mail.service';
 
 type UserContext = {
   id: string;
@@ -64,7 +66,10 @@ const roundMoney = (value: number) => Math.round(value * 100) / 100;
 
 @Injectable()
 export class OperationsService {
-  constructor(@InjectDatabase() private readonly db: Database) {}
+  constructor(
+    @InjectDatabase() private readonly db: Database,
+    private readonly mailService: MailService,
+  ) {}
 
   private async getUserContext(userId: string): Promise<UserContext> {
     const [user] = await this.db
@@ -175,21 +180,28 @@ export class OperationsService {
       ? eq(activityLogs.hotelId, hotelId)
       : sql`true`;
 
-    const [allRooms, allRoomTypes, allGuests, allStays, allPayments, housekeeping, logs] =
-      await Promise.all([
-        this.db.select().from(rooms).where(roomFilter),
-        this.db.select().from(roomTypes).where(roomTypeFilter),
-        this.db.select().from(guests).where(guestFilter),
-        this.db.select().from(stays).where(stayFilter),
-        this.db.select().from(payments).where(paymentFilter),
-        this.db.select().from(housekeepingTasks).where(housekeepingFilter),
-        this.db
-          .select()
-          .from(activityLogs)
-          .where(activityFilter)
-          .orderBy(desc(activityLogs.createdAt))
-          .limit(20),
-      ]);
+    const [
+      allRooms,
+      allRoomTypes,
+      allGuests,
+      allStays,
+      allPayments,
+      housekeeping,
+      logs,
+    ] = await Promise.all([
+      this.db.select().from(rooms).where(roomFilter),
+      this.db.select().from(roomTypes).where(roomTypeFilter),
+      this.db.select().from(guests).where(guestFilter),
+      this.db.select().from(stays).where(stayFilter),
+      this.db.select().from(payments).where(paymentFilter),
+      this.db.select().from(housekeepingTasks).where(housekeepingFilter),
+      this.db
+        .select()
+        .from(activityLogs)
+        .where(activityFilter)
+        .orderBy(desc(activityLogs.createdAt))
+        .limit(20),
+    ]);
 
     const roomById = new Map(allRooms.map((room) => [room.id, room]));
     const guestById = new Map(allGuests.map((guest) => [guest.id, guest]));
@@ -202,9 +214,12 @@ export class OperationsService {
       (room) => room.status === 'available',
     );
     const todayIso = new Date().toISOString().slice(0, 10);
-    const revenueCollectedToday = allPayments.filter(
-      (payment) => new Date(payment.createdAt).toISOString().slice(0, 10) === todayIso,
-    ).reduce((sum, payment) => sum + money(payment.amount), 0);
+    const revenueCollectedToday = allPayments
+      .filter(
+        (payment) =>
+          new Date(payment.createdAt).toISOString().slice(0, 10) === todayIso,
+      )
+      .reduce((sum, payment) => sum + money(payment.amount), 0);
     const totalRooms = allRooms.length;
     const occupancy = totalRooms
       ? (occupiedRooms.length / totalRooms) * 100
@@ -237,8 +252,7 @@ export class OperationsService {
     const nextArrival = allStays
       .filter((stay) => ['reserved', 'pending_arrival'].includes(stay.status))
       .sort(
-        (a, b) =>
-          a.expectedCheckInAt.getTime() - b.expectedCheckInAt.getTime(),
+        (a, b) => a.expectedCheckInAt.getTime() - b.expectedCheckInAt.getTime(),
       )[0];
 
     const nextDeparture = currentStays.sort(
@@ -288,7 +302,10 @@ export class OperationsService {
         ).length,
       },
       arrivals: allStays
-        .filter((stay) => stay.status === 'pending_arrival' || stay.status === 'reserved')
+        .filter(
+          (stay) =>
+            stay.status === 'pending_arrival' || stay.status === 'reserved',
+        )
         .slice(0, 10)
         .map((stay) => ({
           ...stay,
@@ -312,8 +329,8 @@ export class OperationsService {
         turningOver: housekeeping.filter((item) =>
           ['cleaning', 'inspection'].includes(item.status),
         ).length,
-        checkInsRemaining: allStays.filter(
-          (stay) => ['pending_arrival', 'reserved'].includes(stay.status),
+        checkInsRemaining: allStays.filter((stay) =>
+          ['pending_arrival', 'reserved'].includes(stay.status),
         ).length,
         averageNightlyRate: adr,
       },
@@ -365,13 +382,21 @@ export class OperationsService {
   async listRooms(userId?: string) {
     const hotelId = userId ? await this.getDefaultHotelId(userId) : null;
     const filter = hotelId ? eq(rooms.hotelId, hotelId) : sql`true`;
-    return this.db.select().from(rooms).where(filter).orderBy(desc(rooms.updatedAt));
+    return this.db
+      .select()
+      .from(rooms)
+      .where(filter)
+      .orderBy(desc(rooms.updatedAt));
   }
 
   async listRoomTypes(userId?: string) {
     const hotelId = userId ? await this.getDefaultHotelId(userId) : null;
     const filter = hotelId ? eq(roomTypes.hotelId, hotelId) : sql`true`;
-    return this.db.select().from(roomTypes).where(filter).orderBy(desc(roomTypes.updatedAt));
+    return this.db
+      .select()
+      .from(roomTypes)
+      .where(filter)
+      .orderBy(desc(roomTypes.updatedAt));
   }
 
   async getRoomType(userId: string, id: string) {
@@ -421,10 +446,13 @@ export class OperationsService {
 
     const updateFields: any = { updatedAt: new Date() };
     if (dto.name !== undefined) updateFields.name = dto.name;
-    if (dto.description !== undefined) updateFields.description = dto.description;
-    if (dto.basePrice !== undefined) updateFields.basePrice = String(dto.basePrice);
+    if (dto.description !== undefined)
+      updateFields.description = dto.description;
+    if (dto.basePrice !== undefined)
+      updateFields.basePrice = String(dto.basePrice);
     if (dto.capacity !== undefined) updateFields.capacity = dto.capacity;
-    if (dto.bedConfiguration !== undefined) updateFields.bedConfiguration = dto.bedConfiguration;
+    if (dto.bedConfiguration !== undefined)
+      updateFields.bedConfiguration = dto.bedConfiguration;
     if (dto.amenities !== undefined) updateFields.amenities = dto.amenities;
     if (dto.isActive !== undefined) updateFields.isActive = dto.isActive;
 
@@ -461,9 +489,7 @@ export class OperationsService {
 
     if (!existing) throw new NotFoundException('Room type not found');
 
-    await this.db
-      .delete(roomTypes)
-      .where(and(filter, eq(roomTypes.id, id)));
+    await this.db.delete(roomTypes).where(and(filter, eq(roomTypes.id, id)));
 
     return { ok: true, message: `Room type ${existing.name} deleted` };
   }
@@ -474,7 +500,11 @@ export class OperationsService {
   async listGuests(userId: string, query?: string) {
     const hotelId = await this.getDefaultHotelId(userId);
     const filter = hotelId ? eq(guests.hotelId, hotelId) : sql`true`;
-    const rows = await this.db.select().from(guests).where(filter).orderBy(desc(guests.updatedAt));
+    const rows = await this.db
+      .select()
+      .from(guests)
+      .where(filter)
+      .orderBy(desc(guests.updatedAt));
 
     const q = query?.trim();
     if (!q) return rows;
@@ -583,11 +613,15 @@ export class OperationsService {
     if (dto.lastName !== undefined) updateFields.lastName = dto.lastName;
     if (dto.phone !== undefined) updateFields.phone = dto.phone;
     if (dto.email !== undefined) updateFields.email = dto.email;
-    if (dto.nationality !== undefined) updateFields.nationality = dto.nationality;
-    if (dto.identificationType !== undefined) updateFields.identificationType = dto.identificationType;
-    if (dto.identificationNumber !== undefined) updateFields.identificationNumber = dto.identificationNumber;
+    if (dto.nationality !== undefined)
+      updateFields.nationality = dto.nationality;
+    if (dto.identificationType !== undefined)
+      updateFields.identificationType = dto.identificationType;
+    if (dto.identificationNumber !== undefined)
+      updateFields.identificationNumber = dto.identificationNumber;
     if (dto.address !== undefined) updateFields.address = dto.address;
-    if (dto.emergencyContact !== undefined) updateFields.emergencyContact = dto.emergencyContact;
+    if (dto.emergencyContact !== undefined)
+      updateFields.emergencyContact = dto.emergencyContact;
     if (dto.notes !== undefined) updateFields.notes = dto.notes;
 
     const [updated] = await this.db
@@ -629,7 +663,8 @@ export class OperationsService {
       : sql`true`;
 
     const conditions = [stayHotelFilter];
-    if (filters?.status) conditions.push(eq(stays.status, filters.status as any));
+    if (filters?.status)
+      conditions.push(eq(stays.status, filters.status as any));
     if (filters?.guestId) conditions.push(eq(stays.guestId, filters.guestId));
     if (filters?.roomId) conditions.push(eq(stays.roomId, filters.roomId));
 
@@ -861,7 +896,11 @@ export class OperationsService {
           roomId: roomRecord.id,
           roomTypeId: roomTypeRecord.id,
           status: stayStatus,
-          expectedCheckInAt: dto.checkInNow ? new Date() : (dto.expectedCheckInAt ? new Date(dto.expectedCheckInAt) : new Date()), // <-- ADD THIS LINE
+          expectedCheckInAt: dto.checkInNow
+            ? new Date()
+            : dto.expectedCheckInAt
+              ? new Date(dto.expectedCheckInAt)
+              : new Date(), // <-- ADD THIS LINE
           expectedCheckoutAt: new Date(Date.now() + dto.nights * 86400000),
           guestsCount: dto.guestsCount,
           nights: dto.nights,
@@ -946,10 +985,7 @@ export class OperationsService {
           invoiceId: createdInvoice.id,
           staffId: user.id,
           method: (dto.paymentMethod ?? 'cash') as
-            | 'cash'
-            | 'mobile_money'
-            | 'card'
-            | 'bank_transfer',
+            'cash' | 'mobile_money' | 'card' | 'bank_transfer',
           amount: String(amountPaid),
           status: outstanding > 0 ? 'partial' : 'paid',
         });
@@ -1171,7 +1207,11 @@ export class OperationsService {
     const conditions = [hotelFilter];
     if (stayId) conditions.push(eq(invoices.stayId, stayId));
 
-    return this.db.select().from(invoices).where(and(...conditions)).orderBy(desc(invoices.createdAt));
+    return this.db
+      .select()
+      .from(invoices)
+      .where(and(...conditions))
+      .orderBy(desc(invoices.createdAt));
   }
 
   async getInvoice(userId: string, id: string) {
@@ -1214,7 +1254,11 @@ export class OperationsService {
     const conditions = [hotelFilter];
     if (stayId) conditions.push(eq(payments.stayId, stayId));
 
-    return this.db.select().from(payments).where(and(...conditions)).orderBy(desc(payments.createdAt));
+    return this.db
+      .select()
+      .from(payments)
+      .where(and(...conditions))
+      .orderBy(desc(payments.createdAt));
   }
 
   async getPayment(userId: string, id: string) {
@@ -1249,7 +1293,9 @@ export class OperationsService {
       if (!invoice) throw new NotFoundException('Invoice not found');
 
       if (dto.amount <= 0) {
-        throw new BadRequestException('Payment amount must be greater than zero');
+        throw new BadRequestException(
+          'Payment amount must be greater than zero',
+        );
       }
 
       const [payment] = await tx
@@ -1314,7 +1360,11 @@ export class OperationsService {
   async listServices(userId?: string) {
     const hotelId = userId ? await this.getDefaultHotelId(userId) : null;
     const filter = hotelId ? eq(services.hotelId, hotelId) : sql`true`;
-    return this.db.select().from(services).where(filter).orderBy(desc(services.createdAt));
+    return this.db
+      .select()
+      .from(services)
+      .where(filter)
+      .orderBy(desc(services.createdAt));
   }
 
   async getService(userId: string, id: string) {
@@ -1365,7 +1415,8 @@ export class OperationsService {
     if (dto.name !== undefined) updateFields.name = dto.name;
     if (dto.category !== undefined) updateFields.category = dto.category;
     if (dto.price !== undefined) updateFields.price = String(dto.price);
-    if (dto.description !== undefined) updateFields.description = dto.description;
+    if (dto.description !== undefined)
+      updateFields.description = dto.description;
     if (dto.isActive !== undefined) updateFields.isActive = dto.isActive;
 
     const [updated] = await this.db
@@ -1401,20 +1452,24 @@ export class OperationsService {
 
     if (!existing) throw new NotFoundException('Service not found');
 
-    await this.db
-      .delete(services)
-      .where(and(filter, eq(services.id, id)));
+    await this.db.delete(services).where(and(filter, eq(services.id, id)));
 
     return { ok: true, message: `Service ${existing.name} deleted` };
   }
 
   async listServiceCharges(userId: string, stayId?: string) {
     const hotelId = await this.getDefaultHotelId(userId);
-    const hotelFilter = hotelId ? eq(serviceCharges.hotelId, hotelId) : sql`true`;
+    const hotelFilter = hotelId
+      ? eq(serviceCharges.hotelId, hotelId)
+      : sql`true`;
     const conditions = [hotelFilter];
     if (stayId) conditions.push(eq(serviceCharges.stayId, stayId));
 
-    return this.db.select().from(serviceCharges).where(and(...conditions)).orderBy(desc(serviceCharges.createdAt));
+    return this.db
+      .select()
+      .from(serviceCharges)
+      .where(and(...conditions))
+      .orderBy(desc(serviceCharges.createdAt));
   }
 
   async addServiceCharge(userId: string, dto: CreateServiceChargeDto) {
@@ -1433,7 +1488,8 @@ export class OperationsService {
         .where(and(eq(services.id, dto.serviceId), eq(services.isActive, true)))
         .limit(1);
 
-      if (!service) throw new NotFoundException('Service not found or inactive');
+      if (!service)
+        throw new NotFoundException('Service not found or inactive');
 
       const total = roundMoney(money(service.price) * dto.quantity);
 
@@ -1706,10 +1762,7 @@ export class OperationsService {
     const hotelId = await this.getDefaultHotelId(userId);
     const filter = hotelId ? eq(notifications.hotelId, hotelId) : sql`true`;
 
-    await this.db
-      .update(notifications)
-      .set({ isRead: true })
-      .where(filter);
+    await this.db.update(notifications).set({ isRead: true }).where(filter);
 
     return { ok: true };
   }
@@ -1736,7 +1789,9 @@ export class OperationsService {
     const pendingInvitations = await this.db
       .select()
       .from(invitations)
-      .where(and(eq(invitations.hotelId, hotelId), isNull(invitations.acceptedAt)));
+      .where(
+        and(eq(invitations.hotelId, hotelId), isNull(invitations.acceptedAt)),
+      );
 
     return {
       staff: staffUsers,
@@ -1794,11 +1849,161 @@ export class OperationsService {
       invitation.id,
     );
 
+    // Send invitation email (if configured)
+    try {
+      const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const inviteUrl = `${frontend}/invite/${token}`;
+      const subject = `You're invited to join ${user.fullName || 'the hotel'}`;
+      const text = `You have been invited to join the hotel workspace as ${dto.role}. Visit ${inviteUrl} to accept the invitation.`;
+      const html = `<p>You have been invited to join the hotel workspace as <strong>${dto.role}</strong>.</p><p>Click <a href="${inviteUrl}">here</a> to accept the invitation. The link expires in 7 days.</p>`;
+      await this.mailService.sendMail(dto.email, subject, text, html);
+    } catch (err) {
+      // Log but don't fail invite creation
+      // writeActivity already recorded the invite
+    }
+
     return {
       ok: true,
       invitation,
       inviteUrl: `/invite/${token}`,
     };
+  }
+
+  async getInvoiceReceipt(userId: string, invoiceId: string) {
+    const user = await this.getCurrentUser(userId);
+    const hotelId = user.hotelId;
+    if (!hotelId) throw new BadRequestException('Hotel context not found');
+
+    const [invoice] = await this.db
+      .select()
+      .from(invoices)
+      .where(and(eq(invoices.hotelId, hotelId), eq(invoices.id, invoiceId)))
+      .limit(1);
+
+    if (!invoice) throw new NotFoundException('Invoice not found');
+
+    const items = await this.db
+      .select()
+      .from(invoiceItems)
+      .where(eq(invoiceItems.invoiceId, invoice.id));
+
+    // Basic HTML receipt
+    const html = `
+      <html>
+      <head><meta charset="utf-8"><title>Receipt ${invoice.reference}</title></head>
+      <body style="font-family: Arial, sans-serif; color:#111;">
+        <h2>Receipt: ${invoice.reference}</h2>
+        <p>Total: ${invoice.total}</p>
+        <p>Issued: ${invoice.issuedAt}</p>
+        <hr />
+        <h4>Items</h4>
+        <ul>
+          ${items.map((it: any) => `<li>${it.description} — ${it.total}</li>`).join('')}
+        </ul>
+      </body>
+      </html>
+    `;
+
+    return { html };
+  }
+
+  async getInvoiceReceiptPdf(userId: string, invoiceId: string) {
+    const user = await this.getCurrentUser(userId);
+    const hotelId = user.hotelId;
+    if (!hotelId) throw new BadRequestException('Hotel context not found');
+
+    const [invoice] = await this.db
+      .select()
+      .from(invoices)
+      .where(and(eq(invoices.hotelId, hotelId), eq(invoices.id, invoiceId)))
+      .limit(1);
+
+    if (!invoice) throw new NotFoundException('Invoice not found');
+
+    const receipt = await this.getInvoiceReceipt(userId, invoiceId);
+
+    // render PDF via puppeteer
+    const browser = await puppeteer.launch({
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+    try {
+      const page = await browser.newPage();
+      await page.setContent(receipt.html, { waitUntil: 'networkidle0' });
+      const pdf = await page.pdf({ format: 'A4', printBackground: true });
+      const filename = `receipt-${invoice.reference || invoice.id}.pdf`;
+      return { pdf, filename };
+    } finally {
+      await browser.close();
+    }
+  }
+
+  async sendInvoiceReceipt(userId: string, invoiceId: string, to?: string) {
+    const user = await this.getCurrentUser(userId);
+    const hotelId = user.hotelId;
+    if (!hotelId) throw new BadRequestException('Hotel context not found');
+
+    const [invoice] = await this.db
+      .select()
+      .from(invoices)
+      .where(and(eq(invoices.hotelId, hotelId), eq(invoices.id, invoiceId)))
+      .limit(1);
+
+    if (!invoice) throw new NotFoundException('Invoice not found');
+
+    const receipt = await this.getInvoiceReceipt(userId, invoiceId);
+
+    const recipient =
+      to || invoice.guestId ? String(invoice.guestId) : undefined;
+    // guest email lookup
+    let guestEmail: string | undefined = undefined;
+    if (!to) {
+      const [guest] = await this.db
+        .select()
+        .from(guests)
+        .where(eq(guests.id, invoice.guestId))
+        .limit(1);
+      guestEmail = guest?.email ?? undefined;
+    }
+
+    const finalTo = to || guestEmail;
+    if (!finalTo) throw new BadRequestException('Recipient email not found');
+
+    const subject = `Receipt ${invoice.reference}`;
+    const text = `Your receipt for ${invoice.reference}. Total: ${invoice.total}`;
+
+    // attempt to generate PDF and attach when possible
+    let attachment;
+    try {
+      const pdfResult = await this.getInvoiceReceiptPdf(userId, invoiceId);
+      attachment = {
+        filename: pdfResult.filename,
+        content: pdfResult.pdf,
+        contentType: 'application/pdf',
+      };
+    } catch (err) {
+      // PDF generation failed — continue with HTML-only mail
+      attachment = undefined;
+    }
+
+    const result = await this.mailService.sendMail(
+      finalTo,
+      subject,
+      text,
+      receipt.html,
+      attachment ? [attachment] : undefined,
+    );
+
+    await this.writeActivity(
+      hotelId,
+      user.id,
+      user.fullName,
+      'receipt sent',
+      `Receipt ${invoice.reference} sent to ${finalTo}.`,
+      'invoice',
+      invoice.id,
+    );
+
+    return { ok: result.ok, info: result };
   }
 
   async updateStaff(userId: string, id: string, dto: UpdateStaffDto) {
@@ -1903,16 +2108,25 @@ export class OperationsService {
     if (dto.timezone !== undefined) updateFields.timezone = dto.timezone;
     if (dto.currency !== undefined) updateFields.currency = dto.currency;
     if (dto.language !== undefined) updateFields.language = dto.language;
-    if (dto.checkInTime !== undefined) updateFields.checkInTime = dto.checkInTime;
-    if (dto.checkOutTime !== undefined) updateFields.checkOutTime = dto.checkOutTime;
-    if (dto.bookingPolicy !== undefined) updateFields.bookingPolicy = dto.bookingPolicy;
-    if (dto.guestIdRequired !== undefined) updateFields.guestIdRequired = dto.guestIdRequired;
+    if (dto.checkInTime !== undefined)
+      updateFields.checkInTime = dto.checkInTime;
+    if (dto.checkOutTime !== undefined)
+      updateFields.checkOutTime = dto.checkOutTime;
+    if (dto.bookingPolicy !== undefined)
+      updateFields.bookingPolicy = dto.bookingPolicy;
+    if (dto.guestIdRequired !== undefined)
+      updateFields.guestIdRequired = dto.guestIdRequired;
     if (dto.taxRate !== undefined) updateFields.taxRate = String(dto.taxRate);
-    if (dto.invoicePrefix !== undefined) updateFields.invoicePrefix = dto.invoicePrefix;
-    if (dto.acceptedPaymentMethods !== undefined) updateFields.acceptedPaymentMethods = dto.acceptedPaymentMethods;
-    if (dto.serviceConfig !== undefined) updateFields.serviceConfig = dto.serviceConfig;
-    if (dto.notificationPrefs !== undefined) updateFields.notificationPrefs = dto.notificationPrefs;
-    if (dto.systemPrefs !== undefined) updateFields.systemPrefs = dto.systemPrefs;
+    if (dto.invoicePrefix !== undefined)
+      updateFields.invoicePrefix = dto.invoicePrefix;
+    if (dto.acceptedPaymentMethods !== undefined)
+      updateFields.acceptedPaymentMethods = dto.acceptedPaymentMethods;
+    if (dto.serviceConfig !== undefined)
+      updateFields.serviceConfig = dto.serviceConfig;
+    if (dto.notificationPrefs !== undefined)
+      updateFields.notificationPrefs = dto.notificationPrefs;
+    if (dto.systemPrefs !== undefined)
+      updateFields.systemPrefs = dto.systemPrefs;
 
     const [updated] = await this.db
       .update(hotelSettings)
@@ -1953,10 +2167,16 @@ export class OperationsService {
     const hotelId = await this.getDefaultHotelId(userId);
     const hotelFilter = hotelId ? eq(rooms.hotelId, hotelId) : sql`true`;
     const stayHotelFilter = hotelId ? eq(stays.hotelId, hotelId) : sql`true`;
-    const paymentHotelFilter = hotelId ? eq(payments.hotelId, hotelId) : sql`true`;
+    const paymentHotelFilter = hotelId
+      ? eq(payments.hotelId, hotelId)
+      : sql`true`;
     const guestHotelFilter = hotelId ? eq(guests.hotelId, hotelId) : sql`true`;
-    const roomTypeHotelFilter = hotelId ? eq(roomTypes.hotelId, hotelId) : sql`true`;
-    const housekeepingHotelFilter = hotelId ? eq(housekeepingTasks.hotelId, hotelId) : sql`true`;
+    const roomTypeHotelFilter = hotelId
+      ? eq(roomTypes.hotelId, hotelId)
+      : sql`true`;
+    const housekeepingHotelFilter = hotelId
+      ? eq(housekeepingTasks.hotelId, hotelId)
+      : sql`true`;
 
     const now = new Date();
     let startDate = new Date();
@@ -1974,26 +2194,42 @@ export class OperationsService {
       startDate = new Date(query.startDate);
     }
 
-    const [allRooms, allRoomTypes, allGuests, allStays, allPayments, housekeeping] =
-      await Promise.all([
-        this.db.select().from(rooms).where(hotelFilter),
-        this.db.select().from(roomTypes).where(roomTypeHotelFilter),
-        this.db.select().from(guests).where(guestHotelFilter),
-        this.db.select().from(stays).where(stayHotelFilter),
-        this.db.select().from(payments).where(paymentHotelFilter),
-        this.db.select().from(housekeepingTasks).where(housekeepingHotelFilter),
-      ]);
+    const [
+      allRooms,
+      allRoomTypes,
+      allGuests,
+      allStays,
+      allPayments,
+      housekeeping,
+    ] = await Promise.all([
+      this.db.select().from(rooms).where(hotelFilter),
+      this.db.select().from(roomTypes).where(roomTypeHotelFilter),
+      this.db.select().from(guests).where(guestHotelFilter),
+      this.db.select().from(stays).where(stayHotelFilter),
+      this.db.select().from(payments).where(paymentHotelFilter),
+      this.db.select().from(housekeepingTasks).where(housekeepingHotelFilter),
+    ]);
 
     const totalRooms = allRooms.length;
-    const occupiedRooms = allRooms.filter((r) => r.status === 'occupied').length;
-    const availableRooms = allRooms.filter((r) => r.status === 'available').length;
-    const maintenanceRooms = allRooms.filter((r) => ['maintenance', 'out_of_service'].includes(r.status)).length;
-    const occupancyRate = totalRooms > 0 ? (occupiedRooms / totalRooms) * 100 : 0;
+    const occupiedRooms = allRooms.filter(
+      (r) => r.status === 'occupied',
+    ).length;
+    const availableRooms = allRooms.filter(
+      (r) => r.status === 'available',
+    ).length;
+    const maintenanceRooms = allRooms.filter((r) =>
+      ['maintenance', 'out_of_service'].includes(r.status),
+    ).length;
+    const occupancyRate =
+      totalRooms > 0 ? (occupiedRooms / totalRooms) * 100 : 0;
 
     const filteredPayments = allPayments.filter(
       (p) => new Date(p.createdAt) >= startDate,
     );
-    const totalRevenue = filteredPayments.reduce((sum, p) => sum + money(p.amount), 0);
+    const totalRevenue = filteredPayments.reduce(
+      (sum, p) => sum + money(p.amount),
+      0,
+    );
 
     const filteredStays = allStays.filter(
       (s) => new Date(s.createdAt) >= startDate,
@@ -2011,16 +2247,23 @@ export class OperationsService {
       0,
     );
 
-    const activeStaysCount = allStays.filter((s) => s.status === 'checked_in').length;
-    const completedStaysCount = filteredStays.filter((s) => s.status === 'checked_out').length;
-    const cancelledStaysCount = filteredStays.filter((s) => s.status === 'cancelled').length;
+    const activeStaysCount = allStays.filter(
+      (s) => s.status === 'checked_in',
+    ).length;
+    const completedStaysCount = filteredStays.filter(
+      (s) => s.status === 'checked_out',
+    ).length;
+    const cancelledStaysCount = filteredStays.filter(
+      (s) => s.status === 'cancelled',
+    ).length;
 
     const newGuestsCount = allGuests.filter(
       (g) => new Date(g.createdAt) >= startDate,
     ).length;
 
     // Build day-by-day trends (past 7 slots)
-    const daysCount = range === 'today' ? 1 : range === '7d' ? 7 : range === '30d' ? 10 : 7;
+    const daysCount =
+      range === 'today' ? 1 : range === '7d' ? 7 : range === '30d' ? 10 : 7;
     const dailyTrends = Array.from({ length: daysCount }, (_, i) => {
       const d = new Date(now.getTime() - (daysCount - 1 - i) * 86400000);
       const iso = d.toISOString().slice(0, 10);
@@ -2031,10 +2274,14 @@ export class OperationsService {
         (s) => new Date(s.createdAt).toISOString().slice(0, 10) === iso,
       );
 
-      const dayRevenue = dayPayments.reduce((sum, p) => sum + money(p.amount), 0);
-      const dayOccupancy = totalRooms > 0
-        ? Math.min(100, (dayStays.length / totalRooms) * 100)
-        : 0;
+      const dayRevenue = dayPayments.reduce(
+        (sum, p) => sum + money(p.amount),
+        0,
+      );
+      const dayOccupancy =
+        totalRooms > 0
+          ? Math.min(100, (dayStays.length / totalRooms) * 100)
+          : 0;
 
       return {
         date: iso,
@@ -2081,9 +2328,11 @@ export class OperationsService {
       },
       housekeeping: {
         cleaning: housekeeping.filter((h) => h.status === 'cleaning').length,
-        inspection: housekeeping.filter((h) => h.status === 'inspection').length,
+        inspection: housekeeping.filter((h) => h.status === 'inspection')
+          .length,
         ready: housekeeping.filter((h) => h.status === 'ready').length,
-        maintenance: housekeeping.filter((h) => h.status === 'maintenance').length,
+        maintenance: housekeeping.filter((h) => h.status === 'maintenance')
+          .length,
       },
       dailyTrends,
       roomTypeRevenue,

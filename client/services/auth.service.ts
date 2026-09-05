@@ -46,6 +46,15 @@ const AuthService = () => {
     }
   }
 
+  async function getCurrentUser() {
+        const response = await authApi.getCurrentUser();
+        // Backend returns { ok: true, user: {...} }
+        if (response.data?.ok && response.data.user) {
+          return response.data.user;
+        }
+        throw new Error("Failed to fetch current user");
+      }
+
   async function logout() {
     try {
       // Call backend to revoke refresh token
@@ -92,6 +101,7 @@ const AuthService = () => {
     login,
     register,
     logout,
+    getCurrentUser,
   };
 };
 

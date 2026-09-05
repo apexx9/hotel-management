@@ -29,7 +29,7 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 const PaymentsService = () => {
   const getPayments = async (stayId?: string): Promise<Payment[]> => {
     try {
-      const response = await operationsApi.getPayments(stayId);
+      const response = await operationsApi.getPayments(stayId ? { stayId } : undefined);
       return response.data ?? [];
     } catch (error) {
       console.error("Failed to fetch payments:", getErrorMessage(error, "Failed to fetch payments"));

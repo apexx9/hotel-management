@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -51,6 +51,30 @@ export function AppSidebar() {
 
   const user = useAuthStore((s) => s.user);
 
+  const visibleNavItems = (() => {
+    const role = user?.role;
+    return navItems
+      .map((item) => ({
+        ...item,
+        children: item.children
+          ? item.children.filter(
+              (c) => !c.allowedRoles || !role || c.allowedRoles.includes(role),
+            )
+          : undefined,
+      }))
+      .filter((item) => {
+        if (item.allowedRoles && role && !item.allowedRoles.includes(role))
+          return false;
+        if (
+          item.children &&
+          item.children.length === 0 &&
+          item.children !== undefined
+        )
+          return false;
+        return true;
+      });
+  })();
+
   // Refs for hover-intent timers
   const openTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const closeTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
@@ -82,7 +106,6 @@ export function AppSidebar() {
       // Schedule open after 120ms
       const timeout = setTimeout(() => {
         setOpenMenus((prev) => {
-          // Keep pinned menus, replace unpinned with current hovered href
           const newOpen = new Set([...pinnedMenus]);
           newOpen.add(href);
           return newOpen;
@@ -92,7 +115,7 @@ export function AppSidebar() {
 
       openTimeouts.current.set(href, timeout);
     },
-    [pinnedMenus]
+    [pinnedMenus],
   );
 
   const closeSubmenu = useCallback(
@@ -118,7 +141,7 @@ export function AppSidebar() {
 
       closeTimeouts.current.set(href, timeout);
     },
-    [pinnedMenus]
+    [pinnedMenus],
   );
 
   const togglePin = useCallback((href: string) => {
@@ -139,7 +162,6 @@ export function AppSidebar() {
     if (!isMobile && !locked && pinnedMenus.size === 0) {
       setOpen(false);
       setOpenMenus(new Set());
-      // Clear all timers when sidebar collapses
       openTimeouts.current.forEach((timeout) => clearTimeout(timeout));
       closeTimeouts.current.forEach((timeout) => clearTimeout(timeout));
       openTimeouts.current.clear();
@@ -174,14 +196,14 @@ export function AppSidebar() {
   };
 
   // Clean up timers on unmount
-  useState(() => {
+  useEffect(() => {
     return () => {
       openTimeouts.current.forEach((timeout) => clearTimeout(timeout));
       closeTimeouts.current.forEach((timeout) => clearTimeout(timeout));
       openTimeouts.current.clear();
       closeTimeouts.current.clear();
     };
-  });
+  }, []);
 
   // ─── COLLAPSED RENDER ─────────────────────────────────────
   if (isCollapsed) {
@@ -199,7 +221,7 @@ export function AppSidebar() {
         </SidebarHeader>
 
         <SidebarContent className="flex flex-col items-center gap-1 py-2 px-0">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive =
               pathname === item.href ||
               (item.children &&
@@ -216,7 +238,7 @@ export function AppSidebar() {
                     "hover:bg-accent hover:text-accent-foreground",
                     isActive
                       ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground"
+                      : "text-muted-foreground",
                   )}
                 >
                   <item.icon className="h-4 w-4 shrink-0" />
@@ -233,7 +255,7 @@ export function AppSidebar() {
                   "hover:bg-accent hover:text-accent-foreground",
                   isActive
                     ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground"
+                    : "text-muted-foreground",
                 )}
               >
                 <item.icon className="h-4 w-4 shrink-0" />
@@ -289,7 +311,11 @@ export function AppSidebar() {
             className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
             title={locked ? "Unlock sidebar" : "Lock sidebar open"}
           >
-            {locked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+            {locked ? (
+              <Lock className="h-4 w-4" />
+            ) : (
+              <Unlock className="h-4 w-4" />
+            )}
           </button>
         </div>
       </SidebarHeader>
@@ -297,7 +323,7 @@ export function AppSidebar() {
       <SidebarContent className="px-3 py-2">
         <SidebarGroup>
           <SidebarMenu className="space-y-1">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const isActive =
                 pathname === item.href ||
                 (item.children &&
@@ -313,7 +339,7 @@ export function AppSidebar() {
                         "hover:bg-accent hover:text-accent-foreground",
                         isActive
                           ? "bg-accent text-accent-foreground font-medium"
-                          : "text-muted-foreground"
+                          : "text-muted-foreground",
                       )}
                     >
                       <item.icon className="h-4 w-4 shrink-0" />
@@ -339,7 +365,7 @@ export function AppSidebar() {
                       "rounded-md transition-colors",
                       isActive
                         ? "bg-accent text-accent-foreground font-medium"
-                        : "hover:bg-accent hover:text-accent-foreground"
+                        : "hover:bg-accent hover:text-accent-foreground",
                     )}
                   >
                     <span className="flex min-w-0 items-center gap-3">
@@ -349,7 +375,7 @@ export function AppSidebar() {
                     <ChevronRight
                       className={cn(
                         "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
-                        isOpen && "rotate-90"
+                        isOpen && "rotate-90",
                       )}
                     />
                   </SidebarMenuButton>
@@ -371,7 +397,7 @@ export function AppSidebar() {
                                   "hover:bg-accent hover:text-accent-foreground",
                                   childActive
                                     ? "bg-accent text-accent-foreground font-medium"
-                                    : "text-muted-foreground"
+                                    : "text-muted-foreground",
                                 )}
                               >
                                 <child.icon className="h-3.5 w-3.5 shrink-0" />

@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import RoomsService, { Room } from "@/services/rooms.service";
 import { formatCurrency } from "@/utils/utils";
+import { roomStatusColors } from "@/lib/status-colors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoading } from "@/components/dashboard/page-loading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select,
@@ -18,18 +19,10 @@ import { AlertCircle, BedDouble, Users, Wallet, Info } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const statusColors: Record<Room["status"], { bg: string, text: string, border: string }> = {
-  available: { bg: "bg-emerald-500/10", text: "text-emerald-600", border: "border-emerald-500/20" },
-  occupied: { bg: "bg-blue-500/10", text: "text-blue-600", border: "border-blue-500/20" },
-  cleaning: { bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-500", border: "border-amber-500/20" },
-  inspection: { bg: "bg-purple-500/10", text: "text-purple-600 dark:text-purple-400", border: "border-purple-500/20" },
-  maintenance: { bg: "bg-destructive/10", text: "text-destructive", border: "border-destructive/20" },
-  out_of_service: { bg: "bg-muted", text: "text-muted-foreground", border: "border-border" },
-  reserved: { bg: "bg-indigo-500/10", text: "text-indigo-600 dark:text-indigo-400", border: "border-indigo-500/20" },
-};
 
 export default function RoomStatusPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomTypes, setRoomTypes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -37,8 +30,12 @@ export default function RoomStatusPage() {
   const fetchRooms = async () => {
     try {
       setLoading(true);
-      const data = await RoomsService().getRooms();
+      const [data, types] = await Promise.all([
+        RoomsService().getRooms(),
+        RoomsService().getRoomTypes(),
+      ]);
       setRooms(data);
+      setRoomTypes(Object.fromEntries(types.map((t) => [t.id, t.name])));
     } catch (err) {
       console.error("Failed to fetch rooms:", err);
       setError("Could not load rooms. Please try again.");
@@ -66,19 +63,7 @@ export default function RoomStatusPage() {
   };
 
   if (loading) {
-    return (
-      <div className="space-y-8 p-2 md:p-6 max-w-7xl mx-auto animate-pulse">
-        <div className="space-y-3">
-          <Skeleton className="h-6 w-28 rounded-full" />
-          <Skeleton className="h-10 w-96 rounded-xl" />
-        </div>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {[...Array(8)].map((_, i) => (
-            <Skeleton key={i} className="h-44 rounded-3xl" />
-          ))}
-        </div>
-      </div>
-    );
+    return <PageLoading showHeader showGrid />;
   }
 
   if (error) {
@@ -126,7 +111,7 @@ export default function RoomStatusPage() {
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {rooms.map((room) => {
-            const style = statusColors[room.status];
+            const style = roomStatusColors[room.status];
             
             return (
               <Card key={room.id} className="relative rounded-3xl border border-border/50 bg-card shadow-sm hover:shadow-md transition-all flex flex-col">
@@ -149,7 +134,7 @@ export default function RoomStatusPage() {
                   <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-sm">
                     <div className="space-y-1">
                       <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1.5"><BedDouble className="h-3 w-3" /> Type</span>
-                      <p className="font-semibold text-foreground truncate" title={room.roomTypeId}>{room.roomTypeId.slice(0, 8)}...</p>
+                      <p className="font-semibold text-foreground truncate" title={roomTypes[room.roomTypeId]}>{roomTypes[room.roomTypeId] || "Room type"}</p>
                     </div>
                     <div className="space-y-1">
                       <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1.5"><Users className="h-3 w-3" /> Max</span>
@@ -173,7 +158,7 @@ export default function RoomStatusPage() {
                         <SelectValue placeholder="Change status" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl">
-                        {Object.keys(statusColors).map((status) => (
+                        {Object.keys(roomStatusColors).map((status) => (
                           <SelectItem key={status} value={status} className="capitalize">
                             {status.replace(/_/g, " ")}
                           </SelectItem>

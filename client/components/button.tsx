@@ -1,38 +1,46 @@
-import React, { ButtonHTMLAttributes } from "react";
+import { Button as ShadcnButton } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { ComponentProps } from "react";
+import { cn } from "@/lib/utils";
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary";
-  text: string;
+interface ButtonProps extends Omit<ComponentProps<typeof ShadcnButton>, 'variant'> {
+  variant?: "default" | "outline" | "secondary" | "ghost" | "destructive" | "link" | "primary";
+  text?: string;
   isLoading?: boolean;
+  fullWidth?: boolean;
 }
 
-const Button: React.FC<ButtonProps> = ({
+export default function Button({
   variant = "primary",
   text,
-  isLoading = false,
-  className = "",
+  isLoading,
+  children,
+  className,
   disabled,
+  fullWidth = true,
   ...props
-}) => {
-  const baseClasses =
-    "rounded-lg font-bold text-xs flex items-center justify-center w-full h-10 px-4 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#1900FF]/40";
-  const primaryClasses =
-    "bg-[#1900FF] text-white hover:bg-[#1500E0] active:scale-[0.98]";
-  const secondaryClasses =
-    "border border-[#1900FF] text-[#0C0332] hover:bg-[#F6F6F6] active:scale-[0.98]";
+}: ButtonProps) {
+  const isPrimary = variant === "primary" || variant === "default";
 
   return (
-    <button
-      className={`${baseClasses} ${
-        variant === "primary" ? primaryClasses : secondaryClasses
-      } ${className}`}
+    <ShadcnButton
+      variant="default"
+      className={cn(
+        "h-12 rounded-full text-[15px] font-bold tracking-wide transition-all",
+        fullWidth ? "w-full" : "px-6",
+        isPrimary
+          ? "bg-[#1900FF] text-white shadow-lg shadow-[#1900FF]/30 hover:bg-[#1400E0] hover:shadow-xl hover:shadow-[#1900FF]/40 active:scale-[0.98]"
+          : cn(
+              variant === "outline" &&
+                "border-slate-300 bg-white text-[#0C0332] shadow-sm hover:bg-slate-50",
+            ),
+        className,
+      )}
       disabled={disabled || isLoading}
       {...props}
     >
-      {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : text}
-    </button>
+      {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {text || children}
+    </ShadcnButton>
   );
-};
-
-export default Button;
+}

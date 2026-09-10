@@ -4,14 +4,9 @@ import { useEffect, useState } from "react";
 import RoomsService, { Room, RoomType } from "@/services/rooms.service";
 import { formatCurrency, formatNumber } from "@/utils/utils";
 import Link from "next/link";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoading } from "@/components/dashboard/page-loading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Table,
@@ -21,7 +16,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AlertCircle, ArrowRight, BedDouble, DoorOpen, Users, Wallet, Sparkles, Box, Settings, LayoutGrid } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertCircle,
+  ArrowRight,
+  BedDouble,
+  DoorOpen,
+  Users,
+  Wallet,
+  Sparkles,
+  Box,
+  Settings,
+  LayoutGrid,
+  Plus,
+} from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export default function RoomsOverviewPage() {
@@ -29,48 +48,81 @@ export default function RoomsOverviewPage() {
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [roomDialogOpen, setRoomDialogOpen] = useState(false);
+  const [savingRoom, setSavingRoom] = useState(false);
+  const [newRoomForm, setNewRoomForm] = useState({
+    number: "",
+    floor: "1",
+    roomTypeId: "",
+    rate: 0,
+    capacity: 2,
+  });
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [roomsData, typesData] = await Promise.all([
+        RoomsService().getRooms(),
+        RoomsService().getRoomTypes(),
+      ]);
+      setRooms(roomsData);
+      setRoomTypes(typesData);
+    } catch (err) {
+      console.error("Failed to fetch rooms data:", err);
+      setError("Could not load rooms overview. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [roomsData, typesData] = await Promise.all([
-          RoomsService().getRooms(),
-          RoomsService().getRoomTypes(),
-        ]);
-        setRooms(roomsData);
-        setRoomTypes(typesData);
-      } catch (err) {
-        console.error("Failed to fetch rooms data:", err);
-        setError("Could not load rooms overview. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
 
+  const handleCreateRoom = async () => {
+    if (!newRoomForm.number.trim() || !newRoomForm.roomTypeId) {
+      toast.error("Room number and room type are required.");
+      return;
+    }
+
+    setSavingRoom(true);
+    try {
+      await RoomsService().createRoom({
+        number: newRoomForm.number.trim(),
+        floor: newRoomForm.floor,
+        roomTypeId: newRoomForm.roomTypeId,
+        rate: Number(newRoomForm.rate || 0),
+        capacity: Number(newRoomForm.capacity || 2),
+      });
+      toast.success("Room created successfully");
+      setRoomDialogOpen(false);
+      setNewRoomForm({
+        number: "",
+        floor: "1",
+        roomTypeId: roomTypes[0]?.id ?? "",
+        rate: Number(roomTypes[0]?.basePrice ?? 0),
+        capacity: roomTypes[0]?.capacity ?? 2,
+      });
+      await fetchData();
+    } catch (err) {
+      console.error("Failed to create room:", err);
+      toast.error("Failed to create room.");
+    } finally {
+      setSavingRoom(false);
+    }
+  };
+
   if (loading) {
-    return (
-      <div className="space-y-8 p-2 md:p-6 max-w-7xl mx-auto animate-pulse">
-        <div className="space-y-3">
-          <Skeleton className="h-6 w-28 rounded-full" />
-          <Skeleton className="h-10 w-96 rounded-xl" />
-        </div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-40 rounded-3xl" />
-          ))}
-        </div>
-        <Skeleton className="h-64 w-full rounded-3xl" />
-      </div>
-    );
+    return <PageLoading showHeader showStats={4} showTable />;
   }
 
   if (error) {
     return (
       <div className="p-6 max-w-7xl mx-auto">
-        <Alert variant="destructive" className="rounded-2xl border-destructive/30 bg-destructive/10">
+        <Alert
+          variant="destructive"
+          className="rounded-2xl border-destructive/30 bg-destructive/10"
+        >
           <AlertCircle className="h-5 w-5" />
           <AlertTitle className="font-semibold">System Notice</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
@@ -83,19 +135,22 @@ export default function RoomsOverviewPage() {
   const availableRooms = rooms.filter((r) => r.status === "available").length;
   const occupiedRooms = rooms.filter((r) => r.status === "occupied").length;
   const maintenanceRooms = rooms.filter(
-    (r) => r.status === "maintenance" || r.status === "out_of_service"
+    (r) => r.status === "maintenance" || r.status === "out_of_service",
   ).length;
 
   const stats = [
     { label: "Total Rooms", value: formatNumber(totalRooms), icon: BedDouble },
     { label: "Available", value: formatNumber(availableRooms), icon: DoorOpen },
     { label: "Occupied", value: formatNumber(occupiedRooms), icon: Users },
-    { label: "Maintenance", value: formatNumber(maintenanceRooms), icon: Sparkles },
+    {
+      label: "Maintenance",
+      value: formatNumber(maintenanceRooms),
+      icon: Sparkles,
+    },
   ];
 
   return (
     <div className="space-y-10 p-2 sm:p-4 md:p-6 max-w-7xl mx-auto">
-      
       {/* ─── HERO HEADER ────────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-border/40 pb-6">
         <div className="space-y-2">
@@ -109,29 +164,166 @@ export default function RoomsOverviewPage() {
             Rooms & Types
           </h1>
         </div>
-        <p className="text-sm text-muted-foreground max-w-xs leading-relaxed md:text-right">
-          Manage your hotel's room inventory, capacities, and category configurations.
-        </p>
+        <div className="flex flex-col items-end gap-3">
+          <p className="text-sm text-muted-foreground max-w-xs leading-relaxed md:text-right">
+            Manage your hotel's room inventory, capacities, and category
+            configurations.
+          </p>
+          <Button
+            onClick={() => setRoomDialogOpen(true)}
+            className="rounded-full h-10 px-6 shadow-sm"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Room
+          </Button>
+        </div>
       </div>
 
       {/* ─── STATS ────────────────────────────────────────────── */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
-          <div key={stat.label} className="relative flex flex-col justify-between rounded-3xl bg-muted/40 border border-border/50 p-6 transition-all hover:shadow-lg h-full group">
+          <div
+            key={stat.label}
+            className="relative flex flex-col justify-between rounded-3xl bg-muted/40 border border-border/50 p-6 transition-all hover:shadow-lg h-full group"
+          >
             <div>
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
                 <stat.icon className="h-4 w-4" />
                 <span>{stat.label}</span>
               </div>
-              
+
               <div className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm space-y-1 transition-transform group-hover:-translate-y-1">
-                <p className="text-4xl font-extrabold tracking-tight text-foreground">{stat.value}</p>
+                <p className="text-4xl font-extrabold tracking-tight text-foreground">
+                  {stat.value}
+                </p>
                 <p className="text-xs text-muted-foreground">Current Count</p>
               </div>
             </div>
           </div>
         ))}
       </div>
+
+      <Dialog open={roomDialogOpen} onOpenChange={setRoomDialogOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Create Room</DialogTitle>
+            <DialogDescription>
+              Add a room to make it available for new bookings.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Room Number</Label>
+                <Input
+                  value={newRoomForm.number}
+                  onChange={(e) =>
+                    setNewRoomForm({ ...newRoomForm, number: e.target.value })
+                  }
+                  placeholder="101"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Floor</Label>
+                <Input
+                  value={newRoomForm.floor}
+                  onChange={(e) =>
+                    setNewRoomForm({ ...newRoomForm, floor: e.target.value })
+                  }
+                  placeholder="1"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Room Type</Label>
+              <select
+                value={newRoomForm.roomTypeId}
+                onChange={(e) => {
+                  const selectedType = roomTypes.find(
+                    (type) => type.id === e.target.value,
+                  );
+                  setNewRoomForm({
+                    ...newRoomForm,
+                    roomTypeId: e.target.value,
+                    rate: Number(selectedType?.basePrice ?? 0),
+                    capacity: selectedType?.capacity ?? 2,
+                  });
+                }}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="">Select room type</option>
+                {roomTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </select>
+              {roomTypes.length === 0 ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  <span>No room types yet — rooms need at least one.</span>
+                  <Link
+                    href="/rooms/types"
+                    className="shrink-0 font-semibold text-amber-800 underline-offset-2 hover:underline"
+                  >
+                    Create a type →
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex justify-end">
+                  <Link
+                    href="/rooms/types"
+                    className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                  >
+                    Manage room types →
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Nightly Rate</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={newRoomForm.rate}
+                  onChange={(e) =>
+                    setNewRoomForm({
+                      ...newRoomForm,
+                      rate: Number(e.target.value || 0),
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Capacity</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={newRoomForm.capacity}
+                  onChange={(e) =>
+                    setNewRoomForm({
+                      ...newRoomForm,
+                      capacity: Number(e.target.value || 1),
+                    })
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRoomDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateRoom} disabled={savingRoom}>
+              {savingRoom ? "Creating..." : "Create Room"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ─── ROOM TYPES ────────────────────────────────────────────── */}
       <div className="space-y-4">
@@ -155,34 +347,70 @@ export default function RoomsOverviewPage() {
                 <div className="h-12 w-12 rounded-full bg-muted/60 flex items-center justify-center mb-4 text-muted-foreground">
                   <Box className="h-6 w-6" />
                 </div>
-                <p className="text-lg font-medium text-foreground">No room types defined</p>
-                <p className="text-sm text-muted-foreground mt-1">Create categories like "Standard" or "Suite" to group your inventory.</p>
+                <p className="text-lg font-medium text-foreground">
+                  No room types defined
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Create categories like "Standard" or "Suite" to group your
+                  inventory.
+                </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader className="bg-muted/30">
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Name</TableHead>
-                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Base Price</TableHead>
-                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Capacity</TableHead>
-                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Bed Config</TableHead>
-                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Amenities</TableHead>
-                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Status</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">
+                        Name
+                      </TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">
+                        Base Price
+                      </TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">
+                        Capacity
+                      </TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">
+                        Bed Config
+                      </TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">
+                        Amenities
+                      </TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">
+                        Status
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {roomTypes.map((type) => (
-                      <TableRow key={type.id} className="hover:bg-muted/20 transition-colors">
-                        <TableCell className="font-semibold text-foreground">{type.name}</TableCell>
-                        <TableCell className="font-medium text-primary">{formatCurrency(type.basePrice)}</TableCell>
-                        <TableCell className="text-sm"><Users className="inline-block h-3.5 w-3.5 mr-1 text-muted-foreground" /> {type.capacity}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{type.bedConfiguration || "—"}</TableCell>
+                      <TableRow
+                        key={type.id}
+                        className="hover:bg-muted/20 transition-colors"
+                      >
+                        <TableCell className="font-semibold text-foreground">
+                          {type.name}
+                        </TableCell>
+                        <TableCell className="font-medium text-primary">
+                          {formatCurrency(type.basePrice)}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          <Users className="inline-block h-3.5 w-3.5 mr-1 text-muted-foreground" />{" "}
+                          {type.capacity}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {type.bedConfiguration || "—"}
+                        </TableCell>
                         <TableCell className="max-w-xs truncate text-xs text-muted-foreground">
                           {type.amenities || "—"}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={type.isActive ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-muted text-muted-foreground"}>
+                          <Badge
+                            variant="outline"
+                            className={
+                              type.isActive
+                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                : "bg-muted text-muted-foreground"
+                            }
+                          >
                             {type.isActive ? "Active" : "Inactive"}
                           </Badge>
                         </TableCell>
@@ -205,9 +433,12 @@ export default function RoomsOverviewPage() {
                 <LayoutGrid className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-primary">Visual Room Grid</h3>
+                <h3 className="text-lg font-bold text-primary">
+                  Visual Room Grid
+                </h3>
                 <p className="text-sm text-primary/80 mt-0.5">
-                  See all rooms, their status, and availability in a birds-eye floorplan view.
+                  See all rooms, their status, and availability in a birds-eye
+                  floorplan view.
                 </p>
               </div>
             </div>

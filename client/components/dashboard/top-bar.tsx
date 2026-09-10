@@ -6,15 +6,17 @@ import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import GuestsService from "@/services/guests.service";
-import RoomsService from "@/services/rooms.service";
-import StaysService from "@/services/stays.service";
+import operationsApi from "@/actions/operations";
+import NotificationsService, {
+  AppNotification,
+} from "@/services/notifications.service";
 import useAuthStore from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -22,11 +24,38 @@ import { NewBookingDialog } from "./booking-dialog";
 
 interface SearchResult {
   id: string;
-  type: "guest" | "room" | "stay";
+  type: "guest" | "room" | "stay" | "room-type";
   title: string;
   subtitle?: string;
   href: string;
 }
+
+const notificationHref = (n: AppNotification): string => {
+  switch (n.type) {
+    case "checkout_completed":
+    case "checkout_overdue":
+      return "/front-desk/departures";
+    case "guest_arrival":
+      return "/front-desk/arrivals";
+    case "room_ready":
+    case "room_unavailable":
+    case "maintenance_issue":
+      return "/front-desk/room-status";
+    case "payment_outstanding":
+      return "/finance";
+    case "service_charge_added":
+    case "new_booking":
+    default:
+      return "/reservations";
+  }
+};
+
+const searchTypeLabels: Record<string, string> = {
+  guest: "guest",
+  room: "room",
+  stay: "stay",
+  "room-type": "room type",
+};
 
 export function Topbar() {
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -37,6 +66,20 @@ export function Topbar() {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { clearAuth } = useAuthStore();
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
+  const fetchNotifications = async () => {
+    try {
+      const data = await NotificationsService().getNotifications();
+      setNotifications(data ?? []);
+    } catch {
+      setNotifications([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
 
   const handleSearch = async (query: string) => {
     if (!query.trim()) {
@@ -45,49 +88,40 @@ export function Topbar() {
     }
     setLoading(true);
     try {
-      const [guests, rooms, stays] = await Promise.all([
-        GuestsService().getGuests(query.trim()),
-        RoomsService()
-          .getRooms()
-          .then((rooms) =>
-            rooms.filter((r) =>
-              r.number.toLowerCase().includes(query.toLowerCase()),
-            ),
-          ),
-        StaysService()
-          .getActiveStays()
-          .then((stays) =>
-            stays.filter(
-              (s) =>
-                s.guestName?.toLowerCase().includes(query.toLowerCase()) ||
-                s.reference?.toLowerCase().includes(query.toLowerCase()),
-            ),
-          ),
+      const data = (
+        await operationsApi.globalSearch({ q: query.trim() })
+      ).data;
+
+      setResults([
+        ...data.guests.map((g) => ({
+          id: g.id,
+          type: "guest" as const,
+          title: g.title,
+          subtitle: g.subtitle ?? undefined,
+          href: "/guests",
+        })),
+        ...data.rooms.map((r) => ({
+          id: r.id,
+          type: "room" as const,
+          title: r.title,
+          subtitle: r.subtitle ?? undefined,
+          href: "/rooms",
+        })),
+        ...data.stays.map((s) => ({
+          id: s.id,
+          type: "stay" as const,
+          title: s.title,
+          subtitle: s.subtitle ?? undefined,
+          href: "/reservations",
+        })),
+        ...data.roomTypes.map((rt) => ({
+          id: rt.id,
+          type: "room-type" as const,
+          title: rt.title,
+          subtitle: rt.subtitle ?? undefined,
+          href: "/rooms/types",
+        })),
       ]);
-
-      const guestResults: SearchResult[] = guests.map((g) => ({
-        id: g.id,
-        type: "guest",
-        title: `${g.firstName} ${g.lastName}`,
-        subtitle: g.phone ?? undefined,
-        href: `/guests/${g.id}`,
-      }));
-      const roomResults: SearchResult[] = rooms.map((r) => ({
-        id: r.id,
-        type: "room",
-        title: `Room ${r.number}`,
-        subtitle: r.status ?? undefined,
-        href: `/rooms/${r.id}`,
-      }));
-      const stayResults: SearchResult[] = stays.map((s) => ({
-        id: s.id,
-        type: "stay",
-        title: `Stay ${s.reference} - ${s.guestName}`,
-        subtitle: s.roomNumber ?? undefined,
-        href: `/stays/${s.id}`,
-      }));
-
-      setResults([...guestResults, ...roomResults, ...stayResults].slice(0, 8));
     } catch (error) {
       console.error("Search error:", error);
       toast.error("Search failed");
@@ -116,12 +150,26 @@ export function Topbar() {
     }
   }, [searchModalOpen]);
 
-  // Keyboard shortcut to open search
+  // Keyboard shortcuts: ⌘K or / opens search, N opens new booking
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTyping =
+        !!target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable);
+
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setSearchModalOpen(true);
+      } else if (e.key === "/" && !isTyping) {
+        e.preventDefault();
+        setSearchModalOpen(true);
+      } else if (e.key.toLowerCase() === "n" && !isTyping) {
+        e.preventDefault();
+        setBookingDialogOpen(true);
       }
       if (e.key === "Escape" && searchModalOpen) {
         setSearchModalOpen(false);
@@ -134,6 +182,18 @@ export function Topbar() {
   const handleLogout = () => {
     clearAuth();
     router.push("/login");
+  };
+
+  const handleNotificationClick = async (n: AppNotification) => {
+    setNotifications((prev) =>
+      prev.map((item) => (item.id === n.id ? { ...item, isRead: true } : item)),
+    );
+    try {
+      await NotificationsService().markAsRead(n.id);
+    } catch {
+      // keep optimistic read state
+    }
+    router.push(notificationHref(n));
   };
 
   const closeModal = () => {
@@ -168,21 +228,49 @@ export function Topbar() {
           </button>
 
           {/* Notifications */}
-          <DropdownMenu>
+          <DropdownMenu onOpenChange={(open) => open && fetchNotifications()}>
             <DropdownMenuTrigger className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl text-blue-500 transition-colors hover:bg-blue-100 hover:text-blue-900">
               <Bell className="h-5 w-5" />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full text-blue-600 " />
+              {notifications.some((n) => !n.isRead) && (
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-blue-600" />
+              )}
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
               className="w-80 rounded-2xl border-blue-100 shadow-lg"
             >
-              <DropdownMenuLabel className="text-blue-900">
-                Notifications
-              </DropdownMenuLabel>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-blue-900">
+                  Notifications
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
               <DropdownMenuSeparator className="bg-blue-100" />
-              <div className="p-4 text-sm text-blue-500">
-                No new notifications
+              <div className="max-h-80 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="p-4 text-sm text-blue-500">
+                    No new notifications
+                  </div>
+                ) : (
+                  notifications.slice(0, 10).map((n) => (
+                    <DropdownMenuItem
+                      key={n.id}
+                      className="flex cursor-pointer items-start gap-2 px-4 py-3 text-sm"
+                      onClick={() => handleNotificationClick(n)}
+                    >
+                      <div className="flex-1">
+                        <div className="font-medium text-slate-900">
+                          {n.title}
+                        </div>
+                        <div className="mt-0.5 text-xs text-slate-500">
+                          {n.message}
+                        </div>
+                      </div>
+                      {!n.isRead && (
+                        <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-600" />
+                      )}
+                    </DropdownMenuItem>
+                  ))
+                )}
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -239,7 +327,7 @@ export function Topbar() {
                         variant="outline"
                         className="rounded-md border-slate-200 bg-slate-50 text-slate-500 font-medium"
                       >
-                        {result.type}
+                        {searchTypeLabels[result.type] ?? result.type}
                       </Badge>
                       <div className="flex-1">
                         <div className="text-sm font-medium text-slate-900">

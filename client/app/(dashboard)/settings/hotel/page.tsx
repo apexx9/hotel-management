@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoading } from "@/components/dashboard/page-loading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select,
@@ -36,7 +36,29 @@ export default function HotelSettingsPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Form state (all fields)
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    timezone: string;
+    currency: string;
+    language: string;
+    checkInTime: string;
+    checkOutTime: string;
+    bookingPolicy: string;
+    guestIdRequired: boolean;
+    taxRate: string;
+    defaultTaxType: "value" | "percentage";
+    defaultTaxValue: string;
+    defaultDiscountType: "value" | "percentage";
+    defaultDiscountValue: string;
+    invoicePrefix: string;
+    acceptedPaymentMethods: string;
+    serviceConfig: string;
+    notificationPrefs: string;
+    systemPrefs: string;
+  }>({
     name: "",
     email: "",
     phone: "",
@@ -49,6 +71,10 @@ export default function HotelSettingsPage() {
     bookingPolicy: "",
     guestIdRequired: true,
     taxRate: "0",
+    defaultTaxType: "value",
+    defaultTaxValue: "0",
+    defaultDiscountType: "value",
+    defaultDiscountValue: "0",
     invoicePrefix: "INV-",
     acceptedPaymentMethods: "",
     serviceConfig: "",
@@ -75,6 +101,10 @@ export default function HotelSettingsPage() {
           bookingPolicy: data.bookingPolicy || "",
           guestIdRequired: data.guestIdRequired,
           taxRate: String(data.taxRate ?? "0"),
+          defaultTaxType: data.defaultTaxType ?? "value",
+          defaultTaxValue: String(data.defaultTaxValue ?? "0"),
+          defaultDiscountType: data.defaultDiscountType ?? "value",
+          defaultDiscountValue: String(data.defaultDiscountValue ?? "0"),
           invoicePrefix: data.invoicePrefix,
           acceptedPaymentMethods: data.acceptedPaymentMethods || "",
           serviceConfig: data.serviceConfig || "",
@@ -95,6 +125,12 @@ export default function HotelSettingsPage() {
     setSaving(true);
     try {
       const parsedTaxRate = form.taxRate ? parseFloat(String(form.taxRate)) : 0;
+      const parsedDefaultTaxValue = form.defaultTaxValue
+        ? parseFloat(String(form.defaultTaxValue))
+        : 0;
+      const parsedDefaultDiscountValue = form.defaultDiscountValue
+        ? parseFloat(String(form.defaultDiscountValue))
+        : 0;
       await SettingsService().updateSettings({
         name: form.name || null,
         email: form.email || null,
@@ -108,6 +144,14 @@ export default function HotelSettingsPage() {
         bookingPolicy: form.bookingPolicy || null,
         guestIdRequired: form.guestIdRequired,
         taxRate: Number.isNaN(parsedTaxRate) ? 0 : parsedTaxRate,
+        defaultTaxType: form.defaultTaxType,
+        defaultTaxValue: Number.isNaN(parsedDefaultTaxValue)
+          ? 0
+          : parsedDefaultTaxValue,
+        defaultDiscountType: form.defaultDiscountType,
+        defaultDiscountValue: Number.isNaN(parsedDefaultDiscountValue)
+          ? 0
+          : parsedDefaultDiscountValue,
         invoicePrefix: form.invoicePrefix,
         acceptedPaymentMethods: form.acceptedPaymentMethods || null,
         serviceConfig: form.serviceConfig || null,
@@ -124,17 +168,7 @@ export default function HotelSettingsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="space-y-8 p-2 md:p-6 max-w-7xl mx-auto animate-pulse">
-        <div className="space-y-3">
-          <Skeleton className="h-6 w-28 rounded-full" />
-          <Skeleton className="h-10 w-72 rounded-xl" />
-        </div>
-        <Skeleton className="h-64 w-full rounded-3xl" />
-        <Skeleton className="h-80 w-full rounded-3xl" />
-        <Skeleton className="h-48 w-full rounded-3xl" />
-      </div>
-    );
+    return <PageLoading showHeader showCards={3} />;
   }
 
   if (error || !settings) {
@@ -340,6 +374,82 @@ export default function HotelSettingsPage() {
                 className="h-11 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/20"
                 value={form.taxRate}
                 onChange={(e) => setForm({ ...form, taxRate: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Default Tax Mode
+              </Label>
+              <Select
+                value={form.defaultTaxType}
+                onValueChange={(value) =>
+                  setForm({
+                    ...form,
+                    defaultTaxType:
+                      value === "percentage" ? "percentage" : "value",
+                  })
+                }
+              >
+                <SelectTrigger className="h-11 rounded-xl bg-muted/30 border-border/50">
+                  <SelectValue placeholder="Select tax mode" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="value">Fixed value</SelectItem>
+                  <SelectItem value="percentage">Percentage</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Default Tax Value
+              </Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                className="h-11 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/20"
+                value={form.defaultTaxValue}
+                onChange={(e) =>
+                  setForm({ ...form, defaultTaxValue: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Default Discount Mode
+              </Label>
+              <Select
+                value={form.defaultDiscountType}
+                onValueChange={(value) =>
+                  setForm({
+                    ...form,
+                    defaultDiscountType:
+                      value === "percentage" ? "percentage" : "value",
+                  })
+                }
+              >
+                <SelectTrigger className="h-11 rounded-xl bg-muted/30 border-border/50">
+                  <SelectValue placeholder="Select discount mode" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="value">Fixed value</SelectItem>
+                  <SelectItem value="percentage">Percentage</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Default Discount Value
+              </Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                className="h-11 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/20"
+                value={form.defaultDiscountValue}
+                onChange={(e) =>
+                  setForm({ ...form, defaultDiscountValue: e.target.value })
+                }
               />
             </div>
             <div className="space-y-2">

@@ -1,4 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
+import { toast } from "sonner";
+import useAuthStore from "../store/useAuthStore";
 
 const rawBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 const baseURL = rawBase.replace(/\/$/, "") + "/api";
@@ -47,6 +49,15 @@ instance.interceptors.response.use(
       if (typeof window !== "undefined") {
         localStorage.removeItem("token");
         document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        useAuthStore.getState().clearAuth();
+        toast.error("Session expired", {
+          description: "Please sign in again to continue.",
+        });
+        if (!window.location.pathname.startsWith("/login")) {
+          window.location.assign(
+            "/login?redirect=" + encodeURIComponent(window.location.pathname),
+          );
+        }
       }
       return Promise.reject(error);
     }

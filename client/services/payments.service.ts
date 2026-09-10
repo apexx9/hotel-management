@@ -1,4 +1,5 @@
 import operationsApi from "@/actions/operations";
+import { getErrorMessage } from "@/lib/errors";
 
 export interface Payment {
   id: string;
@@ -15,16 +16,7 @@ export interface Payment {
   createdAt: string;
 }
 
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (typeof error === "object" && error !== null) {
-    const response = error as {
-      response?: { data?: { message?: string } };
-      message?: string;
-    };
-    return response.response?.data?.message || response.message || fallback;
-  }
-  return fallback;
-};
+
 
 const PaymentsService = () => {
   const getPayments = async (stayId?: string): Promise<Payment[]> => {
@@ -63,10 +55,21 @@ const PaymentsService = () => {
     }
   };
 
+  const reversePayment = async (paymentId: string) => {
+    try {
+      const response = await operationsApi.reversePayment(paymentId);
+      return response.data;
+    } catch (error) {
+      console.error("Failed to reverse payment:", getErrorMessage(error, "Failed to reverse payment"));
+      throw error;
+    }
+  };
+
   return {
     getPayments,
     getPayment,
     recordPayment,
+    reversePayment,
   };
 };
 

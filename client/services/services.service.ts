@@ -1,4 +1,5 @@
 import operationsApi from "@/actions/operations";
+import { getErrorMessage } from "@/lib/errors";
 
 export interface Service {
   id: string;
@@ -12,16 +13,7 @@ export interface Service {
   updatedAt: string;
 }
 
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (typeof error === "object" && error !== null) {
-    const response = error as {
-      response?: { data?: { message?: string } };
-      message?: string;
-    };
-    return response.response?.data?.message || response.message || fallback;
-  }
-  return fallback;
-};
+
 
 const ServicesService = () => {
   const getServices = async (): Promise<Service[]> => {

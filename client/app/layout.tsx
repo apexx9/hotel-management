@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import { Manrope } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
-import { Geist } from "next/font/google";
-import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Hotel Management System",
@@ -18,7 +21,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn("h-full antialiased", "font-sans", geist.variable)}>
+    <html
+      lang="en"
+      className={`${manrope.variable} h-full antialiased font-sans`}
+    >
       <body className="min-h-dvh bg-white font-sans">
         {children}
         <Toaster position="bottom-right" richColors closeButton />

@@ -81,6 +81,7 @@ export const housekeepingStatusEnum = pgEnum(
 export const notificationTypeEnum = pgEnum(
   'notification_type',
   [
+    'checkout_completed',
     'checkout_overdue',
     'payment_outstanding',
     'room_ready',

@@ -25,6 +25,11 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { navItems } from "@/utils/nav-items";
 import { cn } from "@/lib/utils";
 
@@ -265,9 +270,22 @@ export function AppSidebar() {
         </SidebarContent>
 
         <SidebarFooter className="flex flex-col items-center gap-2 border-t border-border py-3 px-0">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary ring-1 ring-primary/20">
-            {getInitials(user?.name || user?.email)}
-          </div>
+          {user ? (
+            <Tooltip>
+              <TooltipTrigger
+                aria-label={user.name || user.email}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary ring-1 ring-primary/20"
+              >
+                {getInitials(user?.name || user?.email)}
+              </TooltipTrigger>
+              <TooltipContent side="right" align="center">
+                <p className="font-medium">{user?.name || "My Account"}</p>
+                <p className="text-xs opacity-70">{user?.email}</p>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <div className="h-9 w-9 animate-pulse rounded-full bg-muted" />
+          )}
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
@@ -417,19 +435,29 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-border p-3">
-        <div className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-accent">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary ring-1 ring-primary/20">
-            {getInitials(user?.name || user?.email)}
+        {user ? (
+          <div className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-accent">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary ring-1 ring-primary/20">
+              {getInitials(user?.name || user?.email)}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">
+                {user?.name || "My Account"}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {user?.email}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">
-              {user?.name || "My Account"}
-            </p>
-            <p className="truncate text-xs text-muted-foreground">
-              {user?.email}
-            </p>
+        ) : (
+          <div className="flex items-center gap-3 rounded-lg p-2">
+            <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-muted" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <div className="h-3.5 w-24 animate-pulse rounded bg-muted" />
+              <div className="h-3 w-32 animate-pulse rounded bg-muted" />
+            </div>
           </div>
-        </div>
+        )}
 
         <SidebarMenu className="mt-2">
           <SidebarMenuItem>

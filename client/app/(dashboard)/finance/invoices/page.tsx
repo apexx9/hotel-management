@@ -3,12 +3,17 @@
 import { useEffect, useState } from "react";
 import InvoicesService, { Invoice } from "@/services/invoices.service";
 import { formatCurrency, formatDateTime } from "@/utils/utils";
+import { invoiceStatusColors } from "@/lib/status-colors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { PageLayout } from "@/components/dashboard/page-layout";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { PageLoading } from "@/components/dashboard/page-loading";
+import { PageError } from "@/components/dashboard/page-error";
+import { EmptyState } from "@/components/dashboard/empty-state";
 import {
   Table,
   TableBody,
@@ -33,14 +38,8 @@ import {
 } from "@/components/ui/select";
 import { AlertCircle, Search, FileText, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
-const statusColors: Record<Invoice["status"], string> = {
-  draft: "bg-gray-100 text-gray-700 border-gray-300",
-  issued: "bg-blue-100 text-blue-700 border-blue-300",
-  partially_paid: "bg-amber-100 text-amber-700 border-amber-300",
-  paid: "bg-green-100 text-green-700 border-green-300",
-  cancelled: "bg-red-100 text-red-700 border-red-300",
-};
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -92,33 +91,20 @@ export default function InvoicesPage() {
   };
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-64 w-full rounded-xl" />
-      </div>
-    );
+    return <PageLoading showHeader showCards={1} />;
   }
 
   if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    );
+    return <PageError message={error} />;
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Invoices</h1>
-        <p className="text-sm text-muted-foreground">
-          View and manage all invoices.
-        </p>
-      </div>
+    <PageLayout>
+      <PageHeader
+        badge="Financial Management"
+        title="Invoices"
+        description="View and manage all invoices."
+      />
 
       {/* Search and filter */}
       <div className="flex flex-wrap gap-4">
@@ -153,13 +139,12 @@ export default function InvoicesPage() {
       </div>
 
       {filteredInvoices.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            No invoices found.
-          </CardContent>
-        </Card>
+        <EmptyState
+          title="No invoices found"
+          description="There are no invoices matching your search criteria."
+        />
       ) : (
-        <Card>
+        <Card className="rounded-3xl border border-border/50 bg-card shadow-sm overflow-hidden">
           <CardHeader>
             <CardTitle className="text-lg font-medium flex items-center gap-2">
               <FileText className="h-5 w-5" />
@@ -188,7 +173,11 @@ export default function InvoicesPage() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={statusColors[invoice.status]}
+                        className={cn(
+                          invoiceStatusColors[invoice.status].bg,
+                          invoiceStatusColors[invoice.status].text,
+                          invoiceStatusColors[invoice.status].border
+                        )}
                       >
                         {invoice.status.replace("_", " ")}
                       </Badge>
@@ -379,6 +368,6 @@ export default function InvoicesPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageLayout>
   );
 }

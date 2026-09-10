@@ -69,9 +69,7 @@ export const hotelSettings = pgTable('hotel_settings', {
 
   bookingPolicy: text('booking_policy'),
 
-  guestIdRequired: boolean('guest_id_required')
-    .notNull()
-    .default(true),
+  guestIdRequired: boolean('guest_id_required').notNull().default(true),
 
   taxRate: numeric('tax_rate', {
     precision: 5,
@@ -80,15 +78,39 @@ export const hotelSettings = pgTable('hotel_settings', {
     .notNull()
     .default('15.00'),
 
+  defaultTaxType: varchar('default_tax_type', {
+    length: 16,
+  })
+    .notNull()
+    .default('value'),
+
+  defaultTaxValue: numeric('default_tax_value', {
+    precision: 12,
+    scale: 2,
+  })
+    .notNull()
+    .default('0'),
+
+  defaultDiscountType: varchar('default_discount_type', {
+    length: 16,
+  })
+    .notNull()
+    .default('value'),
+
+  defaultDiscountValue: numeric('default_discount_value', {
+    precision: 12,
+    scale: 2,
+  })
+    .notNull()
+    .default('0'),
+
   invoicePrefix: varchar('invoice_prefix', {
     length: 16,
   })
     .notNull()
     .default('INV'),
 
-  acceptedPaymentMethods: text(
-    'accepted_payment_methods',
-  ),
+  acceptedPaymentMethods: text('accepted_payment_methods'),
 
   serviceConfig: text('service_config'),
 

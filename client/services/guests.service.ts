@@ -1,4 +1,5 @@
 import operationsApi from "@/actions/operations";
+import { getErrorMessage } from "@/lib/errors";
 
 export interface Guest {
   id: string;
@@ -19,16 +20,7 @@ export interface Guest {
   invoices?: any[];
 }
 
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (typeof error === "object" && error !== null) {
-    const response = error as {
-      response?: { data?: { message?: string } };
-      message?: string;
-    };
-    return response.response?.data?.message || response.message || fallback;
-  }
-  return fallback;
-};
+
 
 const GuestsService = () => {
   const getGuests = async (query?: string): Promise<Guest[]> => {
@@ -65,7 +57,8 @@ const GuestsService = () => {
   }): Promise<Guest> => {
     try {
       const response = await operationsApi.createGuest({
-        fullName: `${data.firstName} ${data.lastName}`,
+        firstName: data.firstName,
+        lastName: data.lastName,
         phone: data.phone,
         email: data.email ?? null,
         nationality: data.nationality ?? null,

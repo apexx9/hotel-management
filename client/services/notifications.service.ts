@@ -1,9 +1,10 @@
 import operationsApi from "@/actions/operations";
+import { getErrorMessage } from "@/lib/errors";
 
-export interface Notification {
+export interface AppNotification {
   id: string;
   hotelId: string;
-  type: "checkout_overdue" | "payment_outstanding" | "room_ready" | "room_unavailable" | "maintenance_issue" | "new_booking" | "guest_arrival" | "service_charge_added";
+  type: "checkout_completed" | "checkout_overdue" | "payment_outstanding" | "room_ready" | "room_unavailable" | "maintenance_issue" | "new_booking" | "guest_arrival" | "service_charge_added";
   title: string;
   message: string;
   referenceType?: string;
@@ -12,19 +13,10 @@ export interface Notification {
   createdAt: string;
 }
 
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (typeof error === "object" && error !== null) {
-    const response = error as {
-      response?: { data?: { message?: string } };
-      message?: string;
-    };
-    return response.response?.data?.message || response.message || fallback;
-  }
-  return fallback;
-};
+
 
 const NotificationsService = () => {
-  const getNotifications = async (): Promise<Notification[]> => {
+  const getNotifications = async (): Promise<AppNotification[]> => {
     try {
       const response = await operationsApi.getNotifications();
       return response.data ?? [];

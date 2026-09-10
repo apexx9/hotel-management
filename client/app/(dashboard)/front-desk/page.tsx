@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoading } from "@/components/dashboard/page-loading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertCircle,
@@ -23,6 +23,7 @@ import {
   Info
 } from "lucide-react";
 import { formatDateTime, formatCurrency, formatNumber } from "@/utils/utils";
+import { RefreshButton } from "@/components/dashboard/refresh-button";
 
 export default function FrontDeskOverviewPage() {
   const [activeStays, setActiveStays] = useState<DashboardStaySummary[]>([]);
@@ -31,43 +32,31 @@ export default function FrontDeskOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [active, arr, dep] = await Promise.all([
+        StaysService().getActiveStays(),
+        StaysService().getArrivals(),
+        StaysService().getDepartures(),
+      ]);
+      setActiveStays(active);
+      setArrivals(arr);
+      setDepartures(dep);
+    } catch (err) {
+      console.error("Failed to fetch front desk data:", err);
+      setError("Could not load front desk overview. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [active, arr, dep] = await Promise.all([
-          StaysService().getActiveStays(),
-          StaysService().getArrivals(),
-          StaysService().getDepartures(),
-        ]);
-        setActiveStays(active);
-        setArrivals(arr);
-        setDepartures(dep);
-      } catch (err) {
-        console.error("Failed to fetch front desk data:", err);
-        setError("Could not load front desk overview. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
 
   if (loading) {
-    return (
-      <div className="space-y-8 p-2 md:p-6 max-w-7xl mx-auto animate-pulse">
-        <div className="space-y-3">
-          <Skeleton className="h-6 w-28 rounded-full" />
-          <Skeleton className="h-10 w-96 rounded-xl" />
-        </div>
-        <div className="grid gap-6 md:grid-cols-3">
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="h-40 rounded-3xl" />
-          ))}
-        </div>
-        <Skeleton className="h-80 w-full rounded-3xl" />
-      </div>
-    );
+    return <PageLoading showHeader showStats={4} showTable />;
   }
 
   if (error) {
@@ -122,9 +111,12 @@ export default function FrontDeskOverviewPage() {
             Front Desk
           </h1>
         </div>
-        <p className="text-sm text-muted-foreground max-w-xs leading-relaxed md:text-right">
-          Monitor live guest activity, manage daily check-ins, and oversee hotel capacity.
-        </p>
+        <div className="flex flex-col items-start md:items-end gap-3">
+          <p className="text-sm text-muted-foreground max-w-xs leading-relaxed md:text-right">
+            Monitor live guest activity, manage daily check-ins, and oversee hotel capacity.
+          </p>
+          <RefreshButton onRefresh={() => fetchData()} />
+        </div>
       </div>
 
       {/* ─── SUMMARY CARDS ────────────────────────────────────────────── */}

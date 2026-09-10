@@ -5,12 +5,16 @@ import PaymentsService, { Payment } from "@/services/payments.service";
 import InvoicesService, { Invoice } from "@/services/invoices.service";
 import StaysService from "@/services/stays.service";
 import { formatCurrency, formatDateTime } from "@/utils/utils";
+import { paymentStatusColors, paymentMethodColors } from "@/lib/status-colors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { PageLayout } from "@/components/dashboard/page-layout";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { PageLoading } from "@/components/dashboard/page-loading";
+import { PageError } from "@/components/dashboard/page-error";
+import { EmptyState } from "@/components/dashboard/empty-state";
 import {
   Table,
   TableBody,
@@ -38,21 +42,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { AlertCircle, Plus, Search, CreditCard } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
-const methodColors: Record<Payment["method"], string> = {
-  cash: "bg-green-100 text-green-700 border-green-300",
-  mobile_money: "bg-blue-100 text-blue-700 border-blue-300",
-  card: "bg-purple-100 text-purple-700 border-purple-300",
-  bank_transfer: "bg-indigo-100 text-indigo-700 border-indigo-300",
-};
-
-const statusColors: Record<Payment["status"], string> = {
-  paid: "bg-green-100 text-green-700 border-green-300",
-  partial: "bg-amber-100 text-amber-700 border-amber-300",
-  pending: "bg-yellow-100 text-yellow-700 border-yellow-300",
-  overdue: "bg-red-100 text-red-700 border-red-300",
-  reversed: "bg-gray-100 text-gray-700 border-gray-300",
-};
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -63,6 +54,7 @@ export default function PaymentsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [reversingId, setReversingId] = useState<string | null>(null);
 
   // For new payment form
   const [stays, setStays] = useState<any[]>([]);
@@ -85,6 +77,26 @@ export default function PaymentsPage() {
       setError("Could not load payments. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReverse = async (payment: Payment) => {
+    if (
+      !window.confirm(
+        `Reverse payment ${payment.reference} of ${formatCurrency(payment.amount)}?`,
+      )
+    )
+      return;
+    setReversingId(payment.id);
+    try {
+      await PaymentsService().reversePayment(payment.id);
+      toast.success("Payment reversed");
+      await fetchPayments();
+    } catch (err) {
+      console.error("Failed to reverse payment:", err);
+      toast.error("Failed to reverse payment");
+    } finally {
+      setReversingId(null);
     }
   };
 
@@ -154,51 +166,37 @@ export default function PaymentsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-64 w-full rounded-xl" />
-      </div>
-    );
+    return <PageLoading showHeader showCards={1} />;
   }
 
   if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    );
+    return <PageError message={error} />;
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Payments</h1>
-          <p className="text-sm text-muted-foreground">
-            Record and track all payments.
-          </p>
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger
-            render={
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Record Payment
-              </Button>
-            }
-          />
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Record Payment</DialogTitle>
-              <DialogDescription>
-                Enter payment details for a stay/invoice.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
+    <PageLayout>
+      <PageHeader
+        badge="Financial Management"
+        title="Payments"
+        description="Record and track all payments."
+        action={
+          <Button className="rounded-full h-11" onClick={() => setDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Record Payment
+          </Button>
+        }
+      />
+
+      {/* Payment Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+            <DialogDescription>
+              Enter payment details for a stay/invoice.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
               <div className="space-y-2">
                 <Label>Stay *</Label>
                 <Select
@@ -291,7 +289,6 @@ export default function PaymentsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
 
       {/* Search and filters */}
       <div className="flex flex-wrap gap-4">
@@ -343,13 +340,12 @@ export default function PaymentsPage() {
       </div>
 
       {filteredPayments.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            No payments found.
-          </CardContent>
-        </Card>
+        <EmptyState
+          title="No payments found"
+          description="There are no payments matching your search criteria."
+        />
       ) : (
-        <Card>
+        <Card className="rounded-3xl border border-border/50 bg-card shadow-sm overflow-hidden">
           <CardHeader>
             <CardTitle className="text-lg font-medium flex items-center gap-2">
               <CreditCard className="h-5 w-5" />
@@ -366,6 +362,7 @@ export default function PaymentsPage() {
                   <TableHead>Amount</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Notes</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -377,7 +374,11 @@ export default function PaymentsPage() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={methodColors[payment.method]}
+                        className={cn(
+                          paymentMethodColors[payment.method].bg,
+                          paymentMethodColors[payment.method].text,
+                          paymentMethodColors[payment.method].border
+                        )}
                       >
                         {payment.method.replace("_", " ")}
                       </Badge>
@@ -385,7 +386,11 @@ export default function PaymentsPage() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={statusColors[payment.status]}
+                        className={cn(
+                          paymentStatusColors[payment.status].bg,
+                          paymentStatusColors[payment.status].text,
+                          paymentStatusColors[payment.status].border
+                        )}
                       >
                         {payment.status.replace("_", " ")}
                       </Badge>
@@ -395,6 +400,19 @@ export default function PaymentsPage() {
                     <TableCell className="max-w-xs truncate">
                       {payment.notes || "—"}
                     </TableCell>
+                    <TableCell className="text-right">
+                      {payment.status !== "reversed" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full text-destructive border-destructive/30 hover:bg-destructive/10"
+                          disabled={reversingId === payment.id}
+                          onClick={() => handleReverse(payment)}
+                        >
+                          {reversingId === payment.id ? "..." : "Reverse"}
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -402,6 +420,6 @@ export default function PaymentsPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageLayout>
   );
 }

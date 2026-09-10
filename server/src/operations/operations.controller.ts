@@ -26,12 +26,14 @@ import {
   CreateServiceDto,
   InviteStaffDto,
   QueryReportsDto,
+  UpdateBookingDto,
   UpdateGuestDto,
   UpdateHousekeepingDto,
   UpdateRoomTypeDto,
   UpdateServiceDto,
   UpdateSettingsDto,
   UpdateStaffDto,
+  TransferRoomDto,
 } from './dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -133,11 +135,13 @@ export class OperationsController {
     @Query('status') status?: string,
     @Query('guestId') guestId?: string,
     @Query('roomId') roomId?: string,
+    @Query('q') q?: string,
   ) {
     return this.operations.listStays(req.user.userId, {
       status,
       guestId,
       roomId,
+      q,
     });
   }
 
@@ -178,6 +182,35 @@ export class OperationsController {
     @Body() dto: CreateBookingDto,
   ) {
     return this.operations.createBooking(req.user.userId, dto);
+  }
+
+  @Patch('bookings/:id')
+  @Roles('admin', 'manager', 'front_desk', 'finance', 'owner')
+  updateBooking(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateBookingDto,
+  ) {
+    return this.operations.updateBooking(req.user.userId, id, dto);
+  }
+
+  @Post('bookings/:id/cancel')
+  @Roles('admin', 'manager', 'front_desk', 'owner')
+  cancelBooking(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.operations.cancelBooking(req.user.userId, id);
+  }
+
+  @Patch('stays/:id/room')
+  @Roles('admin', 'manager', 'front_desk', 'owner')
+  transferRoom(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: TransferRoomDto,
+  ) {
+    return this.operations.transferRoom(req.user.userId, {
+      stayId: id,
+      roomId: dto.roomId,
+    });
   }
 
   @Post('check-in')
@@ -267,6 +300,12 @@ export class OperationsController {
     return this.operations.recordPayment(req.user.userId, dto);
   }
 
+  @Post('payments/:id/reverse')
+  @Roles('admin', 'manager', 'finance', 'owner')
+  reversePayment(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.operations.reversePayment(req.user.userId, id);
+  }
+
   // ==========================================
   // SERVICES & SERVICE CHARGES
   // ==========================================
@@ -351,6 +390,14 @@ export class OperationsController {
     @Body() dto: UpdateHousekeepingDto,
   ) {
     return this.operations.updateHousekeeping(req.user.userId, dto);
+  }
+
+  // ==========================================
+  // SEARCH
+  // ==========================================
+  @Get('search')
+  globalSearch(@Req() req: AuthenticatedRequest, @Query('q') q?: string) {
+    return this.operations.globalSearch(req.user.userId, q);
   }
 
   // ==========================================

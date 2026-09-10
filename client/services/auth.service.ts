@@ -1,19 +1,9 @@
 import { LoginSchema, RegisterSchema } from "../schema/auth.schema";
 import authApi from "../actions/auth";
 import useAuthStore from "../store/useAuthStore";
+import { getErrorMessage } from "@/lib/errors";
 
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (typeof error === "object" && error !== null) {
-    const response = error as {
-      response?: { data?: { message?: string } };
-      message?: string;
-    };
 
-    return response.response?.data?.message || response.message || fallback;
-  }
-
-  return fallback;
-};
 
 const AuthService = () => {
   async function login(payload: LoginSchema) {
@@ -32,7 +22,6 @@ const AuthService = () => {
         localStorage.setItem("token", accessToken);
         // Set cookie for proxy
         document.cookie = `access_token=${encodeURIComponent(accessToken)}; path=/; max-age=604800; SameSite=Lax`;
-        console.log("Cookie set:", document.cookie);
       }
 
       if (user) {

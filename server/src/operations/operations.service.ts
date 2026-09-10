@@ -25,7 +25,7 @@ import {
   stays,
   users,
 } from '../database/schema';
-import { and, desc, eq, isNull, sql, or, inArray } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql, or, inArray, ilike } from 'drizzle-orm';
 import {
   CheckInDto,
   CheckOutDto,
@@ -38,11 +38,13 @@ import {
   CreateServiceDto,
   InviteStaffDto,
   QueryReportsDto,
+  UpdateBookingDto,
   UpdateGuestDto,
   UpdateHousekeepingDto,
   UpdateRoomTypeDto,
   UpdateServiceDto,
   UpdateSettingsDto,
+  TransferRoomDto,
   UpdateStaffDto,
 } from './dto';
 import * as crypto from 'crypto';
@@ -125,6 +127,7 @@ export class OperationsService {
   private async writeNotification(
     hotelId: string,
     type:
+      | 'checkout_completed'
       | 'checkout_overdue'
       | 'payment_outstanding'
       | 'room_ready'
@@ -161,6 +164,32 @@ export class OperationsService {
     const serviceTotal = roundMoney(payload.serviceTotal ?? 0);
     const total = roundMoney(subtotal - discount + taxes + serviceTotal);
     return { subtotal, discount, taxes, serviceTotal, total };
+  }
+
+  private resolvePricingValue(
+    amount: number,
+    mode: 'value' | 'percentage' | undefined,
+    value: number,
+  ) {
+    if (mode === 'percentage') {
+      return roundMoney((amount * (value ?? 0)) / 100);
+    }
+    return roundMoney(value ?? 0);
+  }
+
+  private async getHotelPricingDefaults(hotelId: string) {
+    const [settings] = await this.db
+      .select()
+      .from(hotelSettings)
+      .where(eq(hotelSettings.hotelId, hotelId))
+      .limit(1);
+
+    return {
+      taxType: settings?.defaultTaxType ?? 'value',
+      taxValue: money(settings?.defaultTaxValue ?? 0),
+      discountType: settings?.defaultDiscountType ?? 'value',
+      discountValue: money(settings?.defaultDiscountValue ?? 0),
+    };
   }
 
   // ==========================================
@@ -650,7 +679,7 @@ export class OperationsService {
   // ==========================================
   async listStays(
     userId: string,
-    filters?: { status?: string; guestId?: string; roomId?: string },
+    filters?: { status?: string; guestId?: string; roomId?: string; q?: string },
   ) {
     const hotelId = await this.getDefaultHotelId(userId);
 
@@ -697,7 +726,201 @@ export class OperationsService {
         guestEmail: guest?.email ?? null,
         roomTypeName: rt?.name ?? null,
       };
+    }).filter((stay) => {
+      const q = filters?.q?.trim().toLowerCase();
+      if (!q) return true;
+      return (
+        stay.reference?.toLowerCase().includes(q) ||
+        stay.guestName?.toLowerCase().includes(q) ||
+        stay.roomNumber?.toLowerCase().includes(q)
+      );
     });
+  }
+
+  // ==========================================
+  // GLOBAL SEARCH
+  // ==========================================
+  private escapeLike(value: string) {
+    return value.replace(/[\\%_]/g, (m) => `\\${m}`);
+  }
+
+  async globalSearch(userId: string, rawQuery?: string) {
+    const hotelId = await this.getDefaultHotelId(userId);
+
+    const empty = { guests: [], rooms: [], stays: [], roomTypes: [] };
+    const query = rawQuery?.trim() ?? '';
+    if (!query) return empty;
+
+    const tokens = query.split(/\s+/).filter(Boolean);
+    const patterns = tokens.map((t) => `%${this.escapeLike(t.toLowerCase())}%`);
+
+    const guestFullName = sql`lower(${guests.firstName} || ' ' || ${guests.lastName})`;
+
+    const [guestRows, roomRows, stayRows, roomTypeRows] = await Promise.all([
+      hotelId
+        ? this.db
+            .select()
+            .from(guests)
+            .where(
+              and(
+                eq(guests.hotelId, hotelId),
+                ...patterns.map((p) =>
+                  or(
+                    ilike(guests.firstName, p),
+                    ilike(guests.lastName, p),
+                    ilike(guestFullName, p),
+                    ilike(guests.phone, p),
+                    ilike(guests.email, p),
+                    ilike(guests.identificationNumber, p),
+                  ),
+                ),
+              ),
+            )
+            .orderBy(desc(guests.updatedAt))
+            .limit(6)
+        : this.db.select().from(guests).limit(0),
+
+      hotelId
+        ? this.db
+            .select({
+              room: rooms,
+              roomType: roomTypes,
+            })
+            .from(rooms)
+            .leftJoin(
+              roomTypes,
+              and(
+                eq(roomTypes.id, rooms.roomTypeId),
+                eq(roomTypes.hotelId, rooms.hotelId),
+              ),
+            )
+            .where(
+              and(
+                eq(rooms.hotelId, hotelId),
+                ...patterns.map((p) =>
+                  or(
+                    ilike(rooms.number, p),
+                    ilike(rooms.floor, p),
+                    ilike(roomTypes.name, p),
+                  ),
+                ),
+              ),
+            )
+            .orderBy(desc(rooms.updatedAt))
+            .limit(6)
+        : this.db
+            .select({
+              room: rooms,
+              roomType: roomTypes,
+            })
+            .from(rooms)
+            .limit(0),
+
+      hotelId
+        ? this.db
+            .select({
+              stay: stays,
+              guest: guests,
+              room: rooms,
+              roomType: roomTypes,
+            })
+            .from(stays)
+            .leftJoin(
+              guests,
+              and(
+                eq(guests.id, stays.guestId),
+                eq(guests.hotelId, stays.hotelId),
+              ),
+            )
+            .leftJoin(
+              rooms,
+              and(eq(rooms.id, stays.roomId), eq(rooms.hotelId, stays.hotelId)),
+            )
+            .leftJoin(
+              roomTypes,
+              and(
+                eq(roomTypes.id, stays.roomTypeId),
+                eq(roomTypes.hotelId, stays.hotelId),
+              ),
+            )
+            .where(
+              and(
+                eq(stays.hotelId, hotelId),
+                ...patterns.map((p) =>
+                  or(
+                    ilike(stays.reference, p),
+                    ilike(roomTypes.name, p),
+                    ilike(rooms.number, p),
+                    ilike(guestFullName, p),
+                  ),
+                ),
+              ),
+            )
+            .orderBy(desc(stays.createdAt))
+            .limit(6)
+        : this.db
+            .select({
+              stay: stays,
+              guest: guests,
+              room: rooms,
+              roomType: roomTypes,
+            })
+            .from(stays)
+            .limit(0),
+
+      hotelId
+        ? this.db
+            .select()
+            .from(roomTypes)
+            .where(
+              and(
+                eq(roomTypes.hotelId, hotelId),
+                ...patterns.map((p) =>
+                  or(
+                    ilike(roomTypes.name, p),
+                    ilike(roomTypes.description, p),
+                    ilike(roomTypes.amenities, p),
+                  ),
+                ),
+              ),
+            )
+            .orderBy(desc(roomTypes.updatedAt))
+            .limit(6)
+        : this.db.select().from(roomTypes).limit(0),
+    ]);
+
+    return {
+      guests: guestRows.map((g) => ({
+        id: g.id,
+        title: `${g.firstName} ${g.lastName}`,
+        subtitle: [g.phone, g.email].filter(Boolean).join(' · ') || null,
+      })),
+      rooms: roomRows.map(({ room, roomType }) => {
+        const roomSubtitle = [roomType?.name, room.status]
+          .filter(Boolean)
+          .join(' · ');
+        return {
+          id: room.id,
+          title: `Room ${room.number}`,
+          subtitle: roomSubtitle || null,
+        };
+      }),
+      stays: stayRows.map(({ stay, guest, room }) => {
+        const guestName = guest
+          ? `${guest.firstName} ${guest.lastName}`
+          : 'Guest';
+        return {
+          id: stay.id,
+          title: `${stay.reference} — ${guestName}`,
+          subtitle: room ? `Room ${room.number}` : null,
+        };
+      }),
+      roomTypes: roomTypeRows.map((rt) => ({
+        id: rt.id,
+        title: rt.name,
+        subtitle: rt.description || null,
+      })),
+    };
   }
 
   async getStay(userId: string, id: string) {
@@ -834,7 +1057,7 @@ export class OperationsService {
         [roomRecord] = await tx
           .select()
           .from(rooms)
-          .where(eq(rooms.id, dto.roomId))
+          .where(and(eq(rooms.hotelId, hotelId), eq(rooms.id, dto.roomId)))
           .limit(1);
       } else if (dto.roomTypeId) {
         [roomRecord] = await tx
@@ -842,6 +1065,7 @@ export class OperationsService {
           .from(rooms)
           .where(
             and(
+              eq(rooms.hotelId, hotelId),
               eq(rooms.roomTypeId, dto.roomTypeId),
               eq(rooms.status, 'available'),
             ),
@@ -851,16 +1075,18 @@ export class OperationsService {
         [roomRecord] = await tx
           .select()
           .from(rooms)
-          .where(eq(rooms.status, 'available'))
+          .where(and(eq(rooms.hotelId, hotelId), eq(rooms.status, 'available')))
           .limit(1);
       }
 
       if (!roomRecord) {
-        throw new ConflictException('No available room found');
+        throw new ConflictException(
+          'No available room found for the selected room type or dates.',
+        );
       }
 
       if (!['available'].includes(roomRecord.status)) {
-        throw new ConflictException('Room is not available');
+        throw new ConflictException('Selected room is not available');
       }
 
       const [roomTypeRecord] = await tx
@@ -873,13 +1099,32 @@ export class OperationsService {
         throw new NotFoundException('Room type not found');
       }
 
+      const defaults = await this.getHotelPricingDefaults(hotelId);
       const rate =
         dto.rate || money(roomRecord.rate) || money(roomTypeRecord.basePrice);
+      const subtotal = roundMoney(rate * dto.nights);
+      const discountMode = (dto.discountMode ??
+        defaults.discountType ??
+        'value') as 'value' | 'percentage';
+      const discountValue = dto.discount ?? defaults.discountValue;
+      const discount = this.resolvePricingValue(
+        subtotal,
+        discountMode,
+        discountValue,
+      );
+      const taxMode = (dto.taxMode ?? defaults.taxType ?? 'value') as
+        'value' | 'percentage';
+      const taxValue = dto.taxes ?? defaults.taxValue;
+      const taxes = this.resolvePricingValue(
+        subtotal - discount,
+        taxMode,
+        taxValue,
+      );
       const totals = this.computeTotals({
         rate,
         nights: dto.nights,
-        discount: dto.discount,
-        taxes: dto.taxes ?? 0,
+        discount,
+        taxes,
         serviceTotal: 0,
       });
       const amountPaid = dto.amountPaid ?? 0;
@@ -900,13 +1145,13 @@ export class OperationsService {
             ? new Date()
             : dto.expectedCheckInAt
               ? new Date(dto.expectedCheckInAt)
-              : new Date(), // <-- ADD THIS LINE
+              : new Date(),
           expectedCheckoutAt: new Date(Date.now() + dto.nights * 86400000),
           guestsCount: dto.guestsCount,
           nights: dto.nights,
           rate: String(rate),
-          discount: String(dto.discount ?? 0),
-          taxes: String(dto.taxes ?? 0),
+          discount: String(discount),
+          taxes: String(taxes),
           serviceTotal: '0',
           total: String(totals.total),
           amountPaid: String(amountPaid),
@@ -950,26 +1195,26 @@ export class OperationsService {
           total: String(roundMoney(rate * dto.nights)),
           itemType: 'room',
         },
-        ...(dto.discount
+        ...(discount > 0
           ? [
               {
                 invoiceId: createdInvoice.id,
                 description: 'Discount',
                 quantity: 1,
-                unitPrice: String(-Math.abs(dto.discount)),
-                total: String(-Math.abs(dto.discount)),
+                unitPrice: String(-Math.abs(discount)),
+                total: String(-Math.abs(discount)),
                 itemType: 'discount',
               },
             ]
           : []),
-        ...(dto.taxes
+        ...(taxes > 0
           ? [
               {
                 invoiceId: createdInvoice.id,
                 description: 'Tax / fees',
                 quantity: 1,
-                unitPrice: String(dto.taxes),
-                total: String(dto.taxes),
+                unitPrice: String(taxes),
+                total: String(taxes),
                 itemType: 'tax',
               },
             ]
@@ -999,12 +1244,19 @@ export class OperationsService {
         })
         .where(eq(rooms.id, roomRecord.id));
 
+      const pricingDetails = {
+        discountMode,
+        discountValue,
+        taxMode,
+        taxValue,
+      };
+
       await this.writeActivity(
         hotelId,
         user.id,
         user.fullName,
         'booking created',
-        `Stay ${reference} created for ${guestRecord.firstName} ${guestRecord.lastName}.`,
+        `Stay ${reference} created for ${guestRecord.firstName} ${guestRecord.lastName}. Pricing defaults applied: discount ${pricingDetails.discountValue} (${pricingDetails.discountMode}), tax ${pricingDetails.taxValue} (${pricingDetails.taxMode}).`,
         'stay',
         createdStay.id,
       );
@@ -1035,6 +1287,285 @@ export class OperationsService {
         stay: createdStay,
         invoice: createdInvoice,
       };
+    });
+  }
+
+  async updateBooking(userId: string, id: string, dto: UpdateBookingDto) {
+    const user = await this.getCurrentUser(userId);
+    const hotelId = user.hotelId;
+    if (!hotelId) throw new BadRequestException('Hotel context not found');
+
+    const [stay] = await this.db
+      .select()
+      .from(stays)
+      .where(and(eq(stays.id, id), eq(stays.hotelId, hotelId)))
+      .limit(1);
+
+    if (!stay) throw new NotFoundException('Booking not found');
+
+    const updateFields: any = { updatedAt: new Date() };
+    const changedKeys: string[] = [];
+
+    if (dto.rate !== undefined) {
+      updateFields.rate = String(dto.rate);
+      changedKeys.push('rate');
+    }
+    if (dto.discount !== undefined) {
+      updateFields.discount = String(dto.discount);
+      changedKeys.push('discount');
+    }
+    if (dto.discountMode !== undefined) {
+      updateFields.discount = String(
+        this.resolvePricingValue(
+          money(stay.rate) * money(stay.nights),
+          dto.discountMode,
+          money(dto.discount ?? stay.discount),
+        ),
+      );
+      changedKeys.push('discountMode');
+    }
+    if (dto.taxes !== undefined) {
+      updateFields.taxes = String(dto.taxes);
+      changedKeys.push('taxes');
+    }
+    if (dto.taxMode !== undefined) {
+      updateFields.taxes = String(
+        this.resolvePricingValue(
+          money(stay.rate) * money(stay.nights) - money(stay.discount),
+          dto.taxMode,
+          money(dto.taxes ?? stay.taxes),
+        ),
+      );
+      changedKeys.push('taxMode');
+    }
+    if (dto.notes !== undefined) {
+      updateFields.notes = dto.notes;
+      changedKeys.push('notes');
+    }
+
+    if (changedKeys.length === 0) {
+      throw new BadRequestException(
+        'No booking fields were provided to update',
+      );
+    }
+
+    if (!dto.editReason || !dto.editReason.trim()) {
+      throw new BadRequestException(
+        'An edit reason is required to update a booking.',
+      );
+    }
+
+    const [updatedStay] = await this.db
+      .update(stays)
+      .set(updateFields)
+      .where(eq(stays.id, id))
+      .returning();
+
+    const subtotal = roundMoney(
+      money(updatedStay.rate) * money(updatedStay.nights),
+    );
+    const total = roundMoney(
+      subtotal - money(updatedStay.discount) + money(updatedStay.taxes),
+    );
+
+    await this.db
+      .update(stays)
+      .set({
+        total: String(total),
+        outstandingBalance: String(
+          Math.max(0, total - money(updatedStay.amountPaid)),
+        ),
+        updatedAt: new Date(),
+      })
+      .where(eq(stays.id, id));
+
+    const [invoice] = await this.db
+      .select()
+      .from(invoices)
+      .where(and(eq(invoices.stayId, stay.id), eq(invoices.hotelId, hotelId)))
+      .limit(1);
+
+    if (invoice) {
+      await this.db
+        .update(invoices)
+        .set({
+          subtotal: String(subtotal),
+          discount: String(updatedStay.discount),
+          taxes: String(updatedStay.taxes),
+          total: String(total),
+          outstanding: String(Math.max(0, total - money(invoice.amountPaid))),
+          updatedAt: new Date(),
+        })
+        .where(eq(invoices.id, invoice.id));
+    }
+
+    await this.writeActivity(
+      hotelId,
+      user.id,
+      user.fullName,
+      'booking updated',
+      `Booking ${stay.reference} was updated. Reason: ${dto.editReason.trim()}.`,
+      'stay',
+      stay.id,
+    );
+
+    return { ok: true, stayId: updatedStay.id, reason: dto.editReason.trim() };
+  }
+
+  async cancelBooking(userId: string, id: string) {
+    return this.db.transaction(async (tx) => {
+      const user = await this.getCurrentUser(userId);
+      const [stay] = await tx
+        .select()
+        .from(stays)
+        .where(and(eq(stays.id, id), eq(stays.hotelId, user.hotelId ?? '')))
+        .limit(1);
+      if (!stay) throw new NotFoundException('Booking not found');
+      if (stay.status === 'checked_in' || stay.status === 'checked_out') {
+        throw new ConflictException(
+          'Only upcoming reservations can be cancelled. Check this guest out instead.',
+        );
+      }
+      if (stay.status === 'cancelled') {
+        throw new ConflictException('This booking has already been cancelled');
+      }
+
+      await tx
+        .update(stays)
+        .set({ status: 'cancelled', updatedAt: new Date() })
+        .where(eq(stays.id, stay.id));
+
+      // Release the room only if it is still reserved for this stay.
+      const [room] = await tx
+        .select()
+        .from(rooms)
+        .where(eq(rooms.id, stay.roomId))
+        .limit(1);
+      if (room && room.status === 'reserved') {
+        await tx
+          .update(rooms)
+          .set({ status: 'available', updatedAt: new Date() })
+          .where(eq(rooms.id, room.id));
+      }
+
+      const [invoice] = await tx
+        .select()
+        .from(invoices)
+        .where(eq(invoices.stayId, stay.id))
+        .limit(1);
+      if (invoice && invoice.status !== 'cancelled') {
+        await tx
+          .update(invoices)
+          .set({ status: 'cancelled', updatedAt: new Date() })
+          .where(eq(invoices.id, invoice.id));
+      }
+
+      await this.writeActivity(
+        stay.hotelId,
+        user.id,
+        user.fullName,
+        'booking cancelled',
+        `Stay ${stay.reference} was cancelled.`,
+        'stay',
+        stay.id,
+      );
+
+      await this.writeNotification(
+        stay.hotelId,
+        'payment_outstanding',
+        'Booking cancelled',
+        `Stay ${stay.reference} was cancelled.`,
+        'stay',
+        stay.id,
+      );
+
+      const amountPaid = money(stay.amountPaid);
+
+      return {
+        ok: true,
+        stayId: stay.id,
+        refundDue: amountPaid > 0 ? amountPaid : 0,
+      };
+    });
+  }
+
+  async transferRoom(userId: string, dto: TransferRoomDto) {
+    return this.db.transaction(async (tx) => {
+      const user = await this.getCurrentUser(userId);
+      const [stay] = await tx
+        .select()
+        .from(stays)
+        .where(eq(stays.id, dto.stayId))
+        .limit(1);
+      if (!stay) throw new NotFoundException('Stay not found');
+      if (stay.status === 'checked_out' || stay.status === 'cancelled') {
+        throw new ConflictException('Cannot transfer a completed stay');
+      }
+
+      const [targetRoom] = await tx
+        .select()
+        .from(rooms)
+        .where(and(eq(rooms.id, dto.roomId), eq(rooms.hotelId, stay.hotelId)))
+        .limit(1);
+      if (!targetRoom) throw new NotFoundException('Target room not found');
+
+      const targetOccupied =
+        stay.status === 'checked_in' ? 'occupied' : 'reserved';
+      if (!['available', 'reserved'].includes(targetRoom.status)) {
+        throw new ConflictException(
+          `Room ${targetRoom.number} is not available for transfer`,
+        );
+      }
+
+      const [currentRoom] = await tx
+        .select()
+        .from(rooms)
+        .where(eq(rooms.id, stay.roomId))
+        .limit(1);
+
+      await tx
+        .update(stays)
+        .set({ roomId: targetRoom.id, updatedAt: new Date() })
+        .where(eq(stays.id, stay.id));
+
+      await tx
+        .update(rooms)
+        .set({ status: targetOccupied, updatedAt: new Date() })
+        .where(eq(rooms.id, targetRoom.id));
+
+      if (currentRoom && currentRoom.id !== targetRoom.id) {
+        await tx
+          .update(rooms)
+          .set({
+            status: stay.status === 'checked_in' ? 'cleaning' : 'available',
+            updatedAt: new Date(),
+          })
+          .where(eq(rooms.id, currentRoom.id));
+      }
+
+      const [invoice] = await tx
+        .select()
+        .from(invoices)
+        .where(eq(invoices.stayId, stay.id))
+        .limit(1);
+      if (invoice) {
+        await tx
+          .update(invoices)
+          .set({ roomId: targetRoom.id, updatedAt: new Date() })
+          .where(eq(invoices.id, invoice.id));
+      }
+
+      await this.writeActivity(
+        stay.hotelId,
+        user.id,
+        user.fullName,
+        'room transferred',
+        `Stay ${stay.reference} moved to Room ${targetRoom.number}.`,
+        'stay',
+        stay.id,
+      );
+
+      return { ok: true, stayId: stay.id, roomId: targetRoom.id };
     });
   }
 
@@ -1190,6 +1721,15 @@ export class OperationsService {
         user.fullName,
         'checkout completed',
         `Stay ${stay.reference} checked out. Room sent to housekeeping.`,
+        'stay',
+        stay.id,
+      );
+
+      await this.writeNotification(
+        stay.hotelId,
+        'checkout_completed',
+        'Checkout completed',
+        `Guest has been checked out of stay ${stay.reference}.`,
         'stay',
         stay.id,
       );
@@ -1351,6 +1891,94 @@ export class OperationsService {
       );
 
       return payment;
+    });
+  }
+
+  async reversePayment(userId: string, id: string) {
+    return this.db.transaction(async (tx) => {
+      const user = await this.getCurrentUser(userId);
+      const hotelId = user.hotelId;
+      if (!hotelId) throw new BadRequestException('Hotel context not found');
+
+      const [payment] = await tx
+        .select()
+        .from(payments)
+        .where(and(eq(payments.id, id), eq(payments.hotelId, hotelId)))
+        .limit(1);
+      if (!payment) throw new NotFoundException('Payment not found');
+      if (payment.status === 'reversed') {
+        throw new ConflictException('This payment has already been reversed');
+      }
+
+      await tx
+        .update(payments)
+        .set({ status: 'reversed' })
+        .where(eq(payments.id, payment.id));
+
+      const [invoice] = await tx
+        .select()
+        .from(invoices)
+        .where(eq(invoices.id, payment.invoiceId))
+        .limit(1);
+
+      if (invoice) {
+        const newAmountPaid = roundMoney(
+          Math.max(0, money(invoice.amountPaid) - money(payment.amount)),
+        );
+        const newOutstanding = roundMoney(
+          Math.max(0, money(invoice.total) - newAmountPaid),
+        );
+        await tx
+          .update(invoices)
+          .set({
+            amountPaid: String(newAmountPaid),
+            outstanding: String(newOutstanding),
+            status:
+              newAmountPaid <= 0
+                ? 'issued'
+                : newOutstanding > 0
+                  ? 'partially_paid'
+                  : 'paid',
+            updatedAt: new Date(),
+          })
+          .where(eq(invoices.id, invoice.id));
+      }
+
+      const [stay] = await tx
+        .select()
+        .from(stays)
+        .where(eq(stays.id, payment.stayId))
+        .limit(1);
+      if (stay) {
+        await tx
+          .update(stays)
+          .set({
+            amountPaid: String(
+              Math.max(0, money(stay.amountPaid) - money(payment.amount)),
+            ),
+            outstandingBalance: String(
+              roundMoney(
+                money(stay.outstandingBalance) + money(payment.amount),
+              ),
+            ),
+            updatedAt: new Date(),
+          })
+          .where(eq(stays.id, stay.id));
+      }
+
+      await this.writeActivity(
+        payment.hotelId,
+        user.id,
+        user.fullName,
+        'payment reversed',
+        `Payment ${payment.reference} of ${
+          payment.amount
+        } was reversed against stay.`,
+        'payment',
+        payment.id,
+      );
+
+      return { ok: true, paymentId: payment.id };
     });
   }
 
@@ -1569,12 +2197,27 @@ export class OperationsService {
   // ==========================================
   async listHousekeeping(userId?: string) {
     const hotelId = userId ? await this.getDefaultHotelId(userId) : null;
-    const filter = hotelId ? eq(housekeepingTasks.hotelId, hotelId) : sql`true`;
-    return this.db
+    const filter = hotelId
+      ? eq(housekeepingTasks.hotelId, hotelId)
+      : sql`true`;
+    const tasks = await this.db
       .select()
       .from(housekeepingTasks)
       .where(filter)
       .orderBy(desc(housekeepingTasks.createdAt));
+
+    const roomFilter = hotelId ? eq(rooms.hotelId, hotelId) : sql`true`;
+    const allRooms = await this.db.select().from(rooms).where(roomFilter);
+    const roomById = new Map(allRooms.map((r) => [r.id, r]));
+
+    return tasks.map((task) => {
+      const room = roomById.get(task.roomId);
+      return {
+        ...task,
+        roomNumber: room?.number ?? null,
+        roomFloor: room?.floor ?? null,
+      };
+    });
   }
 
   async getHousekeeping(userId: string, id: string) {
@@ -1888,18 +2531,56 @@ export class OperationsService {
       .where(eq(invoiceItems.invoiceId, invoice.id));
 
     // Basic HTML receipt
+    const subtotal = Number(invoice.subtotal ?? 0);
+    const discount = Number(invoice.discount ?? 0);
+    const taxes = Number(invoice.taxes ?? 0);
+    const total = Number(invoice.total ?? 0);
+    const amountPaid = Number(invoice.amountPaid ?? 0);
+    const outstanding = Number(invoice.outstanding ?? 0);
+
     const html = `
       <html>
       <head><meta charset="utf-8"><title>Receipt ${invoice.reference}</title></head>
-      <body style="font-family: Arial, sans-serif; color:#111;">
-        <h2>Receipt: ${invoice.reference}</h2>
-        <p>Total: ${invoice.total}</p>
-        <p>Issued: ${invoice.issuedAt}</p>
-        <hr />
-        <h4>Items</h4>
-        <ul>
-          ${items.map((it: any) => `<li>${it.description} — ${it.total}</li>`).join('')}
-        </ul>
+      <body style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto; padding:24px;">
+        <div style="border:1px solid #e5e7eb; border-radius:12px; padding:24px;">
+          <h2 style="margin:0 0 8px; font-size:28px;">Receipt: ${invoice.reference}</h2>
+          <p style="margin:0 0 20px; color:#4b5563;">Issued: ${invoice.issuedAt ?? invoice.createdAt}</p>
+
+          <table style="width:100%; border-collapse:collapse; margin-bottom:20px;">
+            <tbody>
+              <tr>
+                <td style="padding:8px 0; color:#4b5563;">Subtotal</td>
+                <td style="padding:8px 0; text-align:right;">$${subtotal.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0; color:#4b5563;">Discount</td>
+                <td style="padding:8px 0; text-align:right; color:#16a34a;">- $${discount.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0; color:#4b5563;">Taxes</td>
+                <td style="padding:8px 0; text-align:right;">$${taxes.toFixed(2)}</td>
+              </tr>
+              <tr style="border-top:1px solid #e5e7eb;">
+                <td style="padding:12px 0 8px; font-weight:700;">Total</td>
+                <td style="padding:12px 0 8px; text-align:right; font-weight:700;">$${total.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0; color:#4b5563;">Amount Paid</td>
+                <td style="padding:8px 0; text-align:right;">$${amountPaid.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0; color:#4b5563;">Outstanding</td>
+                <td style="padding:8px 0; text-align:right; color:${outstanding > 0 ? '#dc2626' : '#16a34a'}; font-weight:600;">$${outstanding.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <hr style="border:none; border-top:1px solid #e5e7eb; margin:20px 0;" />
+          <h4 style="margin:0 0 12px;">Items</h4>
+          <ul style="margin:0; padding-left:18px;">
+            ${items.map((it: any) => `<li style="margin-bottom:6px;">${it.description} — $${Number(it.total ?? 0).toFixed(2)}</li>`).join('') || '<li>No itemized charges.</li>'}
+          </ul>
+        </div>
       </body>
       </html>
     `;
@@ -2083,6 +2764,10 @@ export class OperationsService {
           checkOutTime: '11:00',
           guestIdRequired: true,
           taxRate: '15.00',
+          defaultTaxType: 'value',
+          defaultTaxValue: '0',
+          defaultDiscountType: 'value',
+          defaultDiscountValue: '0',
           invoicePrefix: 'INV',
           bookingPolicy: 'Standard cancellation 24h prior to arrival.',
         })
@@ -2117,6 +2802,14 @@ export class OperationsService {
     if (dto.guestIdRequired !== undefined)
       updateFields.guestIdRequired = dto.guestIdRequired;
     if (dto.taxRate !== undefined) updateFields.taxRate = String(dto.taxRate);
+    if (dto.defaultTaxType !== undefined)
+      updateFields.defaultTaxType = dto.defaultTaxType;
+    if (dto.defaultTaxValue !== undefined)
+      updateFields.defaultTaxValue = String(dto.defaultTaxValue);
+    if (dto.defaultDiscountType !== undefined)
+      updateFields.defaultDiscountType = dto.defaultDiscountType;
+    if (dto.defaultDiscountValue !== undefined)
+      updateFields.defaultDiscountValue = String(dto.defaultDiscountValue);
     if (dto.invoicePrefix !== undefined)
       updateFields.invoicePrefix = dto.invoicePrefix;
     if (dto.acceptedPaymentMethods !== undefined)

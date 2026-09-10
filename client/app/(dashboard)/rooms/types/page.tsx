@@ -3,16 +3,17 @@
 import { useEffect, useState } from "react";
 import RoomsService, { RoomType } from "@/services/rooms.service";
 import { formatCurrency } from "@/utils/utils";
+import { roomStatusColors } from "@/lib/status-colors";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { PageLoading } from "@/components/dashboard/page-loading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Table,
@@ -150,15 +151,7 @@ export default function RoomTypesPage() {
   };
 
   if (loading) {
-    return (
-      <div className="space-y-8 p-2 md:p-6 max-w-7xl mx-auto animate-pulse">
-        <div className="space-y-3">
-          <Skeleton className="h-6 w-28 rounded-full" />
-          <Skeleton className="h-10 w-96 rounded-xl" />
-        </div>
-        <Skeleton className="h-[500px] w-full rounded-3xl" />
-      </div>
-    );
+    return <PageLoading showHeader showTable />;
   }
 
   if (error) {
@@ -241,7 +234,15 @@ export default function RoomTypesPage() {
                     <TableCell>{type.capacity} Guests</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{type.bedConfiguration || "—"}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={type.isActive ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-muted text-muted-foreground"}>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          type.isActive
+                            ? "bg-emerald-100 text-emerald-700 border-emerald-300"
+                            : "bg-gray-100 text-gray-700 border-gray-300",
+                          "px-3 py-1 font-medium text-xs border rounded-full"
+                        )}
+                      >
                         {type.isActive ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>

@@ -25,7 +25,7 @@ const useAuthStore = create<AuthState>((set) => ({
     set({
       user,
       accessToken,
-      isAuthenticated: !!user,
+      isAuthenticated: Boolean(user && accessToken),
     }),
 
   clearAuth: () =>

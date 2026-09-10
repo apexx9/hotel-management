@@ -1,4 +1,5 @@
 import operationsApi from "@/actions/operations";
+import { getErrorMessage } from "@/lib/errors";
 
 export interface Room {
   id: string;
@@ -6,7 +7,14 @@ export interface Room {
   number: string;
   floor: string;
   roomTypeId: string;
-  status: "available" | "occupied" | "cleaning" | "inspection" | "maintenance" | "out_of_service" | "reserved";
+  status:
+    | "available"
+    | "occupied"
+    | "cleaning"
+    | "inspection"
+    | "maintenance"
+    | "out_of_service"
+    | "reserved";
   capacity: number;
   rate: string;
   createdAt: string;
@@ -27,24 +35,20 @@ export interface RoomType {
   updatedAt: string;
 }
 
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (typeof error === "object" && error !== null) {
-    const response = error as {
-      response?: { data?: { message?: string } };
-      message?: string;
-    };
-    return response.response?.data?.message || response.message || fallback;
-  }
-  return fallback;
-};
+
 
 const RoomsService = () => {
-  const getRooms = async (): Promise<Room[]> => {
+  const getRooms = async (query?: string): Promise<Room[]> => {
     try {
-      const response = await operationsApi.getRooms();
+      const response = await operationsApi.getRooms(
+        query ? { q: query } : undefined,
+      );
       return response.data ?? [];
     } catch (error) {
-      console.error("Failed to fetch rooms:", getErrorMessage(error, "Failed to fetch rooms"));
+      console.error(
+        "Failed to fetch rooms:",
+        getErrorMessage(error, "Failed to fetch rooms"),
+      );
       throw error;
     }
   };
@@ -54,7 +58,10 @@ const RoomsService = () => {
       const response = await operationsApi.getRoom(id);
       return response.data;
     } catch (error) {
-      console.error("Failed to fetch room:", getErrorMessage(error, "Failed to fetch room"));
+      console.error(
+        "Failed to fetch room:",
+        getErrorMessage(error, "Failed to fetch room"),
+      );
       throw error;
     }
   };
@@ -67,13 +74,13 @@ const RoomsService = () => {
     capacity?: number;
   }): Promise<Room> => {
     try {
-      const response = await operationsApi.createRoom({
-        ...data,
-        status: 'available' as const,
-      });
+      const response = await operationsApi.createRoom(data);
       return response.data;
     } catch (error) {
-      console.error("Failed to create room:", getErrorMessage(error, "Failed to create room"));
+      console.error(
+        "Failed to create room:",
+        getErrorMessage(error, "Failed to create room"),
+      );
       throw error;
     }
   };
@@ -81,33 +88,31 @@ const RoomsService = () => {
   const updateRoom = async (id: string, data: Partial<Room>): Promise<Room> => {
     try {
       const { status, ...rest } = data;
-      const updateData: any = { ...rest };
-      if (status && ['available', 'occupied', 'maintenance', 'turning_over'].includes(status)) {
-        updateData.status = status;
-      }
+      const updateData: Partial<Room> = { ...rest };
+      if (status) updateData.status = status;
       const response = await operationsApi.updateRoom(id, updateData);
       return response.data;
     } catch (error) {
-      console.error("Failed to update room:", getErrorMessage(error, "Failed to update room"));
+      console.error(
+        "Failed to update room:",
+        getErrorMessage(error, "Failed to update room"),
+      );
       throw error;
     }
   };
 
-  const updateRoomStatus = async (id: string, status: Room["status"]): Promise<Room> => {
+  const updateRoomStatus = async (
+    id: string,
+    status: Room["status"],
+  ): Promise<Room> => {
     try {
-      const statusMap: Record<string, "available" | "occupied" | "maintenance" | "turning_over"> = {
-        available: "available",
-        occupied: "occupied",
-        cleaning: "turning_over",
-        inspection: "turning_over",
-        maintenance: "maintenance",
-        out_of_service: "maintenance",
-        reserved: "available",
-      };
-      const response = await operationsApi.updateRoomStatus(id, { status: statusMap[status] });
+      const response = await operationsApi.updateRoomStatus(id, { status });
       return response.data;
     } catch (error) {
-      console.error("Failed to update room status:", getErrorMessage(error, "Failed to update room status"));
+      console.error(
+        "Failed to update room status:",
+        getErrorMessage(error, "Failed to update room status"),
+      );
       throw error;
     }
   };
@@ -117,7 +122,10 @@ const RoomsService = () => {
       const response = await operationsApi.deleteRoom(id);
       return response.data;
     } catch (error) {
-      console.error("Failed to delete room:", getErrorMessage(error, "Failed to delete room"));
+      console.error(
+        "Failed to delete room:",
+        getErrorMessage(error, "Failed to delete room"),
+      );
       throw error;
     }
   };
@@ -127,7 +135,10 @@ const RoomsService = () => {
       const response = await operationsApi.getRoomTypes();
       return response.data ?? [];
     } catch (error) {
-      console.error("Failed to fetch room types:", getErrorMessage(error, "Failed to fetch room types"));
+      console.error(
+        "Failed to fetch room types:",
+        getErrorMessage(error, "Failed to fetch room types"),
+      );
       throw error;
     }
   };
@@ -137,7 +148,10 @@ const RoomsService = () => {
       const response = await operationsApi.getRoomType(id);
       return response.data;
     } catch (error) {
-      console.error("Failed to fetch room type:", getErrorMessage(error, "Failed to fetch room type"));
+      console.error(
+        "Failed to fetch room type:",
+        getErrorMessage(error, "Failed to fetch room type"),
+      );
       throw error;
     }
   };
@@ -148,34 +162,54 @@ const RoomsService = () => {
     basePrice: number;
     capacity: number;
     bedConfiguration?: string;
-    amenities?: string;
+    amenities?: string | string[] | null;
   }): Promise<RoomType> => {
     try {
+      const normalizedAmenities = Array.isArray(data.amenities)
+        ? data.amenities.join(", ")
+        : typeof data.amenities === "string"
+          ? data.amenities
+          : (data.amenities ?? undefined);
+
       const response = await operationsApi.createRoomType({
         ...data,
-        amenities: data.amenities ? [data.amenities] : undefined,
+        amenities: normalizedAmenities,
       });
       return response.data;
     } catch (error) {
-      console.error("Failed to create room type:", getErrorMessage(error, "Failed to create room type"));
+      console.error(
+        "Failed to create room type:",
+        getErrorMessage(error, "Failed to create room type"),
+      );
       throw error;
     }
   };
 
-  const updateRoomType = async (id: string, data: Partial<RoomType>): Promise<RoomType> => {
+  const updateRoomType = async (
+    id: string,
+    data: Partial<RoomType>,
+  ): Promise<RoomType> => {
     try {
       const { basePrice, amenities, ...rest } = data;
       const updateData: any = { ...rest };
       if (basePrice !== undefined) {
-        updateData.basePrice = typeof basePrice === 'string' ? parseFloat(basePrice) : basePrice;
+        updateData.basePrice =
+          typeof basePrice === "string" ? parseFloat(basePrice) : basePrice;
       }
       if (amenities !== undefined) {
-        updateData.amenities = typeof amenities === 'string' ? [amenities] : amenities;
+        updateData.amenities = Array.isArray(amenities)
+          ? amenities.join(", ")
+          : typeof amenities === "string"
+            ? amenities
+            : (amenities ?? undefined);
       }
       const response = await operationsApi.updateRoomType(id, updateData);
       return response.data;
     } catch (error) {
-      console.error("Failed to update room type:", getErrorMessage(error, "Failed to update room type"));
+      console.error(
+        "Failed to update room type:",
+        getErrorMessage(error, "Failed to update room type"),
+      );
       throw error;
     }
   };
@@ -185,7 +219,10 @@ const RoomsService = () => {
       const response = await operationsApi.deleteRoomType(id);
       return response.data;
     } catch (error) {
-      console.error("Failed to delete room type:", getErrorMessage(error, "Failed to delete room type"));
+      console.error(
+        "Failed to delete room type:",
+        getErrorMessage(error, "Failed to delete room type"),
+      );
       throw error;
     }
   };

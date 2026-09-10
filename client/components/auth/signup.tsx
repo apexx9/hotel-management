@@ -99,6 +99,9 @@ const Signup = () => {
 
       await AuthService().register(payload);
 
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("pendingEmail", data.owner.email);
+      }
       toast.success("Hotel account created. Please verify your account.");
       router.push("/signup/verify");
     } catch (err: unknown) {

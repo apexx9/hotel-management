@@ -9,6 +9,7 @@ import {
   guestSchema,
   updateGuestSchema,
   createBookingSchema,
+  updateBookingSchema,
   checkInSchema,
   checkOutSchema,
   recordPaymentSchema,
@@ -23,6 +24,8 @@ import {
   staysQuerySchema,
   reportsSummaryQuerySchema,
   searchQuerySchema,
+  transferRoomSchema,
+  createRoomSchema,
 } from "../schema/operations.schema";
 
 // Response types (kept as TypeScript types, not Zod, for read operations)
@@ -105,6 +108,13 @@ export type DashboardStaySummary = {
   updatedAt: string | Date;
 };
 
+export type GlobalSearchResponse = {
+  guests: { id: string; title: string; subtitle: string | null }[];
+  rooms: { id: string; title: string; subtitle: string | null }[];
+  stays: { id: string; title: string; subtitle: string | null }[];
+  roomTypes: { id: string; title: string; subtitle: string | null }[];
+};
+
 export type DashboardActivityItem = {
   id: string;
   actorName: string | null;
@@ -176,6 +186,10 @@ export type HotelSettingsResponse = {
   bookingPolicy: string | null;
   guestIdRequired: boolean;
   taxRate: string | number;
+  defaultTaxType?: "value" | "percentage";
+  defaultTaxValue?: string | number;
+  defaultDiscountType?: "value" | "percentage";
+  defaultDiscountValue?: string | number;
   invoicePrefix: string;
   acceptedPaymentMethods: string | null;
   serviceConfig: string | null;
@@ -189,10 +203,15 @@ const operationsApi = {
   // Dashboard
   getDashboard: () => instance.get<DashboardSummaryResponse>("/dashboard"),
 
+  // Global search
+  globalSearch: (params?: z.infer<typeof searchQuerySchema>) =>
+    instance.get<GlobalSearchResponse>("/search", { params }),
+
   // Rooms
-  getRooms: () => instance.get("/rooms"),
+  getRooms: (params?: z.infer<typeof searchQuerySchema>) =>
+    instance.get("/rooms", { params }),
   getRoom: (id: string) => instance.get(`/rooms/${id}`),
-  createRoom: (data: z.infer<typeof roomSchema>) =>
+  createRoom: (data: z.infer<typeof createRoomSchema>) =>
     instance.post("/rooms", data),
   updateRoom: (id: string, data: z.infer<typeof updateRoomSchema>) =>
     instance.patch(`/rooms/${id}`, data),
@@ -230,6 +249,14 @@ const operationsApi = {
   getStay: (id: string) => instance.get(`/stays/${id}`),
   createBooking: (data: z.infer<typeof createBookingSchema>) =>
     instance.post("/bookings", data),
+  updateBooking: (id: string, data: z.infer<typeof updateBookingSchema>) =>
+    instance.patch(`/bookings/${id}`, data),
+  cancelBooking: (id: string) =>
+    instance.post<{ ok: boolean; stayId: string; refundDue: number }>(
+      `/bookings/${id}/cancel`,
+    ),
+  transferRoom: (stayId: string, data: z.infer<typeof transferRoomSchema>) =>
+    instance.patch(`/stays/${stayId}/room`, data),
   checkIn: (data: z.infer<typeof checkInSchema>) =>
     instance.post("/check-in", data),
   checkOut: (data: z.infer<typeof checkOutSchema>) =>
@@ -250,6 +277,10 @@ const operationsApi = {
   getPayment: (id: string) => instance.get(`/payments/${id}`),
   recordPayment: (data: z.infer<typeof recordPaymentSchema>) =>
     instance.post("/payments", data),
+  reversePayment: (paymentId: string) =>
+    instance.post<{ ok: boolean; paymentId: string }>(
+      `/payments/${paymentId}/reverse`,
+    ),
 
   // Services & Service Charges
   getServices: () => instance.get("/services"),

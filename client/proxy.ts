@@ -26,33 +26,23 @@ export function proxy(request: NextRequest) {
   const accessToken = rawToken ? decodeURIComponent(rawToken) : undefined;
   const isAuthenticated = Boolean(accessToken);
 
-  console.log('=== Proxy Debug ===');
-  console.log('Pathname:', pathname);
-  console.log('Has token:', !!accessToken);
-  console.log('Is authenticated:', isAuthenticated);
-  console.log('Is public route:', isPublicRoute(pathname));
-
   // If user is authenticated and tries to access auth pages
   if (isAuthenticated && (pathname === '/login' || pathname === '/signup')) {
-    console.log('✅ Authenticated user accessing auth page - redirecting to /dashboard');
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   // Allow public routes for unauthenticated users
   if (isPublicRoute(pathname)) {
-    console.log('✅ Public route - allowing access');
     return NextResponse.next();
   }
 
   // Protect all other routes
   if (!isAuthenticated) {
-    console.log('❌ Unauthenticated user accessing protected route - redirecting to /login');
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  console.log('✅ Authenticated user accessing protected route - allowing access');
   return NextResponse.next();
 }
 

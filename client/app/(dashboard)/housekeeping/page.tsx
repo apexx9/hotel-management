@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoading } from "@/components/dashboard/page-loading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Table,
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { AlertCircle, Sparkles, ClipboardList, CheckCircle2, Wrench, Eye, Search, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { toast } from "sonner";
 
 const statusColors: Record<HousekeepingTask["status"], { bg: string, text: string, border: string }> = {
@@ -92,21 +93,7 @@ export default function HousekeepingPage() {
   });
 
   if (loading) {
-    return (
-      <div className="space-y-8 p-2 md:p-6 max-w-7xl mx-auto animate-pulse">
-        <div className="space-y-3">
-          <Skeleton className="h-6 w-28 rounded-full" />
-          <Skeleton className="h-10 w-96 rounded-xl" />
-        </div>
-        <div className="grid gap-6 md:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-40 rounded-3xl" />
-          ))}
-        </div>
-        <Skeleton className="h-14 w-full max-w-md rounded-2xl" />
-        <Skeleton className="h-96 w-full rounded-3xl" />
-      </div>
-    );
+    return <PageLoading showHeader showStats={4} showPills showTable />;
   }
 
   if (error) {
@@ -144,9 +131,12 @@ export default function HousekeepingPage() {
             Housekeeping
           </h1>
         </div>
-        <p className="text-sm text-muted-foreground max-w-xs leading-relaxed md:text-right">
-          Manage room cleaning workflows, inspections, and maintenance requests.
-        </p>
+        <div className="flex flex-col items-start md:items-end gap-3">
+          <p className="text-sm text-muted-foreground max-w-xs leading-relaxed md:text-right">
+            Manage room cleaning workflows, inspections, and maintenance requests.
+          </p>
+          <RefreshButton onRefresh={() => fetchTasks()} />
+        </div>
       </div>
 
       {/* ─── SUMMARY CARDS ────────────────────────────────────────────── */}
@@ -236,7 +226,7 @@ export default function HousekeepingPage() {
                     <TableRow key={task.id} className="hover:bg-muted/20 transition-colors group">
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-foreground">Room {task.roomId.slice(0, 8)}</span>
+                          <span className="font-semibold text-foreground">Room {task.roomNumber ?? task.roomId.slice(0, 8)}</span>
                         </div>
                       </TableCell>
                       <TableCell>

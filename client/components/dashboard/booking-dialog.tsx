@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import BookingsService from "@/services/bookings.service";
 import InvoicesService from "@/services/invoices.service";
 import RoomsService from "@/services/rooms.service";
+import SettingsService from "@/services/settings.service";
 import { LoadingSpinner } from "@/components/loading-spinner";
 
 interface NewBookingDialogProps {
@@ -49,7 +50,9 @@ const initialForm = {
   expectedCheckInAt: new Date().toISOString().slice(0, 16),
   rate: 0,
   discount: 0,
+  discountMode: "value" as "value" | "percentage",
   taxes: 0,
+  taxMode: "value" as "value" | "percentage",
   specialRequests: "",
   checkInNow: false,
   amountPaid: 0,
@@ -80,24 +83,61 @@ export function NewBookingDialog({
 }: NewBookingDialogProps) {
   const [form, setForm] = useState(initialForm);
   const [roomTypes, setRoomTypes] = useState<any[]>([]);
+  const [allRooms, setAllRooms] = useState<any[]>([]);
   const [loadingRoomTypes, setLoadingRoomTypes] = useState(false);
   const [creating, setCreating] = useState(false);
 
+  const resolveValue = (
+    amount: number,
+    mode: "value" | "percentage",
+    value: number,
+  ) => (mode === "percentage" ? (amount * value) / 100 : value);
+
+  const selectedRoomType = roomTypes.find(
+    (type) => type.id === form.roomTypeId,
+  );
+  const subtotal = Number((form.rate * form.nights).toFixed(2));
+  const discountAmount = Number(
+    resolveValue(subtotal, form.discountMode, form.discount).toFixed(2),
+  );
+  const taxAmount = Number(
+    resolveValue(subtotal - discountAmount, form.taxMode, form.taxes).toFixed(
+      2,
+    ),
+  );
+  const total = Number((subtotal - discountAmount + taxAmount).toFixed(2));
+
   useEffect(() => {
     if (open) {
-      const fetchRoomTypes = async () => {
+      const fetchData = async () => {
         setLoadingRoomTypes(true);
         try {
-          const types = await RoomsService().getRoomTypes();
+          const [types, settings, rooms] = await Promise.all([
+            RoomsService().getRoomTypes(),
+            SettingsService().getSettings(),
+            RoomsService().getRooms(),
+          ]);
           setRoomTypes(types.filter((t) => t.isActive));
+          setAllRooms(rooms);
+          setForm((current) => ({
+            ...current,
+            discountMode: settings.defaultDiscountType ?? "value",
+            taxMode: settings.defaultTaxType ?? "value",
+            discount: settings.defaultDiscountValue
+              ? Number(settings.defaultDiscountValue)
+              : 0,
+            taxes: settings.defaultTaxValue
+              ? Number(settings.defaultTaxValue)
+              : 0,
+          }));
         } catch (err) {
-          console.error("Failed to fetch room types:", err);
-          toast.error("Could not load room types");
+          console.error("Failed to fetch room types or settings:", err);
+          toast.error("Could not load booking defaults");
         } finally {
           setLoadingRoomTypes(false);
         }
       };
-      fetchRoomTypes();
+      fetchData();
     } else {
       setTimeout(() => setForm(initialForm), 300);
     }
@@ -108,12 +148,39 @@ export function NewBookingDialog({
       toast.error("Phone, nights, and check-in date are required");
       return;
     }
+
+    if (!form.roomTypeId) {
+      toast.error("Please select a room type before creating the booking.");
+      return;
+    }
+
+    if (roomTypes.length === 0) {
+      toast.error(
+        "No room types are configured yet. Create a room type first.",
+      );
+      return;
+    }
+
+    const availableRoomsForType = allRooms.filter(
+      (room) =>
+        room.roomTypeId === form.roomTypeId && room.status === "available",
+    );
+
+    if (availableRoomsForType.length === 0) {
+      toast.error(
+        "No available rooms are configured for this room type. Create or enable a room first.",
+      );
+      return;
+    }
+
     setCreating(true);
     try {
       const result = await BookingsService().createBooking({
         ...form,
         email: form.email || undefined,
         roomTypeId: form.roomTypeId || undefined,
+        discountMode: form.discountMode,
+        taxMode: form.taxMode,
         specialRequests: form.specialRequests || undefined,
         paymentMethod: form.paymentMethod || undefined,
       });
@@ -137,7 +204,11 @@ export function NewBookingDialog({
       onSuccess?.();
     } catch (err) {
       console.error("Failed to create booking:", err);
-      toast.error("Failed to create booking");
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to create booking due to a conflict.";
+      toast.error(message);
     } finally {
       setCreating(false);
     }
@@ -312,15 +383,30 @@ export function NewBookingDialog({
                   <div className="space-y-2">
                     <Label className="text-slate-600 text-sm">Room Type</Label>
                     <Select
-                      value={form.roomTypeId || ""}
-                      onValueChange={(value) =>
-                        setForm({ ...form, roomTypeId: value || "" })
-                      }
+                      value={form.roomTypeId}
+                      onValueChange={(value) => {
+                        const selectedType = roomTypes.find(
+                          (type) => type.id === value,
+                        );
+
+                        setForm((current) => ({
+                          ...current,
+                          roomTypeId: value || "",
+                          rate:
+                            current.rate && current.rate !== 0
+                              ? current.rate
+                              : Number(
+                                  selectedType?.basePrice ?? current.rate ?? 0,
+                                ),
+                        }));
+                      }}
                     >
                       <SelectTrigger className="h-10 rounded-lg bg-white border-slate-200 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all shadow-sm">
                         <div className="flex items-center gap-2">
                           <BedDouble className="h-4 w-4 text-slate-400" />
-                          <SelectValue placeholder="Select room type" />
+                          <SelectValue placeholder="Select room type">
+                            {selectedRoomType ? selectedRoomType.name : null}
+                          </SelectValue>
                         </div>
                       </SelectTrigger>
                       <SelectContent className="rounded-lg border-slate-100">
@@ -423,11 +509,31 @@ export function NewBookingDialog({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-4">
-                    <Label className="text-slate-600">Discount</Label>
-                    <div className="relative w-32">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-4">
+                      <Label className="text-slate-600">Discount</Label>
+                      <Select
+                        value={form.discountMode}
+                        onValueChange={(value) => {
+                          if (!value) return;
+                          setForm({
+                            ...form,
+                            discountMode: value as "value" | "percentage",
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="h-8 w-24 rounded-md bg-white border-slate-200 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="value">Value</SelectItem>
+                          <SelectItem value="percentage">%</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="relative w-full">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
-                        $
+                        {form.discountMode === "percentage" ? "%" : "$"}
                       </span>
                       <Input
                         type="number"
@@ -436,16 +542,36 @@ export function NewBookingDialog({
                         onChange={(e) =>
                           setForm({ ...form, discount: Number(e.target.value) })
                         }
-                        className="h-9 pl-7 text-right text-green-600 font-medium rounded-md bg-white border-slate-200 focus:border-blue-600 shadow-sm"
+                        className="h-9 pl-8 text-right text-green-600 font-medium rounded-md bg-white border-slate-200 focus:border-blue-600 shadow-sm"
                       />
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-4">
-                    <Label className="text-slate-600">Taxes</Label>
-                    <div className="relative w-32">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-4">
+                      <Label className="text-slate-600">Taxes</Label>
+                      <Select
+                        value={form.taxMode}
+                        onValueChange={(value) => {
+                          if (!value) return;
+                          setForm({
+                            ...form,
+                            taxMode: value as "value" | "percentage",
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="h-8 w-24 rounded-md bg-white border-slate-200 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="value">Value</SelectItem>
+                          <SelectItem value="percentage">%</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="relative w-full">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
-                        $
+                        {form.taxMode === "percentage" ? "%" : "$"}
                       </span>
                       <Input
                         type="number"
@@ -454,8 +580,27 @@ export function NewBookingDialog({
                         onChange={(e) =>
                           setForm({ ...form, taxes: Number(e.target.value) })
                         }
-                        className="h-9 pl-7 text-right rounded-md bg-white border-slate-200 focus:border-blue-600 shadow-sm"
+                        className="h-9 pl-8 text-right rounded-md bg-white border-slate-200 focus:border-blue-600 shadow-sm"
                       />
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                    <div className="flex items-center justify-between text-sm text-slate-600">
+                      <span>Subtotal</span>
+                      <span>${subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-green-700">
+                      <span>Discount</span>
+                      <span>- ${discountAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-slate-600">
+                      <span>Tax</span>
+                      <span>+ ${taxAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base font-semibold text-slate-900">
+                      <span>Total</span>
+                      <span>${total.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>

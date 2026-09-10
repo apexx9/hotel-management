@@ -4,6 +4,8 @@ export interface HousekeepingTask {
   id: string;
   hotelId: string;
   roomId: string;
+  roomNumber?: string | null;
+  roomFloor?: string | null;
   stayId?: string;
   status: "cleaning" | "inspection" | "ready" | "maintenance";
   assignedToUserId?: string;

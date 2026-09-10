@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoading } from "@/components/dashboard/page-loading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2, Clock, Users, BedDouble, Wallet, Search, Info } from "lucide-react";
 import { toast } from "sonner";
@@ -68,20 +68,7 @@ export default function ArrivalsPage() {
   });
 
   if (loading) {
-    return (
-      <div className="space-y-8 p-2 md:p-6 max-w-7xl mx-auto animate-pulse">
-        <div className="space-y-3">
-          <Skeleton className="h-6 w-28 rounded-full" />
-          <Skeleton className="h-10 w-96 rounded-xl" />
-        </div>
-        <Skeleton className="h-14 w-full max-w-md rounded-2xl" />
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {[...Array(6)].map((_, i) => (
-            <Skeleton key={i} className="h-64 rounded-3xl" />
-          ))}
-        </div>
-      </div>
-    );
+    return <PageLoading showHeader showPills showGrid />;
   }
 
   if (error) {

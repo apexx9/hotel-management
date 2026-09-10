@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoading } from "@/components/dashboard/page-loading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Table,
@@ -24,6 +24,7 @@ import {
 import { AlertCircle, ArrowRight, Wallet, FileText, CreditCard, TrendingUp, DollarSign } from "lucide-react";
 import { formatCurrency, formatDateTime } from "@/utils/utils";
 import { cn } from "@/lib/utils";
+import { RefreshButton } from "@/components/dashboard/refresh-button";
 
 export default function FinanceOverviewPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -31,44 +32,29 @@ export default function FinanceOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [invoiceData, paymentData] = await Promise.all([
+        InvoicesService().getInvoices(),
+        PaymentsService().getPayments(),
+      ]);
+      setInvoices(invoiceData);
+      setPayments(paymentData);
+    } catch (err) {
+      console.error("Failed to fetch finance data:", err);
+      setError("Could not load finance overview. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [invoiceData, paymentData] = await Promise.all([
-          InvoicesService().getInvoices(),
-          PaymentsService().getPayments(),
-        ]);
-        setInvoices(invoiceData);
-        setPayments(paymentData);
-      } catch (err) {
-        console.error("Failed to fetch finance data:", err);
-        setError("Could not load finance overview. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
 
   if (loading) {
-    return (
-      <div className="space-y-8 p-2 md:p-6 max-w-7xl mx-auto animate-pulse">
-        <div className="space-y-3">
-          <Skeleton className="h-6 w-28 rounded-full" />
-          <Skeleton className="h-10 w-96 rounded-xl" />
-        </div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-40 rounded-3xl" />
-          ))}
-        </div>
-        <div className="grid gap-6 md:grid-cols-2">
-          <Skeleton className="h-[400px] rounded-3xl" />
-          <Skeleton className="h-[400px] rounded-3xl" />
-        </div>
-      </div>
-    );
+    return <PageLoading showHeader showStats={4} showTable />;
   }
 
   if (error) {
@@ -139,9 +125,12 @@ export default function FinanceOverviewPage() {
             Finance Overview
           </h1>
         </div>
-        <p className="text-sm text-muted-foreground max-w-xs leading-relaxed md:text-right">
-          Monitor your property's revenue, outstanding balances, and recent payment activity.
-        </p>
+        <div className="flex flex-col items-start md:items-end gap-3">
+          <p className="text-sm text-muted-foreground max-w-xs leading-relaxed md:text-right">
+            Monitor your property's revenue, outstanding balances, and recent payment activity.
+          </p>
+          <RefreshButton onRefresh={() => fetchData()} />
+        </div>
       </div>
 
       {/* ─── SUMMARY CARDS ────────────────────────────────────────────── */}
@@ -186,6 +175,9 @@ export default function FinanceOverviewPage() {
                     <FileText className="h-6 w-6" />
                   </div>
                   <p className="text-lg font-medium text-foreground">No invoices generated</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Invoices appear when bookings are confirmed or services are charged.
+                  </p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -243,6 +235,9 @@ export default function FinanceOverviewPage() {
                     <CreditCard className="h-6 w-6" />
                   </div>
                   <p className="text-lg font-medium text-foreground">No payments received</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Payments appear here once a guest settles an invoice.
+                  </p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">

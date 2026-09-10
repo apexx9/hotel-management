@@ -116,15 +116,26 @@ export class RoomService {
     return foundRoom;
   }
 
-  async findAll(userId: string) {
+  async findAll(userId: string, query?: string) {
     const hotelId = await this.getUserHotelId(userId);
     const hotelFilter = hotelId ? eq(rooms.hotelId, hotelId) : sql`true`;
 
-    return this.db
+    let rows = await this.db
       .select()
       .from(rooms)
       .where(hotelFilter)
       .orderBy(desc(rooms.updatedAt));
+
+    if (query && query.trim()) {
+      const q = query.trim().toLowerCase();
+      rows = rows.filter(
+        (r) =>
+          r.number.toLowerCase().includes(q) ||
+          String(r.floor).toLowerCase().includes(q),
+      );
+    }
+
+    return rows;
   }
 
   async update(id: string, userId: string, dto: UpdateRoomDto) {

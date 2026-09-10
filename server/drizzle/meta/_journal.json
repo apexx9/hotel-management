@@ -8,6 +8,20 @@
       "when": 1788014195225,
       "tag": "0000_chunky_james_howlett",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788628432068,
+      "tag": "0001_add_default_pricing_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788883200000,
+      "tag": "0002_checkout_completed_notification",
+      "breakpoints": true
     }
   ]
 }

@@ -302,8 +302,16 @@ export class CreateBookingDto {
   discount?: number;
 
   @IsOptional()
+  @IsIn(['value', 'percentage'])
+  discountMode?: 'value' | 'percentage';
+
+  @IsOptional()
   @IsNumber()
   taxes?: number;
+
+  @IsOptional()
+  @IsIn(['value', 'percentage'])
+  taxMode?: 'value' | 'percentage';
 
   @IsOptional()
   @IsString()
@@ -320,6 +328,36 @@ export class CreateBookingDto {
   @IsOptional()
   @IsString()
   paymentMethod?: string;
+}
+
+export class UpdateBookingDto {
+  @IsOptional()
+  @IsNumber()
+  rate?: number;
+
+  @IsOptional()
+  @IsNumber()
+  discount?: number;
+
+  @IsOptional()
+  @IsIn(['value', 'percentage'])
+  discountMode?: 'value' | 'percentage';
+
+  @IsOptional()
+  @IsNumber()
+  taxes?: number;
+
+  @IsOptional()
+  @IsIn(['value', 'percentage'])
+  taxMode?: 'value' | 'percentage';
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsString()
+  editReason?: string;
 }
 
 export class CheckInDto {
@@ -342,6 +380,14 @@ export class CheckOutDto {
   @IsOptional()
   @IsString()
   paymentMethod?: string;
+}
+
+export class TransferRoomDto {
+  @IsUUID()
+  stayId: string;
+
+  @IsUUID()
+  roomId: string;
 }
 
 export class CreatePaymentDto {
@@ -462,7 +508,15 @@ export class InviteStaffDto {
 
   @IsString()
   @IsNotEmpty()
-  @IsIn(['admin', 'manager', 'front_desk', 'housekeeping', 'finance', 'staff', 'owner'])
+  @IsIn([
+    'admin',
+    'manager',
+    'front_desk',
+    'housekeeping',
+    'finance',
+    'staff',
+    'owner',
+  ])
   role: string;
 
   @IsOptional()
@@ -473,7 +527,15 @@ export class InviteStaffDto {
 export class UpdateStaffDto {
   @IsOptional()
   @IsString()
-  @IsIn(['admin', 'manager', 'front_desk', 'housekeeping', 'finance', 'staff', 'owner'])
+  @IsIn([
+    'admin',
+    'manager',
+    'front_desk',
+    'housekeeping',
+    'finance',
+    'staff',
+    'owner',
+  ])
   role?: string;
 
   @IsOptional()
@@ -533,6 +595,22 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsNumber()
   taxRate?: number;
+
+  @IsOptional()
+  @IsIn(['value', 'percentage'])
+  defaultTaxType?: 'value' | 'percentage';
+
+  @IsOptional()
+  @IsNumber()
+  defaultTaxValue?: number;
+
+  @IsOptional()
+  @IsIn(['value', 'percentage'])
+  defaultDiscountType?: 'value' | 'percentage';
+
+  @IsOptional()
+  @IsNumber()
+  defaultDiscountValue?: number;
 
   @IsOptional()
   @IsString()

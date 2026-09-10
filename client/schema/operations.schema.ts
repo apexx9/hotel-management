@@ -5,20 +5,37 @@ const optionalString = z.string().trim().optional().nullable();
 const dateString = z.string().datetime().or(z.date()).optional().nullable();
 
 // ---------- Room Schema ----------
+const ROOM_STATUSES = [
+  "available",
+  "occupied",
+  "cleaning",
+  "inspection",
+  "maintenance",
+  "out_of_service",
+  "reserved",
+] as const;
+
 export const roomSchema = z.object({
   number: z.string().min(1, "Room number is required"),
   floor: z.string().optional().nullable(),
   roomTypeId: z.string().uuid("Invalid room type ID"),
-  status: z
-    .enum(["available", "occupied", "maintenance", "turning_over"])
-    .default("available"),
+  status: z.enum(ROOM_STATUSES).default("available"),
   notes: z.string().optional().nullable(),
 });
 
 export const updateRoomSchema = roomSchema.partial();
 
+export const createRoomSchema = z.object({
+  number: z.string().min(1, "Room number is required"),
+  floor: z.string().optional().nullable(),
+  roomTypeId: z.string().uuid("Invalid room type ID"),
+  rate: z.number().nonnegative().optional(),
+  capacity: z.number().int().positive().optional(),
+});
+export type CreateRoomSchema = z.infer<typeof createRoomSchema>;
+
 export const updateRoomStatusSchema = z.object({
-  status: z.enum(["available", "occupied", "maintenance", "turning_over"]),
+  status: z.enum(ROOM_STATUSES),
 });
 
 // ---------- Room Type Schema ----------
@@ -31,14 +48,15 @@ export const roomTypeSchema = z.object({
     .positive("Capacity must be a positive integer")
     .default(1),
   description: z.string().optional().nullable(),
-  amenities: z.array(z.string()).optional().nullable(),
+  amenities: z.string().optional().nullable(),
 });
 
 export const updateRoomTypeSchema = roomTypeSchema.partial();
 
 // ---------- Guest Schema ----------
 export const guestSchema = z.object({
-  fullName: z.string().min(1, "Full name is required"),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Invalid email").optional().nullable(),
   phone: z.string().optional().nullable(),
   nationality: z.string().optional().nullable(),
@@ -71,11 +89,21 @@ export const createBookingSchema = z.object({
   expectedCheckInAt: z.string().datetime(),
   rate: z.number().nonnegative(),
   discount: z.number().nonnegative().optional().default(0),
+  discountMode: z.enum(["value", "percentage"]).optional().default("value"),
   taxes: z.number().nonnegative().optional().default(0),
+  taxMode: z.enum(["value", "percentage"]).optional().default("value"),
   specialRequests: z.string().optional().nullable(),
   checkInNow: z.boolean().optional().default(false),
   amountPaid: z.number().nonnegative().optional().default(0),
   paymentMethod: z.string().optional().nullable(),
+});
+
+export const updateBookingSchema = z.object({
+  rate: z.number().nonnegative().optional(),
+  discount: z.number().nonnegative().optional(),
+  taxes: z.number().nonnegative().optional(),
+  notes: z.string().optional().nullable(),
+  editReason: z.string().min(1, "Edit reason is required"),
 });
 
 export const checkInSchema = z.object({
@@ -130,6 +158,14 @@ export const updateHousekeepingSchema = z.object({
   note: z.string().optional().nullable(),
 });
 
+export const transferRoomSchema = z.object({
+  roomId: z.string().uuid("Invalid room ID"),
+});
+
+export const reversePaymentSchema = z.object({
+  paymentId: z.string().uuid("Invalid payment ID"),
+});
+
 // ---------- Staff Schema ----------
 export const inviteStaffSchema = z.object({
   email: z.string().email("Invalid email"),
@@ -157,6 +193,10 @@ export const settingsSchema = z.object({
   bookingPolicy: z.string().optional().nullable(),
   guestIdRequired: z.boolean().default(true),
   taxRate: z.number().default(0),
+  defaultTaxType: z.enum(["value", "percentage"]).default("value"),
+  defaultTaxValue: z.number().default(0),
+  defaultDiscountType: z.enum(["value", "percentage"]).default("value"),
+  defaultDiscountValue: z.number().default(0),
   invoicePrefix: z.string().default("INV-"),
   acceptedPaymentMethods: z.string().optional().nullable(),
   serviceConfig: z.string().optional().nullable(),
@@ -171,6 +211,7 @@ export const staysQuerySchema = z.object({
   status: z.string().optional(),
   guestId: z.string().uuid().optional(),
   roomId: z.string().uuid().optional(),
+  q: z.string().optional(),
 });
 
 export const resourceIdQuerySchema = z.object({
@@ -198,6 +239,7 @@ export type UpdateRoomTypeSchema = z.infer<typeof updateRoomTypeSchema>;
 export type GuestSchema = z.infer<typeof guestSchema>;
 export type UpdateGuestSchema = z.infer<typeof updateGuestSchema>;
 export type CreateBookingSchema = z.infer<typeof createBookingSchema>;
+export type UpdateBookingSchema = z.infer<typeof updateBookingSchema>;
 export type CheckInSchema = z.infer<typeof checkInSchema>;
 export type CheckOutSchema = z.infer<typeof checkOutSchema>;
 export type RecordPaymentSchema = z.infer<typeof recordPaymentSchema>;
@@ -208,6 +250,8 @@ export type CreateHousekeepingTaskSchema = z.infer<
   typeof createHousekeepingTaskSchema
 >;
 export type UpdateHousekeepingSchema = z.infer<typeof updateHousekeepingSchema>;
+export type TransferRoomSchema = z.infer<typeof transferRoomSchema>;
+export type ReversePaymentSchema = z.infer<typeof reversePaymentSchema>;
 export type InviteStaffSchema = z.infer<typeof inviteStaffSchema>;
 export type UpdateStaffSchema = z.infer<typeof updateStaffSchema>;
 export type UpdateSettingsSchema = z.infer<typeof updateSettingsSchema>;

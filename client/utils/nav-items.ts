@@ -75,7 +75,7 @@ export const navItems: NavItem[] = [
         allowedRoles: ["admin", "manager", "owner"],
       },
       {
-        href: "/settings/notifications",
+        href: "/settings?tab=notifications",
         label: "Notifications",
         icon: Sparkles,
       },

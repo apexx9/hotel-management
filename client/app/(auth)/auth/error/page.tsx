@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 
 import Wrapper from "@/components/auth/wrapper";
-import Button from "@/components/button";
+import { Button } from "@/components/ui/button";
 import AuthFooter from "@/components/auth/auth-footer";
 
 export default function AuthErrorPage() {
@@ -36,7 +36,7 @@ export default function AuthErrorPage() {
 
           <div className="mt-8 w-full max-w-sm">
             <Link href="/login" className="block">
-              <Button type="button" variant="primary" text="Go to login" />
+              <Button className="rounded-full h-11 w-full">Go to login</Button>
             </Link>
           </div>
         </div>

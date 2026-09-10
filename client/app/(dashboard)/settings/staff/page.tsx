@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoading } from "@/components/dashboard/page-loading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Table,
@@ -135,16 +135,7 @@ export default function StaffPage() {
   };
 
   if (loading) {
-    return (
-      <div className="space-y-8 p-2 md:p-6 max-w-7xl mx-auto animate-pulse">
-        <div className="space-y-3">
-          <Skeleton className="h-6 w-28 rounded-full" />
-          <Skeleton className="h-10 w-64 rounded-xl" />
-        </div>
-        <Skeleton className="h-64 w-full rounded-3xl" />
-        <Skeleton className="h-48 w-full rounded-3xl" />
-      </div>
-    );
+    return <PageLoading showHeader showCards={2} />;
   }
 
   if (error) {

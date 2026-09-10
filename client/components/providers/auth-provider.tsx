@@ -4,27 +4,51 @@ import { useEffect } from "react";
 import useAuthStore from "@/store/useAuthStore";
 import AuthService from "@/services/auth.service";
 
-export default function AuthProvider({ children }: { children: React.ReactNode }) {
+export default function AuthProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const user = useAuthStore((s) => s.user);
   const setAuth = useAuthStore((s) => s.setAuth);
-  const accessToken = useAuthStore((s) => s.accessToken);
 
   useEffect(() => {
-    // Only fetch if no user is present, but we might still be authenticated via refresh token
-    if (!user) {
-      AuthService()
-        .getCurrentUser()
-        .then((currentUser) => {
-          // Preserve existing access token (if any) and set user
-          setAuth(currentUser, accessToken);
-        })
-        .catch(() => {
-          // Optional: if fetching user fails (e.g., invalid refresh token), clear auth state
-          // useAuthStore.getState().clearAuth();
-          // You might also redirect to login here if needed
-        });
-    }
-  }, [user, setAuth, accessToken]);
+    let isActive = true;
+
+    // A user already in the store (e.g. set during login) is authoritative;
+    // only restore the session when we have a token but no user yet (hard refresh).
+    if (user) return;
+
+    const syncAuth = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        if (isActive) setAuth(null, null);
+        return;
+      }
+
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+          const currentUser = await AuthService().getCurrentUser();
+          if (!isActive) return;
+          setAuth(currentUser, token);
+          return;
+        } catch {
+          // attempt again; transient network/refresh failures are retried below
+        }
+      }
+
+      // All attempts failed: only clear the session if we truly have no user,
+      // so a just-restored session is never blanked by a transient failure.
+      if (!isActive) return;
+      if (!useAuthStore.getState().user) setAuth(null, null);
+    };
+
+    syncAuth();
+
+    return () => {
+      isActive = false;
+    };
+  }, [user, setAuth]);
 
   return <>{children}</>;
 }

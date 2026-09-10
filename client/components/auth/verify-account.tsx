@@ -14,6 +14,7 @@ const VerifyAccount = () => {
   const router = useRouter();
   const [otp, setOtp] = useState<string[]>(new Array(6).fill(""));
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
 
   const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -85,6 +86,26 @@ const VerifyAccount = () => {
     }
   };
 
+  const handleResend = async () => {
+    if (isResending) return;
+    const email =
+      typeof window !== "undefined" && sessionStorage.getItem("pendingEmail");
+    if (!email) {
+      toast.error("Unable to resend code — no account email found.");
+      return;
+    }
+    setIsResending(true);
+    try {
+      const res = await (await import("@/actions/auth")).authApi.requestVerify(email);
+      toast.success(res.data?.message || "A new verification code has been sent.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Unable to resend the verification code.");
+    } finally {
+      setIsResending(false);
+    }
+  };
+
   return (
     <Wrapper>
       <div className="flex min-h-dvh flex-col px-6 py-8 sm:px-10 md:px-14 lg:px-16 xl:px-24">
@@ -149,9 +170,9 @@ const VerifyAccount = () => {
             <button
               type="button"
               className="text-sm font-semibold text-[#6B6B6B] hover:text-[#1900FF]"
-              onClick={() => toast.success("A new code has been sent.")}
+              onClick={handleResend}
             >
-              Didn&apos;t receive the code? Resend
+              {isResending ? "Sending..." : "Didn&apos;t receive the code? Resend"}
             </button>
           </div>
 

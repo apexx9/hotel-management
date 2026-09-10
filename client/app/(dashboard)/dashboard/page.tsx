@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import DashboardService from "@/services/dashboard.service";
 import type { DashboardSummaryResponse } from "@/actions/operations";
 import { formatCurrency, formatDateTime, formatDate, formatNumber } from "@/utils/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoading } from "@/components/dashboard/page-loading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertCircle,
@@ -24,47 +24,45 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { RefreshButton } from "@/components/dashboard/refresh-button";
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const summary = await DashboardService().getSummary();
-        setData(summary);
-      } catch (err) {
-        console.error("Failed to load dashboard summary:", err);
-        setError("Could not load dashboard data. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  const isFetchingRef = useRef(false);
+
+  const fetchData = useCallback(async (showLoader = true) => {
+    isFetchingRef.current = true;
+    try {
+      if (showLoader) setLoading(true);
+      const summary = await DashboardService().getSummary();
+      setData(summary);
+    } catch (err) {
+      console.error("Failed to load dashboard summary:", err);
+      if (showLoader) setError("Could not load dashboard data. Please try again.");
+    } finally {
+      isFetchingRef.current = false;
+      if (showLoader) setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    fetchData();
+
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible" && !isFetchingRef.current) {
+        fetchData(false);
+      }
+    };
+    document.addEventListener("visibilitychange", refreshOnFocus);
+    return () => document.removeEventListener("visibilitychange", refreshOnFocus);
+  }, [fetchData]);
+
   if (loading) {
-    return (
-      <div className="space-y-8 p-2 md:p-6 max-w-7xl mx-auto animate-pulse">
-        <div className="space-y-3">
-          <Skeleton className="h-6 w-28 rounded-full" />
-          <Skeleton className="h-10 w-96 rounded-xl" />
-        </div>
-        <div className="grid gap-6 md:grid-cols-3">
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="h-80 rounded-3xl" />
-          ))}
-        </div>
-        <div className="grid gap-6 md:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-2xl" />
-          ))}
-        </div>
-      </div>
-    );
+    return <PageLoading showHeader showStats={3} showTable />;
   }
 
   if (error || !data) {
@@ -108,16 +106,22 @@ export default function DashboardPage() {
             Hospitality Management
           </h1>
         </div>
-        <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-          Real-time occupancy tracking, seamless guest check-ins, and live room maintenance.
-        </p>
+        <div className="flex flex-col items-start md:items-end gap-3">
+          <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
+            Real-time occupancy tracking, seamless guest check-ins, and live room maintenance.
+          </p>
+          <RefreshButton onRefresh={() => fetchData()} />
+        </div>
       </div>
 
       {/* ─── TOP FEATURED CARDS (INSPIRED BY 3-CARD HERO ROW) ───────── */}
       <div className="grid gap-6 md:grid-cols-3">
 
         {/* Card 1: Guest Arrivals Spotlight */}
-        <div className="group relative flex flex-col justify-between rounded-3xl bg-muted/40 border border-border/50 p-6 transition-all hover:shadow-lg hover:border-border">
+        <Link
+          href="/front-desk/arrivals"
+          className="group relative flex flex-col justify-between rounded-3xl bg-muted/40 border border-border/50 p-6 transition-all hover:shadow-lg hover:border-border"
+        >
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
               <Users className="h-4 w-4" />
@@ -154,10 +158,13 @@ export default function DashboardPage() {
               Track incoming guests, confirm booking details, and prepare keys seamlessly.
             </p>
           </div>
-        </div>
+        </Link>
 
         {/* Card 2: Guest Departures & Balances */}
-        <div className="group relative flex flex-col justify-between rounded-3xl bg-muted/40 border border-border/50 p-6 transition-all hover:shadow-lg hover:border-border">
+        <Link
+          href="/front-desk/departures"
+          className="group relative flex flex-col justify-between rounded-3xl bg-muted/40 border border-border/50 p-6 transition-all hover:shadow-lg hover:border-border"
+        >
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
               <CalendarClock className="h-4 w-4" />
@@ -202,10 +209,13 @@ export default function DashboardPage() {
               Handle billing, inspect mini-bars, and release room status instantly.
             </p>
           </div>
-        </div>
+        </Link>
 
         {/* Card 3: High-Contrast Hero Card (Matches Green/Dark Featured Card in Inspiration) */}
-        <div className="relative flex flex-col justify-between rounded-3xl bg-primary text-primary-foreground p-6 shadow-xl overflow-hidden">
+        <Link
+          href="/front-desk/room-status"
+          className="relative flex flex-col justify-between rounded-3xl bg-primary text-primary-foreground p-6 shadow-xl overflow-hidden"
+        >
           {/* Subtle Ambient Background Highlight */}
           <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary-foreground/10 blur-2xl pointer-events-none" />
 
@@ -218,7 +228,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Inner Dark Floating Panel */}
-            <div className="bg-primary-foreground/10 backdrop-blur-md rounded-2xl p-4 border border-primary-foreground/20 space-y-3 mb-6">
+            <div className="bg-primary-foreground/10 backdrop-blur-md rounded-2xl p-4 border border-primary-foreground/20 space-y-3 mb-6 transition-colors">
               <div className="flex items-center gap-2 text-xs font-semibold text-primary-foreground/90">
                 <ShieldAlert className="h-4 w-4" />
                 <span>Action Items ({attentionItems.length})</span>
@@ -246,7 +256,7 @@ export default function DashboardPage() {
               Configured workflows to optimize hotel turnaround times and prevent errors.
             </p>
           </div>
-        </div>
+        </Link>
 
       </div>
 

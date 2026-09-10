@@ -1,15 +1,7 @@
 import operationsApi, { DashboardActivityItem } from "@/actions/operations";
+import { getErrorMessage } from "@/lib/errors";
 
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (typeof error === "object" && error !== null) {
-    const response = error as {
-      response?: { data?: { message?: string } };
-      message?: string;
-    };
-    return response.response?.data?.message || response.message || fallback;
-  }
-  return fallback;
-};
+
 
 const ActivityService = () => {
   async function getActivityLogs(): Promise<DashboardActivityItem[]> {

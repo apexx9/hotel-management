@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 
 import Wrapper from "@/components/auth/wrapper";
-import Button from "@/components/button";
+import { Button } from "@/components/ui/button";
 import AuthFooter from "@/components/auth/auth-footer";
 
 export default function InviteSuccessPage() {
@@ -38,7 +38,7 @@ export default function InviteSuccessPage() {
 
           <div className="mt-8 w-full max-w-sm">
             <Link href="/login" className="block">
-              <Button type="button" variant="primary" text="Sign in" />
+              <Button className="rounded-full h-11 w-full">Sign in</Button>
             </Link>
           </div>
         </div>

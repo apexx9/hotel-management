@@ -1,15 +1,7 @@
 import operationsApi, { HotelSettingsResponse } from "@/actions/operations";
+import { getErrorMessage } from "@/lib/errors";
 
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (typeof error === "object" && error !== null) {
-    const response = error as {
-      response?: { data?: { message?: string } };
-      message?: string;
-    };
-    return response.response?.data?.message || response.message || fallback;
-  }
-  return fallback;
-};
+
 
 const SettingsService = () => {
   async function getSettings(): Promise<HotelSettingsResponse> {
@@ -36,6 +28,15 @@ const SettingsService = () => {
             ? parseFloat(payload.taxRate)
             : payload.taxRate;
         payload.taxRate = Number.isNaN(parsed) ? 0 : parsed;
+      }
+      for (const key of ["defaultTaxValue", "defaultDiscountValue"] as const) {
+        if (payload[key] !== undefined && payload[key] !== null) {
+          const parsed =
+            typeof payload[key] === "string"
+              ? parseFloat(payload[key])
+              : payload[key];
+          payload[key] = Number.isNaN(parsed) ? 0 : parsed;
+        }
       }
       const response = await operationsApi.updateSettings(payload);
       return response.data;

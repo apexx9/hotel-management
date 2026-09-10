@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { useRouter } from 'next/navigation';
+import { useRouter } from "next/navigation";
 import Wrapper from "./wrapper";
 import Input from "../input";
 import Button from "../button";
@@ -43,13 +43,17 @@ const Login = () => {
     },
   });
 
-
   const onSubmit = async (payload: LoginSchema) => {
     setIsLoading(true);
     try {
       await AuthService().login(payload);
-      router.push('/dashboard');
-      router.refresh(); // Optional: refresh server components
+      const target =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("redirect")
+          : null;
+      const safeTarget = target && target.startsWith("/") ? target : "/dashboard";
+      router.push(safeTarget);
+      router.refresh();
       toast.success("Login successful");
     } catch (error: unknown) {
       toast.error(

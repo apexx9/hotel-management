@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -31,8 +32,8 @@ export class RoomController {
   constructor(private readonly roomService: RoomService) {}
 
   @Get()
-  findAll(@Req() req: AuthenticatedRequest) {
-    return this.roomService.findAll(req.user.userId);
+  findAll(@Req() req: AuthenticatedRequest, @Query('q') query?: string) {
+    return this.roomService.findAll(req.user.userId, query);
   }
 
   @Get(':id')

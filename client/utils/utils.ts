@@ -1,11 +1,7 @@
 export const date = new Date().getFullYear();
 export const version: string = "1.0";
 
-export function cn(
-  ...classes: Array<string | false | null | undefined>
-) {
-  return classes.filter(Boolean).join(" ");
-}
+export { cn } from "@/lib/utils";
 
 export function formatCurrency(
   value: number | string | null | undefined,

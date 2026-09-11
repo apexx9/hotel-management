@@ -43,8 +43,17 @@ import {
   CheckCircle2,
   XCircle,
   Info,
+  Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
+
+interface PendingInvitation {
+  id: string;
+  email: string;
+  role: string;
+  createdAt?: string;
+}
 
 export default function StaffPage() {
   const [staff, setStaff] = useState<any[]>([]);
@@ -55,6 +64,13 @@ export default function StaffPage() {
   const [inviting, setInviting] = useState(false);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [savingStaff, setSavingStaff] = useState(false);
+  const [revokingInvite, setRevokingInvite] = useState<PendingInvitation | null>(
+    null,
+  );
+  const [revoking, setRevoking] = useState(false);
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(
+    null,
+  );
 
   // Invite form
   const [inviteForm, setInviteForm] = useState({
@@ -131,6 +147,36 @@ export default function StaffPage() {
       toast.error("Failed to update staff");
     } finally {
       setSavingStaff(false);
+    }
+  };
+
+  const handleResendInvitation = async (invitation: PendingInvitation) => {
+    setResendingInviteId(invitation.id);
+    try {
+      await StaffService().resendInvitation(invitation.id);
+      toast.success("Invitation resent — the old link was replaced");
+      await fetchData();
+    } catch (err) {
+      console.error("Failed to resend invitation:", err);
+      toast.error("Failed to resend invitation");
+    } finally {
+      setResendingInviteId(null);
+    }
+  };
+
+  const handleRevokeInvitation = async () => {
+    if (!revokingInvite) return;
+    setRevoking(true);
+    try {
+      await StaffService().revokeInvitation(revokingInvite.id);
+      toast.success("Invitation removed — the invite link no longer works");
+      setRevokingInvite(null);
+      await fetchData();
+    } catch (err) {
+      console.error("Failed to revoke invitation:", err);
+      toast.error("Failed to remove invitation");
+    } finally {
+      setRevoking(false);
     }
   };
 
@@ -404,6 +450,9 @@ export default function StaffPage() {
                     <TableHead className="font-semibold text-xs uppercase tracking-wider">
                       Sent
                     </TableHead>
+                    <TableHead className="font-semibold text-xs uppercase tracking-wider text-right">
+                      Actions
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -425,6 +474,37 @@ export default function StaffPage() {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {formatDate(inv.createdAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleResendInvitation(inv)}
+                            disabled={resendingInviteId === inv.id}
+                            className="rounded-lg text-xs font-medium hover:bg-muted/40"
+                          >
+                            <RefreshCw
+                              className={
+                                resendingInviteId === inv.id
+                                  ? "h-3.5 w-3.5 mr-1 animate-spin"
+                                  : "h-3.5 w-3.5 mr-1"
+                              }
+                            />
+                            {resendingInviteId === inv.id
+                              ? "Sending..."
+                              : "Resend"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setRevokingInvite(inv)}
+                            className="rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1" />
+                            Remove
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -494,6 +574,51 @@ export default function StaffPage() {
               className="rounded-full"
             >
               {savingStaff ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── REVOKE INVITATION DIALOG ───────────────────────────────────── */}
+      <Dialog
+        open={!!revokingInvite}
+        onOpenChange={(open) => !open && setRevokingInvite(null)}
+      >
+        <DialogContent className="sm:max-w-[420px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">
+              Remove invitation
+            </DialogTitle>
+            <DialogDescription>
+              Withdraw the pending invitation to{" "}
+              <span className="font-semibold text-foreground">
+                {revokingInvite?.email}
+              </span>
+              ?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-2xl bg-muted/30 border border-border/40 p-4 text-sm text-muted-foreground leading-relaxed">
+            The invite link they received will stop working immediately. If
+            they haven&apos;t created their account yet, they won&apos;t be
+            able to sign up. Anyone who already joined shows up in the Staff
+            list instead and is unaffected.
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRevokingInvite(null)}
+              className="rounded-full"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRevokeInvitation}
+              disabled={revoking}
+              className="rounded-full"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              {revoking ? "Removing..." : "Remove Invitation"}
             </Button>
           </DialogFooter>
         </DialogContent>

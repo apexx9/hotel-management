@@ -46,9 +46,7 @@ export const invitations = pgTable(
       withTimezone: true,
     }).notNull(),
 
-    status: invitationStatusEnum('status')
-      .notNull()
-      .default('pending'),
+    status: invitationStatusEnum('status').notNull().default('pending'),
 
     acceptedAt: timestamp('accepted_at', {
       withTimezone: true,
@@ -67,8 +65,6 @@ export const invitations = pgTable(
       .notNull(),
   },
   (table) => ({
-    tokenUnique: uniqueIndex('invitations_token_unique').on(
-      table.token,
-    ),
+    tokenUnique: uniqueIndex('invitations_token_unique').on(table.token),
   }),
 );

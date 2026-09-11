@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { formatDateTime, formatCurrency, formatNumber } from "@/utils/utils";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 export default function FrontDeskOverviewPage() {
   const [activeStays, setActiveStays] = useState<DashboardStaySummary[]>([]);
@@ -32,9 +33,9 @@ export default function FrontDeskOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [active, arr, dep] = await Promise.all([
         StaysService().getActiveStays(),
         StaysService().getArrivals(),
@@ -43,17 +44,20 @@ export default function FrontDeskOverviewPage() {
       setActiveStays(active);
       setArrivals(arr);
       setDepartures(dep);
+      setError(null);
     } catch (err) {
       console.error("Failed to fetch front desk data:", err);
-      setError("Could not load front desk overview. Please try again.");
+      if (!silent) setError("Could not load front desk overview. Please try again.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  useRealtimeRefresh(() => fetchData(true));
 
   if (loading) {
     return <PageLoading showHeader showStats={4} showTable />;

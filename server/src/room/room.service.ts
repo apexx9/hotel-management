@@ -8,10 +8,18 @@ import {
 import { InjectDatabase } from '../database/database.decorator';
 import type { Database } from '../database/database.types';
 import { CreateRoomDto } from './dto/create-room.dto';
+import { CreateRoomsBulkDto } from './dto/create-rooms-bulk.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 import { UpdateRoomStatusDto } from './dto/update-room-status.dto';
-import { activityLogs, notifications, rooms, users } from '../database/schema';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import {
+  activityLogs,
+  housekeepingTasks,
+  notifications,
+  rooms,
+  stays,
+  users,
+} from '../database/schema';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
 @Injectable()
 export class RoomService {
@@ -99,6 +107,65 @@ export class RoomService {
     return newRoom;
   }
 
+  async createMany(userId: string, dto: CreateRoomsBulkDto) {
+    const hotelId = await this.getRequiredHotelId(userId);
+
+    const seen = new Set<string>();
+    const uniqueRooms = dto.rooms.filter((room) => {
+      const number = room.number.trim();
+      if (seen.has(number)) return false;
+      seen.add(number);
+      return true;
+    });
+
+    const existing = await this.db
+      .select({ number: rooms.number })
+      .from(rooms)
+      .where(eq(rooms.hotelId, hotelId));
+
+    const existingNumbers = new Set(existing.map((r) => r.number));
+    const conflicted = new Set<string>();
+    const toCreate = uniqueRooms.filter((room) => {
+      const number = room.number.trim();
+      if (existingNumbers.has(number)) {
+        conflicted.add(number);
+        return false;
+      }
+      return true;
+    });
+
+    const roomValues: (typeof rooms.$inferInsert)[] = toCreate.map((room) => ({
+      hotelId,
+      number: room.number.trim(),
+      floor: String(room.floor),
+      roomTypeId: room.roomTypeId,
+      rate: room.rate !== undefined ? String(room.rate) : '0',
+      capacity: room.capacity ?? 2,
+      status: 'available',
+    }));
+
+    const created = toCreate.length
+      ? await this.db.insert(rooms).values(roomValues).returning()
+      : [];
+
+    if (created.length) {
+      await this.writeActivity(
+        hotelId,
+        userId,
+        null,
+        'bulk rooms created',
+        `Created ${created.length} room(s): ${created
+          .map((r) => r.number)
+          .join(', ')}.`,
+      );
+    }
+
+    return {
+      created,
+      conflicts: [...conflicted],
+    };
+  }
+
   async findOne(id: string, userId: string) {
     const hotelId = await this.getUserHotelId(userId);
     const hotelFilter = hotelId ? eq(rooms.hotelId, hotelId) : sql`true`;
@@ -182,6 +249,27 @@ export class RoomService {
     return updatedRoom;
   }
 
+  private readonly activeStayStatuses = [
+    'reserved',
+    'pending_arrival',
+    'checked_in',
+  ] as const;
+
+  private async activeStayForRoom(hotelId: string, roomId: string) {
+    const [stay] = await this.db
+      .select()
+      .from(stays)
+      .where(
+        and(
+          eq(stays.hotelId, hotelId),
+          eq(stays.roomId, roomId),
+          inArray(stays.status, this.activeStayStatuses),
+        ),
+      )
+      .limit(1);
+    return stay ?? null;
+  }
+
   async updateStatus(id: string, userId: string, dto: UpdateRoomStatusDto) {
     const hotelId = await this.getRequiredHotelId(userId);
     const hotelFilter = eq(rooms.hotelId, hotelId);
@@ -194,6 +282,27 @@ export class RoomService {
 
     if (!existing) {
       throw new NotFoundException(`Room with ID ${id} not found`);
+    }
+
+    if (dto.status === 'occupied' || dto.status === 'reserved') {
+      throw new BadRequestException(
+        `Room status '${dto.status}' is assigned automatically by the booking lifecycle`,
+      );
+    }
+
+    const activeStay = await this.activeStayForRoom(hotelId, existing.id);
+    if (activeStay && dto.status === 'available') {
+      throw new ConflictException(
+        `Room ${existing.number} has an active stay and cannot be marked available`,
+      );
+    }
+    if (
+      activeStay &&
+      (dto.status === 'maintenance' || dto.status === 'out_of_service')
+    ) {
+      throw new ConflictException(
+        `Room ${existing.number} has an active stay and cannot be taken out of service`,
+      );
     }
 
     const [updatedRoom] = await this.db
@@ -229,6 +338,83 @@ export class RoomService {
     return updatedRoom;
   }
 
+  async markAvailable(id: string, userId: string) {
+    const hotelId = await this.getRequiredHotelId(userId);
+    const hotelFilter = eq(rooms.hotelId, hotelId);
+
+    const [existing] = await this.db
+      .select()
+      .from(rooms)
+      .where(and(hotelFilter, eq(rooms.id, id)))
+      .limit(1);
+
+    if (!existing) {
+      throw new NotFoundException(`Room with ID ${id} not found`);
+    }
+
+    const activeStay = await this.activeStayForRoom(hotelId, existing.id);
+    if (activeStay) {
+      throw new ConflictException(
+        `Room ${existing.number} has an active stay and cannot be marked available`,
+      );
+    }
+
+    if (!existing.isActive) {
+      throw new ConflictException(
+        `Room ${existing.number} is deactivated and cannot be marked available`,
+      );
+    }
+
+    await this.db
+      .update(housekeepingTasks)
+      .set({
+        status: 'ready',
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(housekeepingTasks.hotelId, hotelId),
+          eq(housekeepingTasks.roomId, existing.id),
+          inArray(housekeepingTasks.status, [
+            'cleaning',
+            'inspection',
+            'maintenance',
+          ]),
+        ),
+      );
+
+    const [updatedRoom] = await this.db
+      .update(rooms)
+      .set({
+        status: 'available',
+        updatedAt: new Date(),
+      })
+      .where(and(hotelFilter, eq(rooms.id, id)))
+      .returning();
+
+    await this.writeActivity(
+      hotelId,
+      userId,
+      null,
+      'room marked available',
+      `Room ${updatedRoom.number} marked available.`,
+      'room',
+      updatedRoom.id,
+    );
+
+    await this.db.insert(notifications).values({
+      hotelId,
+      type: 'room_ready',
+      title: 'Room available',
+      message: `Room ${updatedRoom.number} is now available.`,
+      referenceType: 'room',
+      referenceId: updatedRoom.id,
+    });
+
+    return updatedRoom;
+  }
+
   async remove(id: string, userId: string) {
     const hotelId = await this.getRequiredHotelId(userId);
     const hotelFilter = eq(rooms.hotelId, hotelId);
@@ -247,9 +433,7 @@ export class RoomService {
       throw new BadRequestException('Cannot delete an occupied room');
     }
 
-    await this.db
-      .delete(rooms)
-      .where(and(hotelFilter, eq(rooms.id, id)));
+    await this.db.delete(rooms).where(and(hotelFilter, eq(rooms.id, id)));
 
     await this.writeActivity(
       hotelId,
@@ -261,6 +445,9 @@ export class RoomService {
       id,
     );
 
-    return { ok: true, message: `Room ${existing.number} deleted successfully` };
+    return {
+      ok: true,
+      message: `Room ${existing.number} deleted successfully`,
+    };
   }
 }

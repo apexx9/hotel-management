@@ -85,6 +85,27 @@ const RoomsService = () => {
     }
   };
 
+  const createRoomsBulk = async (
+    rooms: Array<{
+      number: string;
+      floor: string;
+      roomTypeId: string;
+      rate?: number;
+      capacity?: number;
+    }>,
+  ): Promise<{ created: Room[]; conflicts: string[] }> => {
+    try {
+      const response = await operationsApi.createRoomsBulk({ rooms });
+      return response.data;
+    } catch (error) {
+      console.error(
+        "Failed to bulk create rooms:",
+        getErrorMessage(error, "Failed to bulk create rooms"),
+      );
+      throw error;
+    }
+  };
+
   const updateRoom = async (id: string, data: Partial<Room>): Promise<Room> => {
     try {
       const { status, ...rest } = data;
@@ -112,6 +133,19 @@ const RoomsService = () => {
       console.error(
         "Failed to update room status:",
         getErrorMessage(error, "Failed to update room status"),
+      );
+      throw error;
+    }
+  };
+
+  const markAvailable = async (id: string): Promise<Room> => {
+    try {
+      const response = await operationsApi.markRoomAvailable(id);
+      return response.data;
+    } catch (error) {
+      console.error(
+        "Failed to mark room available:",
+        getErrorMessage(error, "Failed to mark room available"),
       );
       throw error;
     }
@@ -231,8 +265,10 @@ const RoomsService = () => {
     getRooms,
     getRoom,
     createRoom,
+    createRoomsBulk,
     updateRoom,
     updateRoomStatus,
+    markAvailable,
     deleteRoom,
     getRoomTypes,
     getRoomType,

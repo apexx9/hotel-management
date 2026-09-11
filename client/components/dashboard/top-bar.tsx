@@ -21,6 +21,7 @@ import useAuthStore from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { NewBookingDialog } from "./booking-dialog";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 interface SearchResult {
   id: string;
@@ -70,7 +71,9 @@ export function Topbar() {
 
   const fetchNotifications = async () => {
     try {
-      const data = await NotificationsService().getNotifications();
+      const data = await NotificationsService().getNotifications({
+        silent: true,
+      });
       setNotifications(data ?? []);
     } catch {
       setNotifications([]);
@@ -80,6 +83,8 @@ export function Topbar() {
   useEffect(() => {
     fetchNotifications();
   }, []);
+
+  useRealtimeRefresh(() => fetchNotifications(), 30000);
 
   const handleSearch = async (query: string) => {
     if (!query.trim()) {
@@ -221,7 +226,7 @@ export function Topbar() {
           {/* New Booking button - updated to use teal accent */}
           <button
             onClick={() => setBookingDialogOpen(true)}
-            className="hidden h-10 items-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 md:flex"
+            className="hidden h-10 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 md:flex"
           >
             <Plus className="h-4 w-4" />
             New Booking
@@ -229,25 +234,25 @@ export function Topbar() {
 
           {/* Notifications */}
           <DropdownMenu onOpenChange={(open) => open && fetchNotifications()}>
-            <DropdownMenuTrigger className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl text-blue-500 transition-colors hover:bg-blue-100 hover:text-blue-900">
+            <DropdownMenuTrigger className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl text-primary transition-colors hover:bg-primary/10 hover:text-primary">
               <Bell className="h-5 w-5" />
               {notifications.some((n) => !n.isRead) && (
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-blue-600" />
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary" />
               )}
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-80 rounded-2xl border-blue-100 shadow-lg"
+              className="w-80 rounded-2xl"
             >
               <DropdownMenuGroup>
-                <DropdownMenuLabel className="text-blue-900">
+                <DropdownMenuLabel className="text-foreground">
                   Notifications
                 </DropdownMenuLabel>
               </DropdownMenuGroup>
-              <DropdownMenuSeparator className="bg-blue-100" />
+              <DropdownMenuSeparator className="bg-border" />
               <div className="max-h-80 overflow-y-auto">
                 {notifications.length === 0 ? (
-                  <div className="p-4 text-sm text-blue-500">
+                  <div className="p-4 text-sm text-muted-foreground">
                     No new notifications
                   </div>
                 ) : (
@@ -258,15 +263,15 @@ export function Topbar() {
                       onClick={() => handleNotificationClick(n)}
                     >
                       <div className="flex-1">
-                        <div className="font-medium text-slate-900">
+                        <div className="font-medium text-foreground">
                           {n.title}
                         </div>
-                        <div className="mt-0.5 text-xs text-slate-500">
+                        <div className="mt-0.5 text-xs text-muted-foreground">
                           {n.message}
                         </div>
                       </div>
                       {!n.isRead && (
-                        <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-600" />
+                        <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
                       )}
                     </DropdownMenuItem>
                   ))

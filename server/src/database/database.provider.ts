@@ -9,20 +9,30 @@ export const poolProvider: Provider = {
   provide: PG_POOL,
 
   useFactory: () => {
-    const connectionString = process.env.DATABASE_URL;
+    const connectionString = process.env.DATABASE_URL ?? '';
 
     const poolConfig: any = {
-      connectionString,
+      max: Number(process.env.PG_POOL_MAX ?? 10),
+      connectionTimeoutMillis: Number(process.env.PG_CONNECT_TIMEOUT ?? 10000),
+      idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT ?? 30000),
     };
 
-    // Handle SSL mode for Aiven databases
+    // Handle SSL mode for Aiven databases. Modern pg-connection-string
+    // treats `sslmode=require|prefer|verify-ca` as `verify-full`, which
+    // rejects self-signed certs despite rejectUnauthorized:false. Strip the
+    // sslmode param and pass the ssl object explicitly instead.
     if (
       connectionString &&
       (connectionString.includes('sslmode=require') ||
         connectionString.includes('aiven'))
     ) {
+      poolConfig.connectionString = connectionString
+        .replace(/[?&]sslmode=[^&]*/i, '')
+        .replace(/&$/, '');
       poolConfig.ssl = { rejectUnauthorized: false };
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    } else {
+      poolConfig.connectionString = connectionString;
     }
 
     return new Pool(poolConfig);

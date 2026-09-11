@@ -2,12 +2,14 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { toast } from "sonner";
 import useAuthStore from "../store/useAuthStore";
 
-const rawBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-const baseURL = rawBase.replace(/\/$/, "") + "/api";
+// Requests go through Next.js rewrites to the backend on the same origin.
+// This avoids a CORS preflight on every request (big latency win) and keeps
+// the API address server-side only. See next.config.ts.
+const baseURL = "/api";
 
 export const instance = axios.create({
   baseURL,
-  timeout: 15000,
+  timeout: 30000,
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });

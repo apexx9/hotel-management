@@ -25,7 +25,17 @@ import {
   stays,
   users,
 } from '../database/schema';
-import { and, desc, eq, isNull, sql, or, inArray, ilike } from 'drizzle-orm';
+import {
+  and,
+  desc,
+  eq,
+  isNull,
+  sql,
+  or,
+  inArray,
+  ilike,
+  not,
+} from 'drizzle-orm';
 import {
   CheckInDto,
   CheckOutDto,
@@ -48,8 +58,9 @@ import {
   UpdateStaffDto,
 } from './dto';
 import * as crypto from 'crypto';
-import * as puppeteer from 'puppeteer';
-import { MailService } from '../auth/mail.service';
+import { EmailConfig } from '../email/email.config';
+import { EmailService } from '../email/email.service';
+import { ReceiptsService } from '../receipts/receipts.service';
 
 type UserContext = {
   id: string;
@@ -70,7 +81,9 @@ const roundMoney = (value: number) => Math.round(value * 100) / 100;
 export class OperationsService {
   constructor(
     @InjectDatabase() private readonly db: Database,
-    private readonly mailService: MailService,
+    private readonly emailService: EmailService,
+    private readonly emailConfig: EmailConfig,
+    private readonly receiptsService: ReceiptsService,
   ) {}
 
   private async getUserContext(userId: string): Promise<UserContext> {
@@ -84,7 +97,7 @@ export class OperationsService {
       throw new ForbiddenException('User not found');
     }
 
-    return user as UserContext;
+    return user;
   }
 
   private async getDefaultHotelId(userId: string): Promise<string | null> {
@@ -102,6 +115,212 @@ export class OperationsService {
 
   private async getCurrentUser(userId: string) {
     return this.getUserContext(userId);
+  }
+
+  private formatMoney(value: unknown, currency: string): string {
+    return `${currency} ${Number(value ?? 0).toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+
+  private async getHotelBranding(hotelId: string) {
+    const [settings] = await this.db
+      .select()
+      .from(hotelSettings)
+      .where(eq(hotelSettings.hotelId, hotelId))
+      .limit(1);
+
+    return {
+      settings,
+      currency: settings?.currency || 'GHS',
+      branding: {
+        hotelName: settings?.name ?? null,
+        hotelAddress: settings?.address ?? null,
+        hotelPhone: settings?.phone ?? null,
+        hotelEmail: settings?.email ?? null,
+        logoUrl: settings?.logoUrl ?? null,
+        primaryColor: settings?.primaryColor ?? null,
+        accentColor: settings?.accentColor ?? null,
+      },
+      sender: {
+        name: settings?.emailFromName ?? settings?.name ?? null,
+      },
+      replyTo: settings?.emailFrom ?? settings?.email ?? null,
+    };
+  }
+
+  /** Load the authoritative stay + guest + room context for an email. */
+  private async loadStayEmailContext(userId: string, stayId: string) {
+    const hotelId = await this.getRequiredHotelId(userId);
+
+    const [stay] = await this.db
+      .select()
+      .from(stays)
+      .where(and(eq(stays.hotelId, hotelId), eq(stays.id, stayId)))
+      .limit(1);
+    if (!stay) throw new NotFoundException('Booking not found');
+
+    const [guest] = await this.db
+      .select()
+      .from(guests)
+      .where(and(eq(guests.hotelId, hotelId), eq(guests.id, stay.guestId)))
+      .limit(1);
+
+    const [room] = await this.db
+      .select()
+      .from(rooms)
+      .where(eq(rooms.id, stay.roomId))
+      .limit(1);
+
+    let roomType;
+    if (room) {
+      [roomType] = await this.db
+        .select()
+        .from(roomTypes)
+        .where(eq(roomTypes.id, room.roomTypeId))
+        .limit(1);
+    }
+
+    const { branding, currency, sender, replyTo } =
+      await this.getHotelBranding(hotelId);
+
+    return {
+      stay,
+      guest,
+      room,
+      roomType,
+      branding,
+      currency,
+      sender,
+      replyTo,
+    };
+  }
+
+  private buildReservationEmailData(
+    ctx: Awaited<ReturnType<typeof this.loadStayEmailContext>>,
+  ) {
+    return {
+      guestName: ctx.guest?.firstName || null,
+      reference: ctx.stay.reference,
+      roomNumber: ctx.room?.number ?? null,
+      roomType: ctx.roomType?.name ?? null,
+      checkIn: ctx.stay.expectedCheckInAt?.toISOString?.() ?? null,
+      checkOut: ctx.stay.expectedCheckoutAt?.toISOString?.() ?? null,
+      nights: Number(ctx.stay.nights ?? 1),
+      guests: Number(ctx.stay.guestsCount ?? 1),
+      total: this.formatMoney(ctx.stay.total, ctx.currency),
+      amountPaid: this.formatMoney(ctx.stay.amountPaid, ctx.currency),
+      outstanding: this.formatMoney(ctx.stay.outstandingBalance, ctx.currency),
+      status: ctx.stay.status ?? null,
+      currency: ctx.currency,
+    };
+  }
+
+  /** Best-effort, fire-and-forget confirmation email after a booking is created. */
+  private async dispatchBookingConfirmation(userId: string, stayId: string) {
+    try {
+      const ctx = await this.loadStayEmailContext(userId, stayId);
+      if (!ctx.guest?.email) return;
+      const result = await this.emailService.sendBookingConfirmation(
+        ctx.guest.email,
+        this.buildReservationEmailData(ctx),
+        ctx.branding,
+        ctx.sender,
+        ctx.replyTo,
+      );
+      if (result.ok && !result.skipped) {
+        await this.db
+          .update(stays)
+          .set({ confirmationEmailSentAt: new Date() })
+          .where(eq(stays.id, stayId));
+      }
+    } catch {
+      // Email delivery must never break the booking flow.
+    }
+  }
+
+  /** Best-effort, fire-and-forget cancellation email. */
+  private async dispatchBookingCancellation(userId: string, stayId: string) {
+    try {
+      const ctx = await this.loadStayEmailContext(userId, stayId);
+      if (!ctx.guest?.email) return;
+      await this.emailService.sendBookingCancellation(
+        ctx.guest.email,
+        {
+          guestName: ctx.guest.firstName || null,
+          reference: ctx.stay.reference,
+          total: this.formatMoney(ctx.stay.total, ctx.currency),
+          currency: ctx.currency,
+        },
+        ctx.branding,
+        ctx.sender,
+        ctx.replyTo,
+      );
+    } catch {
+      // Email delivery must never break the cancellation flow.
+    }
+  }
+
+  /** Build + send the branded receipt (with PDF attachment when possible). */
+  private async deliverInvoiceReceipt(
+    userId: string,
+    invoiceId: string,
+    to?: string,
+  ) {
+    const context = await this.receiptsService.getReceiptContext(
+      userId,
+      invoiceId,
+    );
+    const rendered = this.receiptsService.renderReceipt(context);
+
+    const finalTo = to ?? context.guest?.email;
+    if (!finalTo) {
+      throw new BadRequestException(
+        'Guest has no email address on file. Specify a recipient email instead.',
+      );
+    }
+
+    let attachments;
+    try {
+      const pdf = await this.receiptsService.getReceiptPdf(context);
+      attachments = [
+        {
+          filename: pdf.filename,
+          content: pdf.pdf,
+          contentType: 'application/pdf',
+        },
+      ];
+    } catch {
+      // PDF generation failed — send HTML-only so email still goes out.
+    }
+
+    const result = await this.emailService.send({
+      to: finalTo,
+      subject: rendered.subject,
+      text: rendered.text,
+      html: rendered.html,
+      attachments,
+      sender: context.sender,
+      replyTo: context.replyTo || undefined,
+    });
+
+    return { result, to: finalTo };
+  }
+
+  /** Best-effort, fire-and-forget receipt email after payment/checkout. */
+  private async dispatchInvoiceReceipt(userId: string, invoiceId: string) {
+    try {
+      const delivery = await this.deliverInvoiceReceipt(userId, invoiceId);
+      if (delivery.result.ok && !delivery.result.skipped) {
+        await this.db
+          .update(invoices)
+          .set({ receiptEmailSentAt: new Date() })
+          .where(eq(invoices.id, invoiceId));
+      }
+    } catch {
+      // Email delivery must never break the payment flow.
+    }
   }
 
   private async writeActivity(
@@ -192,6 +411,25 @@ export class OperationsService {
     };
   }
 
+  private async isHousekeepingEnabled(hotelId: string): Promise<boolean> {
+    const [settings] = await this.db
+      .select({ systemPrefs: hotelSettings.systemPrefs })
+      .from(hotelSettings)
+      .where(eq(hotelSettings.hotelId, hotelId))
+      .limit(1);
+
+    if (!settings?.systemPrefs) return true;
+
+    try {
+      const prefs = JSON.parse(settings.systemPrefs) as {
+        housekeepingEnabled?: boolean;
+      };
+      return prefs.housekeepingEnabled !== false;
+    } catch {
+      return true;
+    }
+  }
+
   // ==========================================
   // DASHBOARD
   // ==========================================
@@ -251,7 +489,7 @@ export class OperationsService {
       .reduce((sum, payment) => sum + money(payment.amount), 0);
     const totalRooms = allRooms.length;
     const occupancy = totalRooms
-      ? (occupiedRooms.length / totalRooms) * 100
+      ? Math.round((occupiedRooms.length / totalRooms) * 1000) / 10
       : 0;
     const projected =
       revenueCollectedToday +
@@ -679,7 +917,12 @@ export class OperationsService {
   // ==========================================
   async listStays(
     userId: string,
-    filters?: { status?: string; guestId?: string; roomId?: string; q?: string },
+    filters?: {
+      status?: string | string[];
+      guestId?: string;
+      roomId?: string;
+      q?: string;
+    },
   ) {
     const hotelId = await this.getDefaultHotelId(userId);
 
@@ -693,7 +936,11 @@ export class OperationsService {
 
     const conditions = [stayHotelFilter];
     if (filters?.status)
-      conditions.push(eq(stays.status, filters.status as any));
+      conditions.push(
+        Array.isArray(filters.status)
+          ? inArray(stays.status, filters.status as any)
+          : eq(stays.status, filters.status as any),
+      );
     if (filters?.guestId) conditions.push(eq(stays.guestId, filters.guestId));
     if (filters?.roomId) conditions.push(eq(stays.roomId, filters.roomId));
 
@@ -712,29 +959,31 @@ export class OperationsService {
     const guestById = new Map(allGuests.map((g) => [g.id, g]));
     const roomTypeById = new Map(allRoomTypes.map((rt) => [rt.id, rt]));
 
-    return allStays.map((stay) => {
-      const room = roomById.get(stay.roomId);
-      const guest = guestById.get(stay.guestId);
-      const rt = roomTypeById.get(stay.roomTypeId);
+    return allStays
+      .map((stay) => {
+        const room = roomById.get(stay.roomId);
+        const guest = guestById.get(stay.guestId);
+        const rt = roomTypeById.get(stay.roomTypeId);
 
-      return {
-        ...stay,
-        roomNumber: room?.number ?? null,
-        roomFloor: room?.floor ?? null,
-        guestName: guest ? `${guest.firstName} ${guest.lastName}` : null,
-        guestPhone: guest?.phone ?? null,
-        guestEmail: guest?.email ?? null,
-        roomTypeName: rt?.name ?? null,
-      };
-    }).filter((stay) => {
-      const q = filters?.q?.trim().toLowerCase();
-      if (!q) return true;
-      return (
-        stay.reference?.toLowerCase().includes(q) ||
-        stay.guestName?.toLowerCase().includes(q) ||
-        stay.roomNumber?.toLowerCase().includes(q)
-      );
-    });
+        return {
+          ...stay,
+          roomNumber: room?.number ?? null,
+          roomFloor: room?.floor ?? null,
+          guestName: guest ? `${guest.firstName} ${guest.lastName}` : null,
+          guestPhone: guest?.phone ?? null,
+          guestEmail: guest?.email ?? null,
+          roomTypeName: rt?.name ?? null,
+        };
+      })
+      .filter((stay) => {
+        const q = filters?.q?.trim().toLowerCase();
+        if (!q) return true;
+        return (
+          stay.reference?.toLowerCase().includes(q) ||
+          stay.guestName?.toLowerCase().includes(q) ||
+          stay.roomNumber?.toLowerCase().includes(q)
+        );
+      });
   }
 
   // ==========================================
@@ -938,19 +1187,24 @@ export class OperationsService {
     const [guest] = await this.db
       .select()
       .from(guests)
-      .where(eq(guests.id, stay.guestId))
+      .where(and(eq(guests.id, stay.guestId), eq(guests.hotelId, stay.hotelId)))
       .limit(1);
 
     const [room] = await this.db
       .select()
       .from(rooms)
-      .where(eq(rooms.id, stay.roomId))
+      .where(and(eq(rooms.id, stay.roomId), eq(rooms.hotelId, stay.hotelId)))
       .limit(1);
 
     const [roomType] = await this.db
       .select()
       .from(roomTypes)
-      .where(eq(roomTypes.id, stay.roomTypeId))
+      .where(
+        and(
+          eq(roomTypes.id, stay.roomTypeId),
+          eq(roomTypes.hotelId, stay.hotelId),
+        ),
+      )
       .limit(1);
 
     const [invoice] = await this.db
@@ -990,7 +1244,7 @@ export class OperationsService {
   }
 
   async createBooking(userId: string, dto: CreateBookingDto) {
-    return this.db.transaction(async (tx) => {
+    const createdBooking = await this.db.transaction(async (tx) => {
       const user = await this.getCurrentUser(userId);
       const hotelId = user.hotelId;
       if (!hotelId) throw new BadRequestException('Hotel context not found');
@@ -1001,30 +1255,41 @@ export class OperationsService {
             await tx
               .select()
               .from(guests)
-              .where(eq(guests.id, dto.guestId))
+              .where(and(hotelFilter, eq(guests.id, dto.guestId)))
               .limit(1)
           )[0]
         : undefined;
 
-      if (!guestRecord) {
-        const [existingGuest] = await tx
+      if (!guestRecord && dto.phone) {
+        const [byPhone] = await tx
+          .select()
+          .from(guests)
+          .where(and(hotelFilter, eq(guests.phone, dto.phone)))
+          .limit(1);
+        guestRecord = byPhone;
+      }
+
+      if (!guestRecord && dto.email) {
+        const [byEmail] = await tx
+          .select()
+          .from(guests)
+          .where(and(hotelFilter, eq(guests.email, dto.email)))
+          .limit(1);
+        guestRecord = byEmail;
+      }
+
+      if (!guestRecord && dto.identificationNumber) {
+        const [byIdNumber] = await tx
           .select()
           .from(guests)
           .where(
             and(
               hotelFilter,
-              or(
-                eq(guests.phone, dto.phone),
-                dto.email ? eq(guests.email, dto.email) : sql`false`,
-                dto.identificationNumber
-                  ? eq(guests.identificationNumber, dto.identificationNumber)
-                  : sql`false`,
-              ),
+              eq(guests.identificationNumber, dto.identificationNumber),
             ),
           )
           .limit(1);
-
-        guestRecord = existingGuest;
+        guestRecord = byIdNumber;
       }
 
       if (!guestRecord) {
@@ -1131,6 +1396,38 @@ export class OperationsService {
       const outstanding = roundMoney(Math.max(0, totals.total - amountPaid));
       const stayStatus = dto.checkInNow ? 'checked_in' : 'reserved';
       const reference = formatReference('ST');
+
+      const checkInDate = dto.checkInNow
+        ? new Date()
+        : dto.expectedCheckInAt
+          ? new Date(dto.expectedCheckInAt)
+          : new Date();
+      const checkOutDate = new Date(
+        checkInDate.getTime() + dto.nights * 86400000,
+      );
+
+      const [overlapStay] = await tx
+        .select({ id: stays.id, reference: stays.reference })
+        .from(stays)
+        .where(
+          and(
+            eq(stays.hotelId, hotelId),
+            eq(stays.roomId, (roomRecord as { id: string }).id),
+            inArray(stays.status, [
+              'reserved',
+              'pending_arrival',
+              'checked_in',
+            ]),
+            sql`${stays.expectedCheckoutAt}::timestamptz > ${checkInDate}::timestamptz AND ${stays.expectedCheckInAt}::timestamptz < ${checkOutDate}::timestamptz`,
+          ),
+        )
+        .limit(1);
+
+      if (overlapStay) {
+        throw new ConflictException(
+          `Room ${roomRecord.number} is already reserved for the selected dates (stay ${overlapStay.reference}).`,
+        );
+      }
 
       const [createdStay] = await tx
         .insert(stays)
@@ -1288,6 +1585,11 @@ export class OperationsService {
         invoice: createdInvoice,
       };
     });
+
+    // Best-effort, non-blocking confirmation email after the commit.
+    void this.dispatchBookingConfirmation(userId, createdBooking.stay.id);
+
+    return createdBooking;
   }
 
   async updateBooking(userId: string, id: string, dto: UpdateBookingDto) {
@@ -1413,7 +1715,7 @@ export class OperationsService {
   }
 
   async cancelBooking(userId: string, id: string) {
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const user = await this.getCurrentUser(userId);
       const [stay] = await tx
         .select()
@@ -1487,6 +1789,11 @@ export class OperationsService {
         refundDue: amountPaid > 0 ? amountPaid : 0,
       };
     });
+
+    // Best-effort, non-blocking cancellation email after the commit.
+    void this.dispatchBookingCancellation(userId, result.stayId);
+
+    return result;
   }
 
   async transferRoom(userId: string, dto: TransferRoomDto) {
@@ -1495,7 +1802,9 @@ export class OperationsService {
       const [stay] = await tx
         .select()
         .from(stays)
-        .where(eq(stays.id, dto.stayId))
+        .where(
+          and(eq(stays.id, dto.stayId), eq(stays.hotelId, user.hotelId ?? '')),
+        )
         .limit(1);
       if (!stay) throw new NotFoundException('Stay not found');
       if (stay.status === 'checked_out' || stay.status === 'cancelled') {
@@ -1520,7 +1829,9 @@ export class OperationsService {
       const [currentRoom] = await tx
         .select()
         .from(rooms)
-        .where(eq(rooms.id, stay.roomId))
+        .where(
+          and(eq(rooms.id, stay.roomId), eq(rooms.hotelId, user.hotelId ?? '')),
+        )
         .limit(1);
 
       await tx
@@ -1575,15 +1886,46 @@ export class OperationsService {
       const [stay] = await tx
         .select()
         .from(stays)
-        .where(eq(stays.id, dto.stayId))
+        .where(
+          and(eq(stays.id, dto.stayId), eq(stays.hotelId, user.hotelId ?? '')),
+        )
         .limit(1);
 
       if (!stay) throw new NotFoundException('Stay not found');
 
+      if (!['reserved', 'pending_arrival'].includes(stay.status)) {
+        throw new ConflictException('Only reserved stays can be checked in');
+      }
+
+      const [otherActive] = await tx
+        .select({ id: stays.id })
+        .from(stays)
+        .where(
+          and(
+            eq(stays.hotelId, user.hotelId ?? ''),
+            eq(stays.roomId, stay.roomId),
+            inArray(stays.status, [
+              'reserved',
+              'pending_arrival',
+              'checked_in',
+            ]),
+            not(eq(stays.id, stay.id)),
+          ),
+        )
+        .limit(1);
+
+      if (otherActive) {
+        throw new ConflictException(
+          'Room already has an active stay and cannot be checked in',
+        );
+      }
+
       const [room] = await tx
         .select()
         .from(rooms)
-        .where(eq(rooms.id, stay.roomId))
+        .where(
+          and(eq(rooms.id, stay.roomId), eq(rooms.hotelId, user.hotelId ?? '')),
+        )
         .limit(1);
 
       if (!room) throw new NotFoundException('Room not found');
@@ -1632,12 +1974,14 @@ export class OperationsService {
   }
 
   async checkOut(userId: string, dto: CheckOutDto) {
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const user = await this.getCurrentUser(userId);
       const [stay] = await tx
         .select()
         .from(stays)
-        .where(eq(stays.id, dto.stayId))
+        .where(
+          and(eq(stays.id, dto.stayId), eq(stays.hotelId, user.hotelId ?? '')),
+        )
         .limit(1);
       if (!stay) throw new NotFoundException('Stay not found');
 
@@ -1689,21 +2033,35 @@ export class OperationsService {
         })
         .where(eq(stays.id, stay.id));
 
-      await tx
-        .update(rooms)
-        .set({
-          status: 'cleaning',
-          updatedAt: new Date(),
-        })
-        .where(eq(rooms.id, stay.roomId));
+      const housekeepingEnabled = await this.isHousekeepingEnabled(
+        stay.hotelId,
+      );
 
-      await tx.insert(housekeepingTasks).values({
-        hotelId: stay.hotelId,
-        roomId: stay.roomId,
-        stayId: stay.id,
-        status: 'cleaning',
-        note: `Turnaround task from checkout ${stay.reference}`,
-      });
+      if (housekeepingEnabled) {
+        await tx
+          .update(rooms)
+          .set({
+            status: 'cleaning',
+            updatedAt: new Date(),
+          })
+          .where(eq(rooms.id, stay.roomId));
+
+        await tx.insert(housekeepingTasks).values({
+          hotelId: stay.hotelId,
+          roomId: stay.roomId,
+          stayId: stay.id,
+          status: 'cleaning',
+          note: `Turnaround task from checkout ${stay.reference}`,
+        });
+      } else {
+        await tx
+          .update(rooms)
+          .set({
+            status: 'available',
+            updatedAt: new Date(),
+          })
+          .where(eq(rooms.id, stay.roomId));
+      }
 
       await tx
         .update(invoices)
@@ -1720,7 +2078,9 @@ export class OperationsService {
         user.id,
         user.fullName,
         'checkout completed',
-        `Stay ${stay.reference} checked out. Room sent to housekeeping.`,
+        housekeepingEnabled
+          ? `Stay ${stay.reference} checked out. Room sent to housekeeping.`
+          : `Stay ${stay.reference} checked out. Room released for availability.`,
         'stay',
         stay.id,
       );
@@ -1734,8 +2094,17 @@ export class OperationsService {
         stay.id,
       );
 
-      return { ok: true, outstanding: Math.max(0, outstanding) };
+      return {
+        ok: true,
+        outstanding: Math.max(0, outstanding),
+        invoiceId: invoice.id,
+      };
     });
+
+    // Best-effort, non-blocking checkout/receipt email after the commit.
+    void this.dispatchInvoiceReceipt(userId, result.invoiceId);
+
+    return result;
   }
 
   // ==========================================
@@ -1816,19 +2185,26 @@ export class OperationsService {
   }
 
   async recordPayment(userId: string, dto: CreatePaymentDto) {
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const user = await this.getCurrentUser(userId);
       const [stay] = await tx
         .select()
         .from(stays)
-        .where(eq(stays.id, dto.stayId))
+        .where(
+          and(eq(stays.id, dto.stayId), eq(stays.hotelId, user.hotelId ?? '')),
+        )
         .limit(1);
       if (!stay) throw new NotFoundException('Stay not found');
 
       const [invoice] = await tx
         .select()
         .from(invoices)
-        .where(eq(invoices.id, dto.invoiceId))
+        .where(
+          and(
+            eq(invoices.id, dto.invoiceId),
+            eq(invoices.hotelId, user.hotelId ?? ''),
+          ),
+        )
         .limit(1);
       if (!invoice) throw new NotFoundException('Invoice not found');
 
@@ -1892,6 +2268,11 @@ export class OperationsService {
 
       return payment;
     });
+
+    // Best-effort, non-blocking payment receipt email after the commit.
+    void this.dispatchInvoiceReceipt(userId, result.invoiceId);
+
+    return result;
   }
 
   async reversePayment(userId: string, id: string) {
@@ -1918,7 +2299,12 @@ export class OperationsService {
       const [invoice] = await tx
         .select()
         .from(invoices)
-        .where(eq(invoices.id, payment.invoiceId))
+        .where(
+          and(
+            eq(invoices.id, payment.invoiceId),
+            eq(invoices.hotelId, user.hotelId ?? ''),
+          ),
+        )
         .limit(1);
 
       if (invoice) {
@@ -1947,7 +2333,12 @@ export class OperationsService {
       const [stay] = await tx
         .select()
         .from(stays)
-        .where(eq(stays.id, payment.stayId))
+        .where(
+          and(
+            eq(stays.id, payment.stayId),
+            eq(stays.hotelId, user.hotelId ?? ''),
+          ),
+        )
         .limit(1);
       if (stay) {
         await tx
@@ -2106,14 +2497,22 @@ export class OperationsService {
       const [stay] = await tx
         .select()
         .from(stays)
-        .where(eq(stays.id, dto.stayId))
+        .where(
+          and(eq(stays.id, dto.stayId), eq(stays.hotelId, user.hotelId ?? '')),
+        )
         .limit(1);
       if (!stay) throw new NotFoundException('Stay not found');
 
       const [service] = await tx
         .select()
         .from(services)
-        .where(and(eq(services.id, dto.serviceId), eq(services.isActive, true)))
+        .where(
+          and(
+            eq(services.id, dto.serviceId),
+            eq(services.hotelId, user.hotelId ?? ''),
+            eq(services.isActive, true),
+          ),
+        )
         .limit(1);
 
       if (!service)
@@ -2197,9 +2596,7 @@ export class OperationsService {
   // ==========================================
   async listHousekeeping(userId?: string) {
     const hotelId = userId ? await this.getDefaultHotelId(userId) : null;
-    const filter = hotelId
-      ? eq(housekeepingTasks.hotelId, hotelId)
-      : sql`true`;
+    const filter = hotelId ? eq(housekeepingTasks.hotelId, hotelId) : sql`true`;
     const tasks = await this.db
       .select()
       .from(housekeepingTasks)
@@ -2238,7 +2635,9 @@ export class OperationsService {
     const [room] = await this.db
       .select()
       .from(rooms)
-      .where(eq(rooms.id, dto.roomId))
+      .where(
+        and(eq(rooms.id, dto.roomId), eq(rooms.hotelId, user.hotelId ?? '')),
+      )
       .limit(1);
 
     if (!room) throw new NotFoundException('Room not found');
@@ -2274,7 +2673,9 @@ export class OperationsService {
     const [room] = await this.db
       .select()
       .from(rooms)
-      .where(eq(rooms.id, dto.roomId))
+      .where(
+        and(eq(rooms.id, dto.roomId), eq(rooms.hotelId, user.hotelId ?? '')),
+      )
       .limit(1);
     if (!room) throw new NotFoundException('Room not found');
 
@@ -2433,7 +2834,11 @@ export class OperationsService {
       .select()
       .from(invitations)
       .where(
-        and(eq(invitations.hotelId, hotelId), isNull(invitations.acceptedAt)),
+        and(
+          eq(invitations.hotelId, hotelId),
+          eq(invitations.status, 'pending'),
+          isNull(invitations.acceptedAt),
+        ),
       );
 
     return {
@@ -2494,12 +2899,22 @@ export class OperationsService {
 
     // Send invitation email (if configured)
     try {
+      const { branding, sender, replyTo } =
+        await this.getHotelBranding(hotelId);
       const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
       const inviteUrl = `${frontend}/invite/${token}`;
-      const subject = `You're invited to join ${user.fullName || 'the hotel'}`;
-      const text = `You have been invited to join the hotel workspace as ${dto.role}. Visit ${inviteUrl} to accept the invitation.`;
-      const html = `<p>You have been invited to join the hotel workspace as <strong>${dto.role}</strong>.</p><p>Click <a href="${inviteUrl}">here</a> to accept the invitation. The link expires in 7 days.</p>`;
-      await this.mailService.sendMail(dto.email, subject, text, html);
+      await this.emailService.sendStaffInvitation(
+        dto.email,
+        {
+          inviteUrl,
+          role: dto.role,
+          inviterName: user.fullName,
+          expiresAt: invitation.expiresAt,
+        },
+        branding,
+        sender,
+        replyTo,
+      );
     } catch (err) {
       // Log but don't fail invite creation
       // writeActivity already recorded the invite
@@ -2512,110 +2927,124 @@ export class OperationsService {
     };
   }
 
-  async getInvoiceReceipt(userId: string, invoiceId: string) {
+  async revokeInvitation(userId: string, invitationId: string) {
     const user = await this.getCurrentUser(userId);
     const hotelId = user.hotelId;
-    if (!hotelId) throw new BadRequestException('Hotel context not found');
+    if (!hotelId) throw new BadRequestException('Hotel not found for user');
 
-    const [invoice] = await this.db
+    const [invitation] = await this.db
       .select()
-      .from(invoices)
-      .where(and(eq(invoices.hotelId, hotelId), eq(invoices.id, invoiceId)))
+      .from(invitations)
+      .where(
+        and(eq(invitations.hotelId, hotelId), eq(invitations.id, invitationId)),
+      )
       .limit(1);
 
-    if (!invoice) throw new NotFoundException('Invoice not found');
+    if (!invitation) throw new NotFoundException('Invitation not found');
 
-    const items = await this.db
+    if (invitation.status !== 'pending' || invitation.acceptedAt) {
+      throw new BadRequestException('Only pending invitations can be revoked');
+    }
+
+    const [revoked] = await this.db
+      .update(invitations)
+      .set({ status: 'revoked', updatedAt: new Date() })
+      .where(eq(invitations.id, invitation.id))
+      .returning();
+
+    await this.writeActivity(
+      hotelId,
+      user.id,
+      user.fullName,
+      'invitation revoked',
+      `Invitation for ${invitation.email} (${invitation.role}) was withdrawn. The invite link no longer works.`,
+      'invitation',
+      invitation.id,
+    );
+
+    return { ok: true, invitation: revoked };
+  }
+
+  async resendInvitation(userId: string, invitationId: string) {
+    const user = await this.getCurrentUser(userId);
+    const hotelId = user.hotelId;
+    if (!hotelId) throw new BadRequestException('Hotel not found for user');
+
+    const [invitation] = await this.db
       .select()
-      .from(invoiceItems)
-      .where(eq(invoiceItems.invoiceId, invoice.id));
+      .from(invitations)
+      .where(
+        and(eq(invitations.hotelId, hotelId), eq(invitations.id, invitationId)),
+      )
+      .limit(1);
 
-    // Basic HTML receipt
-    const subtotal = Number(invoice.subtotal ?? 0);
-    const discount = Number(invoice.discount ?? 0);
-    const taxes = Number(invoice.taxes ?? 0);
-    const total = Number(invoice.total ?? 0);
-    const amountPaid = Number(invoice.amountPaid ?? 0);
-    const outstanding = Number(invoice.outstanding ?? 0);
+    if (!invitation) throw new NotFoundException('Invitation not found');
 
-    const html = `
-      <html>
-      <head><meta charset="utf-8"><title>Receipt ${invoice.reference}</title></head>
-      <body style="font-family: Arial, sans-serif; color:#111; line-height:1.5; max-width:700px; margin:0 auto; padding:24px;">
-        <div style="border:1px solid #e5e7eb; border-radius:12px; padding:24px;">
-          <h2 style="margin:0 0 8px; font-size:28px;">Receipt: ${invoice.reference}</h2>
-          <p style="margin:0 0 20px; color:#4b5563;">Issued: ${invoice.issuedAt ?? invoice.createdAt}</p>
+    if (invitation.status !== 'pending' || invitation.acceptedAt) {
+      throw new BadRequestException('Only pending invitations can be resent');
+    }
 
-          <table style="width:100%; border-collapse:collapse; margin-bottom:20px;">
-            <tbody>
-              <tr>
-                <td style="padding:8px 0; color:#4b5563;">Subtotal</td>
-                <td style="padding:8px 0; text-align:right;">$${subtotal.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px 0; color:#4b5563;">Discount</td>
-                <td style="padding:8px 0; text-align:right; color:#16a34a;">- $${discount.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px 0; color:#4b5563;">Taxes</td>
-                <td style="padding:8px 0; text-align:right;">$${taxes.toFixed(2)}</td>
-              </tr>
-              <tr style="border-top:1px solid #e5e7eb;">
-                <td style="padding:12px 0 8px; font-weight:700;">Total</td>
-                <td style="padding:12px 0 8px; text-align:right; font-weight:700;">$${total.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px 0; color:#4b5563;">Amount Paid</td>
-                <td style="padding:8px 0; text-align:right;">$${amountPaid.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px 0; color:#4b5563;">Outstanding</td>
-                <td style="padding:8px 0; text-align:right; color:${outstanding > 0 ? '#dc2626' : '#16a34a'}; font-weight:600;">$${outstanding.toFixed(2)}</td>
-              </tr>
-            </tbody>
-          </table>
+    const token = crypto.randomBytes(24).toString('hex');
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
 
-          <hr style="border:none; border-top:1px solid #e5e7eb; margin:20px 0;" />
-          <h4 style="margin:0 0 12px;">Items</h4>
-          <ul style="margin:0; padding-left:18px;">
-            ${items.map((it: any) => `<li style="margin-bottom:6px;">${it.description} — $${Number(it.total ?? 0).toFixed(2)}</li>`).join('') || '<li>No itemized charges.</li>'}
-          </ul>
-        </div>
-      </body>
-      </html>
-    `;
+    const [updated] = await this.db
+      .update(invitations)
+      .set({ token, expiresAt, updatedAt: new Date() })
+      .where(eq(invitations.id, invitation.id))
+      .returning();
 
-    return { html };
+    try {
+      const { branding, sender, replyTo } =
+        await this.getHotelBranding(hotelId);
+      const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const inviteUrl = `${frontend}/invite/${token}`;
+      await this.emailService.sendStaffInvitation(
+        invitation.email,
+        {
+          inviteUrl,
+          role: invitation.role,
+          inviterName: user.fullName,
+          expiresAt,
+        },
+        branding,
+        sender,
+        replyTo,
+      );
+    } catch (err) {
+      // Log but don't fail resend
+    }
+
+    await this.writeActivity(
+      hotelId,
+      user.id,
+      user.fullName,
+      'invitation resent',
+      `Invitation for ${invitation.email} (${invitation.role}) was resent with a new link.`,
+      'invitation',
+      invitation.id,
+    );
+
+    return {
+      ok: true,
+      invitation: updated,
+      inviteUrl: `/invite/${token}`,
+    };
+  }
+
+  async getInvoiceReceipt(userId: string, invoiceId: string) {
+    const context = await this.receiptsService.getReceiptContext(
+      userId,
+      invoiceId,
+    );
+    return { html: this.receiptsService.renderReceipt(context).html };
   }
 
   async getInvoiceReceiptPdf(userId: string, invoiceId: string) {
-    const user = await this.getCurrentUser(userId);
-    const hotelId = user.hotelId;
-    if (!hotelId) throw new BadRequestException('Hotel context not found');
-
-    const [invoice] = await this.db
-      .select()
-      .from(invoices)
-      .where(and(eq(invoices.hotelId, hotelId), eq(invoices.id, invoiceId)))
-      .limit(1);
-
-    if (!invoice) throw new NotFoundException('Invoice not found');
-
-    const receipt = await this.getInvoiceReceipt(userId, invoiceId);
-
-    // render PDF via puppeteer
-    const browser = await puppeteer.launch({
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    try {
-      const page = await browser.newPage();
-      await page.setContent(receipt.html, { waitUntil: 'networkidle0' });
-      const pdf = await page.pdf({ format: 'A4', printBackground: true });
-      const filename = `receipt-${invoice.reference || invoice.id}.pdf`;
-      return { pdf, filename };
-    } finally {
-      await browser.close();
-    }
+    const context = await this.receiptsService.getReceiptContext(
+      userId,
+      invoiceId,
+    );
+    return this.receiptsService.getReceiptPdf(context);
   }
 
   async sendInvoiceReceipt(userId: string, invoiceId: string, to?: string) {
@@ -2624,67 +3053,89 @@ export class OperationsService {
     if (!hotelId) throw new BadRequestException('Hotel context not found');
 
     const [invoice] = await this.db
-      .select()
+      .select({ id: invoices.id, reference: invoices.reference })
       .from(invoices)
       .where(and(eq(invoices.hotelId, hotelId), eq(invoices.id, invoiceId)))
       .limit(1);
-
     if (!invoice) throw new NotFoundException('Invoice not found');
 
-    const receipt = await this.getInvoiceReceipt(userId, invoiceId);
+    const delivery = await this.deliverInvoiceReceipt(userId, invoiceId, to);
 
-    const recipient =
-      to || invoice.guestId ? String(invoice.guestId) : undefined;
-    // guest email lookup
-    let guestEmail: string | undefined = undefined;
-    if (!to) {
-      const [guest] = await this.db
-        .select()
-        .from(guests)
-        .where(eq(guests.id, invoice.guestId))
-        .limit(1);
-      guestEmail = guest?.email ?? undefined;
+    if (delivery.result.ok && !delivery.result.skipped) {
+      await this.db
+        .update(invoices)
+        .set({ receiptEmailSentAt: new Date() })
+        .where(eq(invoices.id, invoiceId));
     }
-
-    const finalTo = to || guestEmail;
-    if (!finalTo) throw new BadRequestException('Recipient email not found');
-
-    const subject = `Receipt ${invoice.reference}`;
-    const text = `Your receipt for ${invoice.reference}. Total: ${invoice.total}`;
-
-    // attempt to generate PDF and attach when possible
-    let attachment;
-    try {
-      const pdfResult = await this.getInvoiceReceiptPdf(userId, invoiceId);
-      attachment = {
-        filename: pdfResult.filename,
-        content: pdfResult.pdf,
-        contentType: 'application/pdf',
-      };
-    } catch (err) {
-      // PDF generation failed — continue with HTML-only mail
-      attachment = undefined;
-    }
-
-    const result = await this.mailService.sendMail(
-      finalTo,
-      subject,
-      text,
-      receipt.html,
-      attachment ? [attachment] : undefined,
-    );
 
     await this.writeActivity(
       hotelId,
       user.id,
       user.fullName,
       'receipt sent',
-      `Receipt ${invoice.reference} sent to ${finalTo}.`,
+      delivery.result.skipped
+        ? `Receipt ${invoice.reference} queued for ${delivery.to} (SMTP not configured).`
+        : delivery.result.ok
+          ? `Receipt ${invoice.reference} sent to ${delivery.to}.`
+          : `Receipt ${invoice.reference} failed to send to ${delivery.to}.`,
       'invoice',
       invoice.id,
     );
 
-    return { ok: result.ok, info: result };
+    return {
+      ok: delivery.result.ok,
+      skipped: delivery.result.skipped,
+      info: delivery.result,
+      to: delivery.to,
+    };
+  }
+
+  /** Manually re-send the reservation confirmation email for a stay. */
+  async sendReservationConfirmation(userId: string, stayId: string) {
+    const user = await this.getCurrentUser(userId);
+    const hotelId = user.hotelId;
+    if (!hotelId) throw new BadRequestException('Hotel context not found');
+
+    const ctx = await this.loadStayEmailContext(userId, stayId);
+    if (!ctx.guest?.email) {
+      throw new BadRequestException('Guest has no email address on file.');
+    }
+
+    const result = await this.emailService.sendBookingConfirmation(
+      ctx.guest.email,
+      this.buildReservationEmailData(ctx),
+      ctx.branding,
+      ctx.sender,
+      ctx.replyTo,
+    );
+
+    if (result.ok && !result.skipped) {
+      await this.db
+        .update(stays)
+        .set({ confirmationEmailSentAt: new Date() })
+        .where(eq(stays.id, stayId));
+    }
+
+    await this.writeActivity(
+      hotelId,
+      user.id,
+      user.fullName,
+      'confirmation sent',
+      result.skipped
+        ? `Reservation ${ctx.stay.reference} confirmation queued for ${ctx.guest.email} (SMTP not configured).`
+        : result.ok
+          ? `Reservation ${ctx.stay.reference} confirmation sent to ${ctx.guest.email}.`
+          : `Reservation ${ctx.stay.reference} confirmation failed to send to ${ctx.guest.email}.`,
+      'stay',
+      stayId,
+    );
+
+    return {
+      ok: result.ok,
+      skipped: result.skipped,
+      info: result,
+      to: ctx.guest.email,
+    };
   }
 
   async updateStaff(userId: string, id: string, dto: UpdateStaffDto) {
@@ -2820,6 +3271,14 @@ export class OperationsService {
       updateFields.notificationPrefs = dto.notificationPrefs;
     if (dto.systemPrefs !== undefined)
       updateFields.systemPrefs = dto.systemPrefs;
+    if (dto.emailFrom !== undefined)
+      updateFields.emailFrom = dto.emailFrom || null;
+    if (dto.emailFromName !== undefined)
+      updateFields.emailFromName = dto.emailFromName || null;
+    if (dto.primaryColor !== undefined)
+      updateFields.primaryColor = dto.primaryColor || '#1900ff';
+    if (dto.accentColor !== undefined)
+      updateFields.accentColor = dto.accentColor || '#0ea5e9';
 
     const [updated] = await this.db
       .update(hotelSettings)
@@ -2851,6 +3310,54 @@ export class OperationsService {
     );
 
     return updated;
+  }
+
+  /** Send a test email using the platform SMTP with the hotel's branding. */
+  async testEmailSend(userId: string, to?: string) {
+    const user = await this.getCurrentUser(userId);
+    const hotelId = user.hotelId;
+    if (!hotelId) throw new BadRequestException('Hotel context not found');
+
+    const { settings, branding, sender, replyTo } =
+      await this.getHotelBranding(hotelId);
+    const recipient = to?.trim() || settings?.email?.trim() || user.email;
+    if (!recipient) {
+      throw new BadRequestException(
+        'No test recipient. Provide an email or set the hotel email first.',
+      );
+    }
+
+    if (!this.emailConfig.enabled) {
+      return {
+        ok: true,
+        skipped: true,
+        to: recipient,
+        info: 'Email provider is not configured (BREVO_API_KEY). The email will be sent once the API key is set.',
+      };
+    }
+
+    const hotelName = branding.hotelName || 'Your Hotel';
+    const primaryColor = branding.primaryColor || '#1900ff';
+    const safeName = String(hotelName)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;');
+
+    const result = await this.emailService.send({
+      to: recipient,
+      subject: `Test email from ${hotelName}`,
+      text: `This is a test email from ${hotelName}. If you received this, your email settings are working.`,
+      html: `<div style="font-family:sans-serif;background:#f4f4f5;padding:24px"><div style="max-width:480px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e4e4e7"><div style="background:${primaryColor};padding:20px 24px;color:#fff;font-weight:700">${safeName}</div><div style="padding:24px;color:#18181b"><p style="margin:0 0 12px">This is a <strong>test email</strong> from <strong>${safeName}</strong>.</p><p style="margin:0">If you received this, your email settings are working correctly.</p></div></div></div>`,
+      sender,
+      replyTo: replyTo || undefined,
+    });
+
+    return {
+      ok: result.ok,
+      skipped: result.skipped,
+      error: result.error ?? null,
+      info: result,
+      to: recipient,
+    };
   }
 
   // ==========================================
@@ -2914,7 +3421,7 @@ export class OperationsService {
       ['maintenance', 'out_of_service'].includes(r.status),
     ).length;
     const occupancyRate =
-      totalRooms > 0 ? (occupiedRooms / totalRooms) * 100 : 0;
+      totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 1000) / 10 : 0;
 
     const filteredPayments = allPayments.filter(
       (p) => new Date(p.createdAt) >= startDate,
@@ -2973,14 +3480,16 @@ export class OperationsService {
       );
       const dayOccupancy =
         totalRooms > 0
-          ? Math.min(100, (dayStays.length / totalRooms) * 100)
+          ? Math.round(
+              Math.min(100, (dayStays.length / totalRooms) * 100) * 10,
+            ) / 10
           : 0;
 
       return {
         date: iso,
         label: d.toLocaleDateString('en-US', { weekday: 'short' }),
         revenue: dayRevenue,
-        occupancy: dayOccupancy || Math.round(occupancyRate),
+        occupancy: dayOccupancy || occupancyRate,
       };
     });
 
@@ -3001,7 +3510,7 @@ export class OperationsService {
         occupiedRooms,
         availableRooms,
         maintenanceRooms,
-        occupancyRate: roundMoney(occupancyRate),
+        occupancyRate: Math.round(occupancyRate * 10) / 10,
       },
       revenue: {
         totalRevenue: roundMoney(totalRevenue),

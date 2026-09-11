@@ -115,7 +115,6 @@ export class AuthController {
   }
 }
 
-
 @Controller('invitations')
 export class InvitationsController {
   constructor(private readonly authService: AuthService) {}

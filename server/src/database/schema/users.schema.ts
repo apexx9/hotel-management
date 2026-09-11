@@ -34,9 +34,7 @@ export const users = pgTable('users', {
     .notNull()
     .default('staff'),
 
-  isVerified: boolean('is_verified')
-    .notNull()
-    .default(false),
+  isVerified: boolean('is_verified').notNull().default(false),
 
   createdAt: timestamp('created_at', {
     withTimezone: true,

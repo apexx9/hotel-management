@@ -44,11 +44,33 @@ const StaffService = () => {
     }
   }
 
+  async function revokeInvitation(id: string): Promise<any> {
+    try {
+      const response = await operationsApi.revokeInvitation(id);
+      return response.data;
+    } catch (error) {
+      console.error("Failed to revoke invitation:", getErrorMessage(error, "Failed to revoke invitation"));
+      throw error;
+    }
+  }
+
+  async function resendInvitation(id: string): Promise<any> {
+    try {
+      const response = await operationsApi.resendInvitation(id);
+      return response.data;
+    } catch (error) {
+      console.error("Failed to resend invitation:", getErrorMessage(error, "Failed to resend invitation"));
+      throw error;
+    }
+  }
+
   return {
     getStaff,
     getStaffMember,
     inviteStaff,
     updateStaff,
+    revokeInvitation,
+    resendInvitation,
   };
 };
 

@@ -202,6 +202,10 @@ export const settingsSchema = z.object({
   serviceConfig: z.string().optional().nullable(),
   notificationPrefs: z.string().optional().nullable(),
   systemPrefs: z.string().optional().nullable(),
+  emailFrom: z.string().email().optional().nullable(),
+  emailFromName: z.string().optional().nullable(),
+  primaryColor: z.string().optional().nullable(),
+  accentColor: z.string().optional().nullable(),
 });
 
 export const updateSettingsSchema = settingsSchema.partial();
@@ -221,7 +225,7 @@ export const resourceIdQuerySchema = z.object({
 });
 
 export const reportsSummaryQuerySchema = z.object({
-  range: z.string().optional(),
+  range: z.enum(["today", "7d", "30d", "90d", "custom"]).optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
 });

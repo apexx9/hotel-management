@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { AlertCircle, BedDouble, Users, Wallet, Info, FilterX, Layers, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 export default function RoomGridPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -27,25 +28,29 @@ export default function RoomGridPage() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
+  const fetchData = async (silent = false) => {
+    try {
+      if (!silent) setLoading(true);
+      const [roomsData, typesData] = await Promise.all([
+        RoomsService().getRooms(),
+        RoomsService().getRoomTypes(),
+      ]);
+      setRooms(roomsData);
+      setRoomTypes(typesData);
+      setError(null);
+    } catch (err) {
+      console.error("Failed to fetch room grid data:", err);
+      if (!silent) setError("Could not load room grid. Please try again.");
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [roomsData, typesData] = await Promise.all([
-          RoomsService().getRooms(),
-          RoomsService().getRoomTypes(),
-        ]);
-        setRooms(roomsData);
-        setRoomTypes(typesData);
-      } catch (err) {
-        console.error("Failed to fetch room grid data:", err);
-        setError("Could not load room grid. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
+
+  useRealtimeRefresh(() => fetchData(true));
 
   if (loading) {
     return <PageLoading showHeader showPills showGrid />;

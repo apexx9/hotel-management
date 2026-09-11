@@ -59,39 +59,30 @@ export const invoiceStatusEnum = pgEnum('invoice_status', [
   'cancelled',
 ]);
 
-export const serviceChargeStatusEnum = pgEnum(
-  'service_charge_status',
-  [
-    'open',
-    'posted',
-    'voided',
-  ],
-);
+export const serviceChargeStatusEnum = pgEnum('service_charge_status', [
+  'open',
+  'posted',
+  'voided',
+]);
 
-export const housekeepingStatusEnum = pgEnum(
-  'housekeeping_status',
-  [
-    'cleaning',
-    'inspection',
-    'ready',
-    'maintenance',
-  ],
-);
+export const housekeepingStatusEnum = pgEnum('housekeeping_status', [
+  'cleaning',
+  'inspection',
+  'ready',
+  'maintenance',
+]);
 
-export const notificationTypeEnum = pgEnum(
-  'notification_type',
-  [
-    'checkout_completed',
-    'checkout_overdue',
-    'payment_outstanding',
-    'room_ready',
-    'room_unavailable',
-    'maintenance_issue',
-    'new_booking',
-    'guest_arrival',
-    'service_charge_added',
-  ],
-);
+export const notificationTypeEnum = pgEnum('notification_type', [
+  'checkout_completed',
+  'checkout_overdue',
+  'payment_outstanding',
+  'room_ready',
+  'room_unavailable',
+  'maintenance_issue',
+  'new_booking',
+  'guest_arrival',
+  'service_charge_added',
+]);
 
 /* =========================================================
    ROOM TYPES
@@ -100,9 +91,7 @@ export const notificationTypeEnum = pgEnum(
 export const roomTypes = pgTable(
   'room_types',
   {
-    id: uuid('id')
-      .primaryKey()
-      .defaultRandom(),
+    id: uuid('id').primaryKey().defaultRandom(),
 
     hotelId: uuid('hotel_id')
       .notNull()
@@ -122,22 +111,15 @@ export const roomTypes = pgTable(
       scale: 2,
     }).notNull(),
 
-    capacity: integer('capacity')
-      .notNull()
-      .default(2),
+    capacity: integer('capacity').notNull().default(2),
 
-    bedConfiguration: varchar(
-      'bed_configuration',
-      {
-        length: 100,
-      },
-    ),
+    bedConfiguration: varchar('bed_configuration', {
+      length: 100,
+    }),
 
     amenities: text('amenities'),
 
-    isActive: boolean('is_active')
-      .notNull()
-      .default(true),
+    isActive: boolean('is_active').notNull().default(true),
 
     createdAt: timestamp('created_at', {
       withTimezone: true,
@@ -152,9 +134,7 @@ export const roomTypes = pgTable(
       .notNull(),
   },
   (table) => ({
-    hotelNameUnique: uniqueIndex(
-      'room_types_hotel_name_unique',
-    ).on(
+    hotelNameUnique: uniqueIndex('room_types_hotel_name_unique').on(
       table.hotelId,
       table.name,
     ),
@@ -168,9 +148,7 @@ export const roomTypes = pgTable(
 export const rooms = pgTable(
   'rooms',
   {
-    id: uuid('id')
-      .primaryKey()
-      .defaultRandom(),
+    id: uuid('id').primaryKey().defaultRandom(),
 
     hotelId: uuid('hotel_id')
       .notNull()
@@ -194,9 +172,9 @@ export const rooms = pgTable(
         onUpdate: 'cascade',
       }),
 
-    status: roomStatusEnum('status')
-      .notNull()
-      .default('available'),
+    status: roomStatusEnum('status').notNull().default('available'),
+
+    isActive: boolean('is_active').notNull().default(true),
 
     rate: numeric('rate', {
       precision: 12,
@@ -205,9 +183,7 @@ export const rooms = pgTable(
       .notNull()
       .default('0'),
 
-    capacity: integer('capacity')
-      .notNull()
-      .default(2),
+    capacity: integer('capacity').notNull().default(2),
 
     createdAt: timestamp('created_at', {
       withTimezone: true,
@@ -222,9 +198,7 @@ export const rooms = pgTable(
       .notNull(),
   },
   (table) => ({
-    hotelRoomNumberUnique: uniqueIndex(
-      'rooms_hotel_number_unique',
-    ).on(
+    hotelRoomNumberUnique: uniqueIndex('rooms_hotel_number_unique').on(
       table.hotelId,
       table.number,
     ),
@@ -235,75 +209,71 @@ export const rooms = pgTable(
    GUESTS
 ========================================================= */
 
-export const guests = pgTable('guests', {
-  id: uuid('id')
-    .primaryKey()
-    .defaultRandom(),
+export const guests = pgTable(
+  'guests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
 
-  hotelId: uuid('hotel_id')
-    .notNull()
-    .references(() => hotels.id, {
-      onDelete: 'cascade',
-      onUpdate: 'cascade',
+    hotelId: uuid('hotel_id')
+      .notNull()
+      .references(() => hotels.id, {
+        onDelete: 'cascade',
+        onUpdate: 'cascade',
+      }),
+
+    firstName: varchar('first_name', {
+      length: 120,
+    }).notNull(),
+
+    lastName: varchar('last_name', {
+      length: 120,
+    }).notNull(),
+
+    phone: varchar('phone', {
+      length: 32,
+    }).notNull(),
+
+    email: varchar('email', {
+      length: 255,
     }),
 
-  firstName: varchar('first_name', {
-    length: 120,
-  }).notNull(),
-
-  lastName: varchar('last_name', {
-    length: 120,
-  }).notNull(),
-
-  phone: varchar('phone', {
-    length: 32,
-  }).notNull(),
-
-  email: varchar('email', {
-    length: 255,
-  }),
-
-  nationality: varchar('nationality', {
-    length: 120,
-  }),
-
-  identificationType: varchar(
-    'identification_type',
-    {
-      length: 80,
-    },
-  ),
-
-  identificationNumber: varchar(
-    'identification_number',
-    {
+    nationality: varchar('nationality', {
       length: 120,
-    },
-  ),
+    }),
 
-  address: text('address'),
+    identificationType: varchar('identification_type', {
+      length: 80,
+    }),
 
-  emergencyContact: varchar(
-    'emergency_contact',
-    {
+    identificationNumber: varchar('identification_number', {
+      length: 120,
+    }),
+
+    address: text('address'),
+
+    emergencyContact: varchar('emergency_contact', {
       length: 32,
-    },
-  ),
+    }),
 
-  notes: text('notes'),
+    notes: text('notes'),
 
-  createdAt: timestamp('created_at', {
-    withTimezone: true,
-  })
-    .defaultNow()
-    .notNull(),
+    createdAt: timestamp('created_at', {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
 
-  updatedAt: timestamp('updated_at', {
-    withTimezone: true,
-  })
-    .defaultNow()
-    .notNull(),
-});
+    updatedAt: timestamp('updated_at', {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('guests_hotel_phone_unique').on(table.hotelId, table.phone),
+    uniqueIndex('guests_hotel_email_unique').on(table.hotelId, table.email),
+  ],
+);
 
 /* =========================================================
    STAYS / BOOKINGS
@@ -312,9 +282,7 @@ export const guests = pgTable('guests', {
 export const stays = pgTable(
   'stays',
   {
-    id: uuid('id')
-      .primaryKey()
-      .defaultRandom(),
+    id: uuid('id').primaryKey().defaultRandom(),
 
     hotelId: uuid('hotel_id')
       .notNull()
@@ -348,42 +316,27 @@ export const stays = pgTable(
         onUpdate: 'cascade',
       }),
 
-    status: stayStatusEnum('status')
-      .notNull()
-      .default('reserved'),
+    status: stayStatusEnum('status').notNull().default('reserved'),
 
-    expectedCheckInAt: timestamp(
-      'expected_check_in_at',
-      {
-        withTimezone: true,
-      },
-    ).notNull(),
+    expectedCheckInAt: timestamp('expected_check_in_at', {
+      withTimezone: true,
+    }).notNull(),
 
     checkInAt: timestamp('check_in_at', {
       withTimezone: true,
     }),
 
-    expectedCheckoutAt: timestamp(
-      'expected_checkout_at',
-      {
-        withTimezone: true,
-      },
-    ).notNull(),
+    expectedCheckoutAt: timestamp('expected_checkout_at', {
+      withTimezone: true,
+    }).notNull(),
 
-    actualCheckoutAt: timestamp(
-      'actual_checkout_at',
-      {
-        withTimezone: true,
-      },
-    ),
+    actualCheckoutAt: timestamp('actual_checkout_at', {
+      withTimezone: true,
+    }),
 
-    guestsCount: integer('guests_count')
-      .notNull()
-      .default(1),
+    guestsCount: integer('guests_count').notNull().default(1),
 
-    nights: integer('nights')
-      .notNull()
-      .default(1),
+    nights: integer('nights').notNull().default(1),
 
     rate: numeric('rate', {
       precision: 12,
@@ -427,25 +380,18 @@ export const stays = pgTable(
       .notNull()
       .default('0'),
 
-    outstandingBalance: numeric(
-      'outstanding_balance',
-      {
-        precision: 12,
-        scale: 2,
-      },
-    )
+    outstandingBalance: numeric('outstanding_balance', {
+      precision: 12,
+      scale: 2,
+    })
       .notNull()
       .default('0'),
 
-    specialRequests: text(
-      'special_requests',
-    ),
+    specialRequests: text('special_requests'),
 
     notes: text('notes'),
 
-    createdByUserId: uuid(
-      'created_by_user_id',
-    ).references(() => users.id, {
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, {
       onDelete: 'set null',
       onUpdate: 'cascade',
     }),
@@ -461,11 +407,13 @@ export const stays = pgTable(
     })
       .defaultNow()
       .notNull(),
+
+    confirmationEmailSentAt: timestamp('confirmation_email_sent_at', {
+      withTimezone: true,
+    }),
   },
   (table) => ({
-    hotelReferenceUnique: uniqueIndex(
-      'stays_hotel_reference_unique',
-    ).on(
+    hotelReferenceUnique: uniqueIndex('stays_hotel_reference_unique').on(
       table.hotelId,
       table.reference,
     ),
@@ -479,9 +427,7 @@ export const stays = pgTable(
 export const invoices = pgTable(
   'invoices',
   {
-    id: uuid('id')
-      .primaryKey()
-      .defaultRandom(),
+    id: uuid('id').primaryKey().defaultRandom(),
 
     hotelId: uuid('hotel_id')
       .notNull()
@@ -515,9 +461,7 @@ export const invoices = pgTable(
         onUpdate: 'cascade',
       }),
 
-    status: invoiceStatusEnum('status')
-      .notNull()
-      .default('draft'),
+    status: invoiceStatusEnum('status').notNull().default('draft'),
 
     subtotal: numeric('subtotal', {
       precision: 12,
@@ -576,11 +520,13 @@ export const invoices = pgTable(
     })
       .defaultNow()
       .notNull(),
+
+    receiptEmailSentAt: timestamp('receipt_email_sent_at', {
+      withTimezone: true,
+    }),
   },
   (table) => ({
-    hotelReferenceUnique: uniqueIndex(
-      'invoices_hotel_reference_unique',
-    ).on(
+    hotelReferenceUnique: uniqueIndex('invoices_hotel_reference_unique').on(
       table.hotelId,
       table.reference,
     ),
@@ -591,178 +537,149 @@ export const invoices = pgTable(
    INVOICE ITEMS
 ========================================================= */
 
-export const invoiceItems = pgTable(
-  'invoice_items',
-  {
-    id: uuid('id')
-      .primaryKey()
-      .defaultRandom(),
+export const invoiceItems = pgTable('invoice_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
 
-    invoiceId: uuid('invoice_id')
-      .notNull()
-      .references(() => invoices.id, {
-        onDelete: 'cascade',
-        onUpdate: 'cascade',
-      }),
+  invoiceId: uuid('invoice_id')
+    .notNull()
+    .references(() => invoices.id, {
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    }),
 
-    description: text('description')
-      .notNull(),
+  description: text('description').notNull(),
 
-    quantity: integer('quantity')
-      .notNull()
-      .default(1),
+  quantity: integer('quantity').notNull().default(1),
 
-    unitPrice: numeric('unit_price', {
-      precision: 12,
-      scale: 2,
-    })
-      .notNull()
-      .default('0'),
+  unitPrice: numeric('unit_price', {
+    precision: 12,
+    scale: 2,
+  })
+    .notNull()
+    .default('0'),
 
-    total: numeric('total', {
-      precision: 12,
-      scale: 2,
-    })
-      .notNull()
-      .default('0'),
+  total: numeric('total', {
+    precision: 12,
+    scale: 2,
+  })
+    .notNull()
+    .default('0'),
 
-    itemType: varchar('item_type', {
-      length: 64,
-    }).notNull(),
+  itemType: varchar('item_type', {
+    length: 64,
+  }).notNull(),
 
-    createdAt: timestamp('created_at', {
-      withTimezone: true,
-    })
-      .defaultNow()
-      .notNull(),
-  },
-);
+  createdAt: timestamp('created_at', {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
+});
 
 /* =========================================================
    SERVICES
 ========================================================= */
 
-export const services = pgTable(
-  'services',
-  {
-    id: uuid('id')
-      .primaryKey()
-      .defaultRandom(),
+export const services = pgTable('services', {
+  id: uuid('id').primaryKey().defaultRandom(),
 
-    hotelId: uuid('hotel_id')
-      .notNull()
-      .references(() => hotels.id, {
-        onDelete: 'cascade',
-        onUpdate: 'cascade',
-      }),
+  hotelId: uuid('hotel_id')
+    .notNull()
+    .references(() => hotels.id, {
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    }),
 
-    name: varchar('name', {
-      length: 120,
-    }).notNull(),
+  name: varchar('name', {
+    length: 120,
+  }).notNull(),
 
-    category: varchar('category', {
-      length: 120,
-    }).notNull(),
+  category: varchar('category', {
+    length: 120,
+  }).notNull(),
 
-    price: numeric('price', {
-      precision: 12,
-      scale: 2,
-    }).notNull(),
+  price: numeric('price', {
+    precision: 12,
+    scale: 2,
+  }).notNull(),
 
-    description: text('description'),
+  description: text('description'),
 
-    isActive: boolean('is_active')
-      .notNull()
-      .default(true),
+  isActive: boolean('is_active').notNull().default(true),
 
-    createdAt: timestamp('created_at', {
-      withTimezone: true,
-    })
-      .defaultNow()
-      .notNull(),
+  createdAt: timestamp('created_at', {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
 
-    updatedAt: timestamp('updated_at', {
-      withTimezone: true,
-    })
-      .defaultNow()
-      .notNull(),
-  },
-);
+  updatedAt: timestamp('updated_at', {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
+});
 
 /* =========================================================
    SERVICE CHARGES
 ========================================================= */
 
-export const serviceCharges = pgTable(
-  'service_charges',
-  {
-    id: uuid('id')
-      .primaryKey()
-      .defaultRandom(),
+export const serviceCharges = pgTable('service_charges', {
+  id: uuid('id').primaryKey().defaultRandom(),
 
-    hotelId: uuid('hotel_id')
-      .notNull()
-      .references(() => hotels.id, {
-        onDelete: 'cascade',
-        onUpdate: 'cascade',
-      }),
+  hotelId: uuid('hotel_id')
+    .notNull()
+    .references(() => hotels.id, {
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    }),
 
-    guestId: uuid('guest_id')
-      .notNull()
-      .references(() => guests.id, {
-        onDelete: 'restrict',
-        onUpdate: 'cascade',
-      }),
+  guestId: uuid('guest_id')
+    .notNull()
+    .references(() => guests.id, {
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    }),
 
-    stayId: uuid('stay_id')
-      .notNull()
-      .references(() => stays.id, {
-        onDelete: 'restrict',
-        onUpdate: 'cascade',
-      }),
+  stayId: uuid('stay_id')
+    .notNull()
+    .references(() => stays.id, {
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    }),
 
-    serviceId: uuid('service_id')
-      .notNull()
-      .references(() => services.id, {
-        onDelete: 'restrict',
-        onUpdate: 'cascade',
-      }),
+  serviceId: uuid('service_id')
+    .notNull()
+    .references(() => services.id, {
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    }),
 
-    quantity: integer('quantity')
-      .notNull()
-      .default(1),
+  quantity: integer('quantity').notNull().default(1),
 
-    unitPrice: numeric('unit_price', {
-      precision: 12,
-      scale: 2,
-    }).notNull(),
+  unitPrice: numeric('unit_price', {
+    precision: 12,
+    scale: 2,
+  }).notNull(),
 
-    total: numeric('total', {
-      precision: 12,
-      scale: 2,
-    }).notNull(),
+  total: numeric('total', {
+    precision: 12,
+    scale: 2,
+  }).notNull(),
 
-    staffId: uuid('staff_id').references(
-      () => users.id,
-      {
-        onDelete: 'set null',
-        onUpdate: 'cascade',
-      },
-    ),
+  staffId: uuid('staff_id').references(() => users.id, {
+    onDelete: 'set null',
+    onUpdate: 'cascade',
+  }),
 
-    status: serviceChargeStatusEnum(
-      'status',
-    )
-      .notNull()
-      .default('open'),
+  status: serviceChargeStatusEnum('status').notNull().default('open'),
 
-    createdAt: timestamp('created_at', {
-      withTimezone: true,
-    })
-      .defaultNow()
-      .notNull(),
-  },
-);
+  createdAt: timestamp('created_at', {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
+});
 
 /* =========================================================
    PAYMENTS
@@ -771,9 +688,7 @@ export const serviceCharges = pgTable(
 export const payments = pgTable(
   'payments',
   {
-    id: uuid('id')
-      .primaryKey()
-      .defaultRandom(),
+    id: uuid('id').primaryKey().defaultRandom(),
 
     hotelId: uuid('hotel_id')
       .notNull()
@@ -807,25 +722,19 @@ export const payments = pgTable(
         onUpdate: 'cascade',
       }),
 
-    staffId: uuid('staff_id').references(
-      () => users.id,
-      {
-        onDelete: 'set null',
-        onUpdate: 'cascade',
-      },
-    ),
+    staffId: uuid('staff_id').references(() => users.id, {
+      onDelete: 'set null',
+      onUpdate: 'cascade',
+    }),
 
-    method: paymentMethodEnum('method')
-      .notNull(),
+    method: paymentMethodEnum('method').notNull(),
 
     amount: numeric('amount', {
       precision: 12,
       scale: 2,
     }).notNull(),
 
-    status: paymentStatusEnum('status')
-      .notNull()
-      .default('paid'),
+    status: paymentStatusEnum('status').notNull().default('paid'),
 
     notes: text('notes'),
 
@@ -836,9 +745,7 @@ export const payments = pgTable(
       .notNull(),
   },
   (table) => ({
-    hotelReferenceUnique: uniqueIndex(
-      'payments_hotel_reference_unique',
-    ).on(
+    hotelReferenceUnique: uniqueIndex('payments_hotel_reference_unique').on(
       table.hotelId,
       table.reference,
     ),
@@ -849,179 +756,137 @@ export const payments = pgTable(
    HOUSEKEEPING TASKS
 ========================================================= */
 
-export const housekeepingTasks = pgTable(
-  'housekeeping_tasks',
-  {
-    id: uuid('id')
-      .primaryKey()
-      .defaultRandom(),
+export const housekeepingTasks = pgTable('housekeeping_tasks', {
+  id: uuid('id').primaryKey().defaultRandom(),
 
-    hotelId: uuid('hotel_id')
-      .notNull()
-      .references(() => hotels.id, {
-        onDelete: 'cascade',
-        onUpdate: 'cascade',
-      }),
-
-    roomId: uuid('room_id')
-      .notNull()
-      .references(() => rooms.id, {
-        onDelete: 'restrict',
-        onUpdate: 'cascade',
-      }),
-
-    stayId: uuid('stay_id').references(
-      () => stays.id,
-      {
-        onDelete: 'set null',
-        onUpdate: 'cascade',
-      },
-    ),
-
-    status: housekeepingStatusEnum(
-      'status',
-    )
-      .notNull()
-      .default('cleaning'),
-
-    assignedToUserId: uuid(
-      'assigned_to_user_id',
-    ).references(() => users.id, {
-      onDelete: 'set null',
+  hotelId: uuid('hotel_id')
+    .notNull()
+    .references(() => hotels.id, {
+      onDelete: 'cascade',
       onUpdate: 'cascade',
     }),
 
-    note: text('note'),
-
-    dueAt: timestamp('due_at', {
-      withTimezone: true,
+  roomId: uuid('room_id')
+    .notNull()
+    .references(() => rooms.id, {
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
     }),
 
-    completedAt: timestamp('completed_at', {
-      withTimezone: true,
-    }),
+  stayId: uuid('stay_id').references(() => stays.id, {
+    onDelete: 'set null',
+    onUpdate: 'cascade',
+  }),
 
-    createdAt: timestamp('created_at', {
-      withTimezone: true,
-    })
-      .defaultNow()
-      .notNull(),
+  status: housekeepingStatusEnum('status').notNull().default('cleaning'),
 
-    updatedAt: timestamp('updated_at', {
-      withTimezone: true,
-    })
-      .defaultNow()
-      .notNull(),
-  },
-);
+  assignedToUserId: uuid('assigned_to_user_id').references(() => users.id, {
+    onDelete: 'set null',
+    onUpdate: 'cascade',
+  }),
+
+  note: text('note'),
+
+  dueAt: timestamp('due_at', {
+    withTimezone: true,
+  }),
+
+  completedAt: timestamp('completed_at', {
+    withTimezone: true,
+  }),
+
+  createdAt: timestamp('created_at', {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
+
+  updatedAt: timestamp('updated_at', {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
+});
 
 /* =========================================================
    ACTIVITY LOGS
 ========================================================= */
 
-export const activityLogs = pgTable(
-  'activity_logs',
-  {
-    id: uuid('id')
-      .primaryKey()
-      .defaultRandom(),
+export const activityLogs = pgTable('activity_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
 
-    hotelId: uuid('hotel_id')
-      .notNull()
-      .references(() => hotels.id, {
-        onDelete: 'cascade',
-        onUpdate: 'cascade',
-      }),
-
-    actorUserId: uuid(
-      'actor_user_id',
-    ).references(() => users.id, {
-      onDelete: 'set null',
+  hotelId: uuid('hotel_id')
+    .notNull()
+    .references(() => hotels.id, {
+      onDelete: 'cascade',
       onUpdate: 'cascade',
     }),
 
-    actorName: varchar('actor_name', {
-      length: 255,
-    }),
+  actorUserId: uuid('actor_user_id').references(() => users.id, {
+    onDelete: 'set null',
+    onUpdate: 'cascade',
+  }),
 
-    event: varchar('event', {
-      length: 255,
-    }).notNull(),
+  actorName: varchar('actor_name', {
+    length: 255,
+  }),
 
-    description: text('description'),
+  event: varchar('event', {
+    length: 255,
+  }).notNull(),
 
-    referenceType: varchar(
-      'reference_type',
-      {
-        length: 64,
-      },
-    ),
+  description: text('description'),
 
-    referenceId: varchar(
-      'reference_id',
-      {
-        length: 64,
-      },
-    ),
+  referenceType: varchar('reference_type', {
+    length: 64,
+  }),
 
-    createdAt: timestamp('created_at', {
-      withTimezone: true,
-    })
-      .defaultNow()
-      .notNull(),
-  },
-);
+  referenceId: varchar('reference_id', {
+    length: 64,
+  }),
+
+  createdAt: timestamp('created_at', {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
+});
 
 /* =========================================================
    NOTIFICATIONS
 ========================================================= */
 
-export const notifications = pgTable(
-  'notifications',
-  {
-    id: uuid('id')
-      .primaryKey()
-      .defaultRandom(),
+export const notifications = pgTable('notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
 
-    hotelId: uuid('hotel_id')
-      .notNull()
-      .references(() => hotels.id, {
-        onDelete: 'cascade',
-        onUpdate: 'cascade',
-      }),
+  hotelId: uuid('hotel_id')
+    .notNull()
+    .references(() => hotels.id, {
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    }),
 
-    type: notificationTypeEnum('type')
-      .notNull(),
+  type: notificationTypeEnum('type').notNull(),
 
-    title: varchar('title', {
-      length: 255,
-    }).notNull(),
+  title: varchar('title', {
+    length: 255,
+  }).notNull(),
 
-    message: text('message')
-      .notNull(),
+  message: text('message').notNull(),
 
-    referenceType: varchar(
-      'reference_type',
-      {
-        length: 64,
-      },
-    ),
+  referenceType: varchar('reference_type', {
+    length: 64,
+  }),
 
-    referenceId: varchar(
-      'reference_id',
-      {
-        length: 64,
-      },
-    ),
+  referenceId: varchar('reference_id', {
+    length: 64,
+  }),
 
-    isRead: boolean('is_read')
-      .notNull()
-      .default(false),
+  isRead: boolean('is_read').notNull().default(false),
 
-    createdAt: timestamp('created_at', {
-      withTimezone: true,
-    })
-      .defaultNow()
-      .notNull(),
-  },
-);
+  createdAt: timestamp('created_at', {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
+});

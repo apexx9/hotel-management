@@ -70,6 +70,19 @@ const BookingsService = () => {
     return response.data;
   };
 
+  const sendConfirmation = async (id: string) => {
+    try {
+      const response = await operationsApi.sendReservationConfirmation(id);
+      return response.data;
+    } catch (error) {
+      console.error(
+        "Failed to send reservation confirmation:",
+        getErrorMessage(error, "Failed to send confirmation"),
+      );
+      throw error;
+    }
+  };
+
   const transferRoom = async (stayId: string, roomId: string) => {
     const response = await operationsApi.transferRoom(stayId, { roomId });
     return response.data;
@@ -99,6 +112,7 @@ const BookingsService = () => {
     createBooking,
     updateBooking,
     cancelBooking,
+    sendConfirmation,
     transferRoom,
     checkIn,
     checkOut,

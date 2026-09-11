@@ -36,9 +36,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertCircle, Search, FileText, Eye } from "lucide-react";
+import {
+  AlertCircle,
+  Search,
+  FileText,
+  Eye,
+  Printer,
+  Mail,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 
 export default function InvoicesPage() {
@@ -50,23 +59,27 @@ export default function InvoicesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  const [sendingReceipt, setSendingReceipt] = useState(false);
 
-  const fetchInvoices = async () => {
+  const fetchInvoices = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await InvoicesService().getInvoices();
       setInvoices(data);
+      setError(null);
     } catch (err) {
       console.error("Failed to fetch invoices:", err);
-      setError("Could not load invoices. Please try again.");
+      if (!silent) setError("Could not load invoices. Please try again.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchInvoices();
   }, []);
+
+  useRealtimeRefresh(() => fetchInvoices(true));
 
   const filteredInvoices = invoices.filter((inv) => {
     const q = searchQuery.toLowerCase();
@@ -87,6 +100,68 @@ export default function InvoicesPage() {
       setInvoiceItems([]);
     } finally {
       setLoadingItems(false);
+    }
+  };
+
+  const openReceiptPreview = async (afterPrint = false) => {
+    const invoice = selectedInvoice;
+    if (!invoice || sendingReceipt) return;
+    try {
+      const html = await InvoicesService().getInvoiceReceipt(invoice.id);
+      const win = window.open("", "_blank");
+      if (!win) {
+        toast.error("Unable to open preview window");
+        return;
+      }
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      if (afterPrint) {
+        win.addEventListener(
+          "load",
+          () => {
+            win.print();
+          },
+          { once: true },
+        );
+        setTimeout(() => win.print(), 600);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load receipt preview");
+    }
+  };
+
+  const handleSendReceipt = async () => {
+    const invoice = selectedInvoice;
+    if (!invoice || sendingReceipt) return;
+    setSendingReceipt(true);
+    try {
+      const result = await InvoicesService().sendInvoiceReceipt(invoice.id);
+      if (result?.ok) {
+        if (result?.skipped) {
+          toast.info(
+            result.info ??
+              "Email delivery is not configured — receipt was not sent",
+          );
+        } else {
+          toast.success(
+            result.to
+              ? `Receipt sent to ${result.to}`
+              : "Receipt emailed successfully",
+          );
+        }
+      } else {
+        toast.error(result?.info ?? "Failed to send receipt");
+      }
+      fetchInvoices(true);
+    } catch (err) {
+      console.error("Failed to send receipt:", err);
+      toast.error(
+        "Failed to send receipt. Please check email settings and try again.",
+      );
+    } finally {
+      setSendingReceipt(false);
     }
   };
 
@@ -313,56 +388,49 @@ export default function InvoicesPage() {
                 <div className="flex gap-2 mt-4">
                   <Button
                     variant="outline"
-                    onClick={async () => {
-                      if (!selectedInvoice) return;
-                      try {
-                        const html = await InvoicesService().getInvoiceReceipt(
-                          selectedInvoice.id,
-                        );
-                        const win = window.open("", "_blank");
-                        if (win) {
-                          win.document.open();
-                          win.document.write(html);
-                          win.document.close();
-                        } else {
-                          toast.error("Unable to open preview window");
-                        }
-                      } catch (err) {
-                        console.error(err);
-                        toast.error("Failed to load receipt preview");
-                      }
-                    }}
+                    onClick={() => openReceiptPreview(false)}
                   >
                     <Eye className="mr-2 h-4 w-4" />
-                    Preview Receipt
+                    Preview
                   </Button>
                   <Button
-                    onClick={async () => {
-                      if (!selectedInvoice) return;
-                      try {
-                        await InvoicesService().sendInvoiceReceipt(
-                          selectedInvoice.id,
-                        );
-                        toast.success("Receipt sent");
-                      } catch (err) {
-                        console.error(err);
-                        toast.error("Failed to send receipt");
-                      }
-                    }}
+                    variant="outline"
+                    onClick={() => openReceiptPreview(true)}
+                    disabled={sendingReceipt}
                   >
-                    Send Receipt
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     onClick={() => {
                       if (!selectedInvoice) return;
                       const url = `/api/invoices/${selectedInvoice.id}/receipt.pdf`;
                       window.open(url, "_blank");
                     }}
                   >
+                    <FileText className="mr-2 h-4 w-4" />
                     Download PDF
                   </Button>
+                  <Button
+                    onClick={handleSendReceipt}
+                    disabled={sendingReceipt}
+                    className="ml-auto"
+                  >
+                    {sendingReceipt ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Mail className="mr-2 h-4 w-4" />
+                    )}
+                    {sendingReceipt ? "Sending…" : "Email Receipt"}
+                  </Button>
                 </div>
+                {selectedInvoice.receiptEmailSentAt && (
+                  <p className="text-xs text-muted-foreground">
+                    Receipt last emailed on{" "}
+                    {formatDateTime(selectedInvoice.receiptEmailSentAt)}
+                  </p>
+                )}
               </div>
             </div>
           )}

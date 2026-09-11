@@ -26,6 +26,8 @@ import {
   CreditCard,
   FileText,
   ShieldCheck,
+  Mail,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,6 +36,8 @@ export default function HotelSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [testRecipient, setTestRecipient] = useState("");
 
   // Form state (all fields)
   const [form, setForm] = useState<{
@@ -58,6 +62,11 @@ export default function HotelSettingsPage() {
     serviceConfig: string;
     notificationPrefs: string;
     systemPrefs: string;
+    logoUrl: string;
+    emailFrom: string;
+    emailFromName: string;
+    primaryColor: string;
+    accentColor: string;
   }>({
     name: "",
     email: "",
@@ -80,6 +89,11 @@ export default function HotelSettingsPage() {
     serviceConfig: "",
     notificationPrefs: "",
     systemPrefs: "",
+    logoUrl: "",
+    emailFrom: "",
+    emailFromName: "",
+    primaryColor: "#1900ff",
+    accentColor: "#0ea5e9",
   });
 
   useEffect(() => {
@@ -110,6 +124,11 @@ export default function HotelSettingsPage() {
           serviceConfig: data.serviceConfig || "",
           notificationPrefs: data.notificationPrefs || "",
           systemPrefs: data.systemPrefs || "",
+          logoUrl: data.logoUrl || "",
+          emailFrom: data.emailFrom || "",
+          emailFromName: data.emailFromName || "",
+          primaryColor: data.primaryColor || "#1900ff",
+          accentColor: data.accentColor || "#0ea5e9",
         });
       } catch (err) {
         console.error("Failed to fetch settings:", err);
@@ -157,6 +176,11 @@ export default function HotelSettingsPage() {
         serviceConfig: form.serviceConfig || null,
         notificationPrefs: form.notificationPrefs || null,
         systemPrefs: form.systemPrefs || null,
+        logoUrl: form.logoUrl.trim() || null,
+        emailFrom: form.emailFrom.trim() || null,
+        emailFromName: form.emailFromName.trim() || null,
+        primaryColor: form.primaryColor || null,
+        accentColor: form.accentColor || null,
       });
       toast.success("Settings updated successfully");
     } catch (err) {
@@ -164,6 +188,41 @@ export default function HotelSettingsPage() {
       toast.error("Failed to update settings");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    setTestingEmail(true);
+    try {
+      const result = await SettingsService().testEmail(
+        testRecipient.trim() || undefined,
+      );
+      if (result?.ok) {
+        if (result.skipped) {
+          toast.info(
+            result.info ||
+              "Email delivery is not configured — the platform SMTP server is not set up.",
+          );
+        } else {
+          toast.success(
+            result.to
+              ? `Test email sent to ${result.to}`
+              : "Test email sent successfully",
+          );
+        }
+      } else {
+        toast.error(
+          result?.error ||
+            "Failed to send test email. Please try again.",
+        );
+      }
+    } catch (err) {
+      console.error("Failed to send test email:", err);
+      toast.error(
+        "Failed to send test email. Please try again.",
+      );
+    } finally {
+      setTestingEmail(false);
     }
   };
 
@@ -477,6 +536,169 @@ export default function HotelSettingsPage() {
                 }
               />
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ─── EMAIL & BRANDING ─────────────────────────────────────── */}
+      <Card className="rounded-3xl border border-border/50 bg-card shadow-sm overflow-hidden">
+        <CardHeader className="border-b border-border/40 pb-4 bg-muted/10">
+          <CardTitle className="text-base font-bold flex items-center gap-2">
+            <Mail className="h-5 w-5 text-primary" />
+            Email & Branding
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6 space-y-6">
+          <p className="text-sm text-muted-foreground">
+            Emails (booking confirmations, receipts, staff invitations) are sent
+            from the platform&apos;s verified sending domain, shown with your{" "}
+            <span className="font-medium text-foreground">
+              Sender Name
+            </span>{" "}
+            (defaults to your company name). Set the{" "}
+            <span className="font-medium text-foreground">Reply-To Email</span>{" "}
+            guests should write back to, plus the logo and colors used in your
+            emails and receipts. Providers are managed on the platform — no
+            SMTP setup needed.
+          </p>
+
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Sender Name
+              </Label>
+              <Input
+                placeholder="My Hotel"
+                className="h-11 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/20"
+                value={form.emailFromName}
+                onChange={(e) =>
+                  setForm({ ...form, emailFromName: e.target.value })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Displayed as the sender before the platform address, e.g.{" "}
+                <span className="font-mono">
+                  &quot;My Hotel&quot; &lt;notifications@yourplatform.com&gt;
+                </span>{" "}
+                Defaults to your company name.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Reply-To Email
+              </Label>
+              <Input
+                type="email"
+                placeholder="hello@yourhotel.com"
+                className="h-11 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/20"
+                value={form.emailFrom}
+                onChange={(e) =>
+                  setForm({ ...form, emailFrom: e.target.value })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Where guest replies land. Falls back to your contact email.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Logo URL
+            </Label>
+            <Input
+              type="url"
+              placeholder="https://yourhotel.com/logo.png"
+              className="h-11 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/20"
+              value={form.logoUrl}
+              onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown at the top of receipts and in the email header. Use a
+              hosted URL (PNG or SVG).
+            </p>
+            {form.logoUrl.trim() ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={form.logoUrl.trim()}
+                alt="Logo preview"
+                className="mt-2 h-12 w-auto max-w-[240px] object-contain border border-border/40 rounded-lg p-2 bg-muted/20"
+              />
+            ) : null}
+          </div>
+
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Primary Color
+              </Label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={form.primaryColor}
+                  onChange={(e) =>
+                    setForm({ ...form, primaryColor: e.target.value })
+                  }
+                  className="h-10 w-14 cursor-pointer rounded-lg border border-border/50 bg-muted/30 p-1"
+                />
+                <span className="text-sm font-mono text-muted-foreground">
+                  {form.primaryColor}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Header banner, buttons, and accents in emails and receipts.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Accent Color
+              </Label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={form.accentColor}
+                  onChange={(e) =>
+                    setForm({ ...form, accentColor: e.target.value })
+                  }
+                  className="h-10 w-14 cursor-pointer rounded-lg border border-border/50 bg-muted/30 p-1"
+                />
+                <span className="text-sm font-mono text-muted-foreground">
+                  {form.accentColor}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Secondary highlight color (divider lines, subtle accents).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-2xl bg-muted/20 border border-border/40 p-4 sm:flex-row sm:items-end">
+            <div className="space-y-2 flex-1">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Test Recipient
+              </Label>
+              <Input
+                type="email"
+                placeholder={
+                  settings.email || "Leave empty to use the hotel email"
+                }
+                className="h-10 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/20"
+                value={testRecipient}
+                onChange={(e) => setTestRecipient(e.target.value)}
+              />
+            </div>
+            <div className="text-xs text-muted-foreground pb-2">
+              Save changes first, then send a test email.
+            </div>
+            <Button
+              variant="outline"
+              onClick={handleTestEmail}
+              disabled={testingEmail}
+              className="h-10 rounded-full"
+            >
+              <Send className="mr-2 h-4 w-4" />
+              {testingEmail ? "Sending…" : "Send Test Email"}
+            </Button>
           </div>
         </CardContent>
       </Card>

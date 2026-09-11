@@ -5,16 +5,58 @@ import * as crypto from 'crypto';
 import { and, eq } from 'drizzle-orm';
 import type { Database } from '../database/database.types';
 import { InjectDatabase } from '../database/database.decorator';
-import { hotels, users, invitations, authTokens, refreshTokens } from '../database/schema';
-import { MailService } from './mail.service';
+import {
+  hotels,
+  users,
+  invitations,
+  authTokens,
+  refreshTokens,
+  hotelSettings,
+} from '../database/schema';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectDatabase() private readonly db: Database,
     private readonly jwtService: JwtService,
-    private readonly mailService: MailService,
+    private readonly emailService: EmailService,
   ) {}
+
+  /**
+   * Resolve hotel branding + sender override for account emails.
+   * Falls back to global (environment) defaults when the account has
+   * no hotel or hotel_settings row.
+   */
+  private async resolveAccountEmailContext(user: { hotelId?: string | null }) {
+    if (!user.hotelId)
+      return { branding: {}, sender: undefined as any, replyTo: undefined };
+
+    const [settings] = await this.db
+      .select()
+      .from(hotelSettings)
+      .where(eq(hotelSettings.hotelId, user.hotelId))
+      .limit(1);
+
+    if (!settings)
+      return { branding: {}, sender: undefined as any, replyTo: undefined };
+
+    return {
+      branding: {
+        hotelName: settings.name ?? null,
+        hotelAddress: settings.address ?? null,
+        hotelPhone: settings.phone ?? null,
+        hotelEmail: settings.email ?? null,
+        logoUrl: settings.logoUrl ?? null,
+        primaryColor: settings.primaryColor ?? null,
+        accentColor: settings.accentColor ?? null,
+      },
+      sender: {
+        name: settings.emailFromName ?? settings.name ?? null,
+      },
+      replyTo: settings.emailFrom ?? settings.email ?? null,
+    };
+  }
 
   /** Hash a token before storing it in the database. */
   private hashToken(token: string): string {
@@ -22,7 +64,11 @@ export class AuthService {
   }
 
   /** Generate a JWT access token. */
-  private signAccessToken(user: { id: string; role: string; hotelId: string | null }): string {
+  private signAccessToken(user: {
+    id: string;
+    role: string;
+    hotelId: string | null;
+  }): string {
     return this.jwtService.sign({
       sub: user.id,
       role: user.role,
@@ -47,7 +93,10 @@ export class AuthService {
       .limit(1);
 
     if (existing.length > 0) {
-      return { ok: false, message: 'An account with this email already exists.' };
+      return {
+        ok: false,
+        message: 'An account with this email already exists.',
+      };
     }
 
     const result = await this.db.transaction(async (tx) => {
@@ -56,7 +105,9 @@ export class AuthService {
         .insert(hotels)
         .values({
           name: String(hotel.name).trim(),
-          email: hotel.email ? String(hotel.email).trim().toLowerCase() : undefined,
+          email: hotel.email
+            ? String(hotel.email).trim().toLowerCase()
+            : undefined,
           phone: hotel.phone ? String(hotel.phone).trim() : undefined,
           address: hotel.address ? String(hotel.address).trim() : undefined,
         })
@@ -93,10 +144,9 @@ export class AuthService {
     });
 
     // Send verification email after transaction succeeds
-    await this.mailService.sendMail(
+    await this.emailService.sendVerification(
       normalizedEmail,
-      'Verify your Hotel account',
-      `Your verification code is: ${result.verificationToken}`,
+      result.verificationToken,
     );
 
     return {
@@ -194,8 +244,14 @@ export class AuthService {
     }
 
     // Respect email verification requirement when enabled
-    if (!account.isVerified && process.env.REQUIRE_EMAIL_VERIFICATION === 'true') {
-      return { ok: false, message: 'Please verify your account before signing in.' };
+    if (
+      !account.isVerified &&
+      process.env.REQUIRE_EMAIL_VERIFICATION === 'true'
+    ) {
+      return {
+        ok: false,
+        message: 'Please verify your account before signing in.',
+      };
     }
 
     const accessToken = this.signAccessToken(account);
@@ -232,10 +288,17 @@ export class AuthService {
       return { ok: false, message: 'Invitation is invalid or expired.' };
     }
 
+    const [hotel] = await this.db
+      .select({ name: hotels.name })
+      .from(hotels)
+      .where(eq(hotels.id, invitation.hotelId))
+      .limit(1);
+
     return {
       ok: true,
       invitation: {
         hotelId: invitation.hotelId,
+        hotelName: hotel?.name || null,
         email: invitation.email,
         role: invitation.role,
         expiresAt: invitation.expiresAt,
@@ -352,12 +415,21 @@ export class AuthService {
       return { ok: true };
     }
 
-    const token = await this.createTokenForUser(user.id, 'verify', 24 * 60 * 60 * 1000);
+    const token = await this.createTokenForUser(
+      user.id,
+      'verify',
+      24 * 60 * 60 * 1000,
+    );
 
-    await this.mailService.sendMail(
+    const { branding, sender, replyTo } =
+      await this.resolveAccountEmailContext(user);
+
+    await this.emailService.sendVerification(
       user.email,
-      'Verify your account',
-      `Your verification code is: ${token}`,
+      token,
+      branding,
+      sender,
+      replyTo,
     );
 
     return { ok: true, token };
@@ -415,12 +487,21 @@ export class AuthService {
       return { ok: true };
     }
 
-    const token = await this.createTokenForUser(account.id, 'password_reset', 20 * 60 * 1000);
+    const token = await this.createTokenForUser(
+      account.id,
+      'password_reset',
+      20 * 60 * 1000,
+    );
 
-    await this.mailService.sendMail(
+    const { branding, sender, replyTo } =
+      await this.resolveAccountEmailContext(account);
+
+    await this.emailService.sendPasswordReset(
       account.email,
-      'Reset your password',
-      `Your password reset code is: ${token}`,
+      token,
+      branding,
+      sender,
+      replyTo,
     );
 
     return { ok: true, token };
@@ -429,13 +510,18 @@ export class AuthService {
   /** Reset a user's password. */
   async resetPassword(token: string, newPassword: string) {
     if (!newPassword || newPassword.length < 8) {
-      return { ok: false, message: 'Password must be at least 8 characters long.' };
+      return {
+        ok: false,
+        message: 'Password must be at least 8 characters long.',
+      };
     }
 
     const [authToken] = await this.db
       .select()
       .from(authTokens)
-      .where(and(eq(authTokens.token, token), eq(authTokens.type, 'password_reset')))
+      .where(
+        and(eq(authTokens.token, token), eq(authTokens.type, 'password_reset')),
+      )
       .limit(1);
 
     if (!authToken || authToken.used || authToken.expiresAt < new Date()) {

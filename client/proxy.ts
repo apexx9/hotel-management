@@ -48,6 +48,8 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$|.*\\.well-known.*).*)',
+    // Exclude API routes (proxied to the backend through next.config rewrites,
+    // where auth is enforced), static assets and well-known files.
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$|.*\\.well-known.*).*)',
   ],
 };

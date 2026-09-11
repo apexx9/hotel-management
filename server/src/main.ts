@@ -4,10 +4,16 @@ dotenv.config();
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import { AppModule } from './app.module';
+import { HttpExceptionFilter } from './common/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Compress JSON/text responses (gzip). Most dashboard/list endpoints return
+  // large payloads and were previously sent uncompressed.
+  app.use(compression());
 
   const allowedOrigins = (
     process.env.CLIENT_ORIGIN ?? 'http://localhost:3000,http://localhost:3002'
@@ -32,6 +38,7 @@ async function bootstrap() {
 
   app.use(cookieParser());
   app.setGlobalPrefix('api');
+  app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

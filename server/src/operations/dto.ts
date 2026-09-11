@@ -631,6 +631,22 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsString()
   systemPrefs?: string;
+
+  @IsOptional()
+  @IsString()
+  emailFrom?: string;
+
+  @IsOptional()
+  @IsString()
+  emailFromName?: string;
+
+  @IsOptional()
+  @IsString()
+  primaryColor?: string;
+
+  @IsOptional()
+  @IsString()
+  accentColor?: string;
 }
 
 export class QueryReportsDto {

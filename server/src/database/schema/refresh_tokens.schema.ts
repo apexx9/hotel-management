@@ -26,9 +26,7 @@ export const refreshTokens = pgTable('refresh_tokens', {
     withTimezone: true,
   }).notNull(),
 
-  revoked: boolean('revoked')
-    .notNull()
-    .default(false),
+  revoked: boolean('revoked').notNull().default(false),
 
   createdAt: timestamp('created_at', {
     withTimezone: true,

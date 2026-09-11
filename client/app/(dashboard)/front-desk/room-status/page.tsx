@@ -15,9 +15,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertCircle, BedDouble, Users, Wallet, Info } from "lucide-react";
+import { AlertCircle, BedDouble, Check, Users, Wallet, Info } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
+
+const MANUAL_STATUSES = Object.keys(roomStatusColors).filter(
+  (s) => s !== "occupied" && s !== "reserved",
+);
 
 
 export default function RoomStatusPage() {
@@ -27,26 +33,29 @@ export default function RoomStatusPage() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const fetchRooms = async () => {
+  const fetchRooms = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [data, types] = await Promise.all([
         RoomsService().getRooms(),
         RoomsService().getRoomTypes(),
       ]);
       setRooms(data);
       setRoomTypes(Object.fromEntries(types.map((t) => [t.id, t.name])));
+      setError(null);
     } catch (err) {
       console.error("Failed to fetch rooms:", err);
-      setError("Could not load rooms. Please try again.");
+      if (!silent) setError("Could not load rooms. Please try again.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchRooms();
   }, []);
+
+  useRealtimeRefresh(() => fetchRooms(true));
 
   const handleStatusChange = async (roomId: string, newStatus: Room["status"]) => {
     setUpdatingId(roomId);
@@ -57,6 +66,20 @@ export default function RoomStatusPage() {
     } catch (err) {
       console.error("Failed to update room status:", err);
       toast.error("Failed to update room status");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleMarkAvailable = async (roomId: string) => {
+    setUpdatingId(roomId);
+    try {
+      await RoomsService().markAvailable(roomId);
+      toast.success("Room marked available");
+      await fetchRooms(); // refresh
+    } catch (err) {
+      console.error("Failed to mark room available:", err);
+      toast.error("Failed to mark room available");
     } finally {
       setUpdatingId(null);
     }
@@ -158,7 +181,7 @@ export default function RoomStatusPage() {
                         <SelectValue placeholder="Change status" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl">
-                        {Object.keys(roomStatusColors).map((status) => (
+                        {MANUAL_STATUSES.map((status) => (
                           <SelectItem key={status} value={status} className="capitalize">
                             {status.replace(/_/g, " ")}
                           </SelectItem>
@@ -166,6 +189,19 @@ export default function RoomStatusPage() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {room.status !== "available" && room.status !== "occupied" && room.status !== "reserved" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full rounded-xl"
+                      onClick={() => handleMarkAvailable(room.id)}
+                      disabled={updatingId === room.id}
+                    >
+                      <Check className="h-4 w-4 mr-1.5" />
+                      Mark available
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             );

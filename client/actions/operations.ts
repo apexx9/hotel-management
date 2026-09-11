@@ -102,6 +102,7 @@ export type DashboardStaySummary = {
   total: string | number;
   amountPaid: string | number;
   outstandingBalance: string | number;
+  confirmationEmailSentAt?: string | null;
   specialRequests?: string | null;
   notes?: string | null;
   createdAt: string | Date;
@@ -195,6 +196,10 @@ export type HotelSettingsResponse = {
   serviceConfig: string | null;
   notificationPrefs: string | null;
   systemPrefs: string | null;
+  emailFrom?: string | null;
+  emailFromName?: string | null;
+  primaryColor?: string | null;
+  accentColor?: string | null;
   createdAt: string | Date;
   updatedAt: string | Date;
 };
@@ -213,12 +218,16 @@ const operationsApi = {
   getRoom: (id: string) => instance.get(`/rooms/${id}`),
   createRoom: (data: z.infer<typeof createRoomSchema>) =>
     instance.post("/rooms", data),
+  createRoomsBulk: (data: {
+    rooms: Array<z.infer<typeof createRoomSchema>>;
+  }) => instance.post("/rooms/bulk", data),
   updateRoom: (id: string, data: z.infer<typeof updateRoomSchema>) =>
     instance.patch(`/rooms/${id}`, data),
   updateRoomStatus: (
     id: string,
     data: z.infer<typeof updateRoomStatusSchema>,
   ) => instance.patch(`/rooms/${id}/status`, data),
+  markRoomAvailable: (id: string) => instance.post(`/rooms/${id}/mark-available`),
   deleteRoom: (id: string) => instance.delete(`/rooms/${id}`),
 
   // Room Types
@@ -255,6 +264,13 @@ const operationsApi = {
     instance.post<{ ok: boolean; stayId: string; refundDue: number }>(
       `/bookings/${id}/cancel`,
     ),
+  sendReservationConfirmation: (id: string) =>
+    instance.post<{
+      ok: boolean;
+      skipped?: boolean;
+      info?: string | null;
+      to?: string | null;
+    }>(`/bookings/${id}/send-confirmation`),
   transferRoom: (stayId: string, data: z.infer<typeof transferRoomSchema>) =>
     instance.patch(`/stays/${stayId}/room`, data),
   checkIn: (data: z.infer<typeof checkInSchema>) =>
@@ -319,11 +335,23 @@ const operationsApi = {
     instance.post("/staff/invite", data),
   updateStaff: (id: string, data: z.infer<typeof updateStaffSchema>) =>
     instance.patch(`/staff/${id}`, data),
+  revokeInvitation: (id: string) =>
+    instance.delete(`/staff/invitations/${id}`),
+  resendInvitation: (id: string) =>
+    instance.post(`/staff/invitations/${id}/resend`),
 
   // Settings
   getSettings: () => instance.get<HotelSettingsResponse>("/settings"),
   updateSettings: (data: z.infer<typeof updateSettingsSchema>) =>
     instance.patch<HotelSettingsResponse>("/settings", data),
+  testEmailSend: (data?: { to?: string }) =>
+    instance.post<{
+      ok: boolean;
+      skipped?: boolean;
+      error?: string | null;
+      info?: string | null;
+      to?: string;
+    }>("/settings/test-email", data || {}),
 
   // Reports
   getReportsSummary: (params?: z.infer<typeof reportsSummaryQuerySchema>) =>

@@ -33,9 +33,7 @@ export const authTokens = pgTable(
       withTimezone: true,
     }).notNull(),
 
-    used: boolean('used')
-      .notNull()
-      .default(false),
+    used: boolean('used').notNull().default(false),
 
     createdAt: timestamp('created_at', {
       withTimezone: true,
@@ -44,8 +42,6 @@ export const authTokens = pgTable(
       .notNull(),
   },
   (table) => ({
-    tokenUnique: uniqueIndex('auth_tokens_token_unique').on(
-      table.token,
-    ),
+    tokenUnique: uniqueIndex('auth_tokens_token_unique').on(table.token),
   }),
 );

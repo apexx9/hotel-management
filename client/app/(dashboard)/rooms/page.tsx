@@ -43,6 +43,28 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+function expandRange(start: string, end: string): string[] {
+  const s = start.trim();
+  const e = end.trim();
+  const numMatch = (str: string) => str.match(/^(\D*)(\d+)(\D*)$/);
+  const ms = numMatch(s);
+  const me = numMatch(e);
+  if (!ms || !me || ms[1] !== me[1] || ms[3] !== me[3]) {
+    return [s];
+  }
+  const width = Math.max(ms[2].length, me[2].length);
+  const a = parseInt(ms[2], 10);
+  const b = parseInt(me[2], 10);
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  const out: string[] = [];
+  for (let i = lo; i <= hi; i++) {
+    out.push(ms[1] + String(i).padStart(width, "0") + ms[3]);
+    if (out.length >= 100) break;
+  }
+  return out;
+}
+
 export default function RoomsOverviewPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
@@ -57,6 +79,9 @@ export default function RoomsOverviewPage() {
     rate: 0,
     capacity: 2,
   });
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkStart, setBulkStart] = useState("");
+  const [bulkEnd, setBulkEnd] = useState("");
 
   const fetchData = async () => {
     try {
@@ -107,6 +132,54 @@ export default function RoomsOverviewPage() {
     } catch (err) {
       console.error("Failed to create room:", err);
       toast.error("Failed to create room.");
+    } finally {
+      setSavingRoom(false);
+    }
+  };
+
+  const handleCreateRoomsBulk = async () => {
+    if (!newRoomForm.floor || !newRoomForm.roomTypeId) {
+      toast.error("Floor and room type are required.");
+      return;
+    }
+    if (!bulkStart.trim() || !bulkEnd.trim()) {
+      toast.error("Enter a start and end room number.");
+      return;
+    }
+
+    const numbers = expandRange(bulkStart, bulkEnd);
+    const existingNumbers = new Set(rooms.map((r) => r.number));
+    const fresh = numbers.filter((n) => !existingNumbers.has(n));
+    const skipped = numbers.length - fresh.length;
+
+    if (fresh.length === 0) {
+      toast.info("All of those room numbers already exist.");
+      return;
+    }
+
+    setSavingRoom(true);
+    try {
+      const payload = fresh.map((number) => ({
+        number,
+        floor: newRoomForm.floor,
+        roomTypeId: newRoomForm.roomTypeId,
+        rate: Number(newRoomForm.rate || 0),
+        capacity: Number(newRoomForm.capacity || 2),
+      }));
+      const result = await RoomsService().createRoomsBulk(payload);
+      const conflictCount = skipped + (result.conflicts?.length ?? 0);
+      toast.success(
+        conflictCount > 0
+          ? `Created ${result.created.length} rooms. ${conflictCount} existing number(s) skipped.`
+          : `Created ${result.created.length} rooms successfully.`,
+      );
+      setRoomDialogOpen(false);
+      setBulkStart("");
+      setBulkEnd("");
+      await fetchData();
+    } catch (err) {
+      console.error("Failed to bulk create rooms:", err);
+      toast.error("Failed to create rooms.");
     } finally {
       setSavingRoom(false);
     }
@@ -213,28 +286,113 @@ export default function RoomsOverviewPage() {
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Room Number</Label>
-                <Input
-                  value={newRoomForm.number}
-                  onChange={(e) =>
-                    setNewRoomForm({ ...newRoomForm, number: e.target.value })
-                  }
-                  placeholder="101"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Floor</Label>
-                <Input
-                  value={newRoomForm.floor}
-                  onChange={(e) =>
-                    setNewRoomForm({ ...newRoomForm, floor: e.target.value })
-                  }
-                  placeholder="1"
-                />
-              </div>
+            <div className="flex items-center gap-1 rounded-full border border-border/60 bg-muted/30 p-1">
+              {[
+                { key: false, label: "Single room" },
+                { key: true, label: "Many rooms" },
+              ].map((mode) => (
+                <button
+                  key={mode.label}
+                  type="button"
+                  onClick={() => setBulkMode(mode.key)}
+                  className={cn(
+                    "flex-1 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+                    bulkMode === mode.key
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {mode.label}
+                </button>
+              ))}
             </div>
+
+            {!bulkMode ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Room Number</Label>
+                  <Input
+                    value={newRoomForm.number}
+                    onChange={(e) =>
+                      setNewRoomForm({ ...newRoomForm, number: e.target.value })
+                    }
+                    placeholder="101"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Floor</Label>
+                  <Input
+                    value={newRoomForm.floor}
+                    onChange={(e) =>
+                      setNewRoomForm({ ...newRoomForm, floor: e.target.value })
+                    }
+                    placeholder="1"
+                  />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>From</Label>
+                    <Input
+                      value={bulkStart}
+                      onChange={(e) => setBulkStart(e.target.value)}
+                      placeholder="101"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>To</Label>
+                    <Input
+                      value={bulkEnd}
+                      onChange={(e) => setBulkEnd(e.target.value)}
+                      placeholder="110"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2 col-span-2">
+                    <Label>Floor</Label>
+                    <Input
+                      value={newRoomForm.floor}
+                      onChange={(e) =>
+                        setNewRoomForm({
+                          ...newRoomForm,
+                          floor: e.target.value,
+                        })
+                      }
+                      placeholder="1"
+                    />
+                  </div>
+                </div>
+                {bulkStart.trim() && bulkEnd.trim() && (
+                  <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                    <p className="text-xs font-semibold text-muted-foreground mb-2">
+                      Will create{" "}
+                      {expandRange(bulkStart, bulkEnd).length} room(s):
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {expandRange(bulkStart, bulkEnd).map((n) => {
+                        const exists = rooms.some((r) => r.number === n);
+                        return (
+                          <span
+                            key={n}
+                            className={cn(
+                              "rounded-full px-2 py-0.5 text-xs font-medium border",
+                              exists
+                                ? "bg-amber-500/10 text-amber-600 border-amber-500/20 line-through"
+                                : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+                            )}
+                          >
+                            {n}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
 
             <div className="space-y-2">
               <Label>Room Type</Label>
@@ -318,8 +476,17 @@ export default function RoomsOverviewPage() {
             <Button variant="outline" onClick={() => setRoomDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateRoom} disabled={savingRoom}>
-              {savingRoom ? "Creating..." : "Create Room"}
+            <Button
+              onClick={bulkMode ? handleCreateRoomsBulk : handleCreateRoom}
+              disabled={savingRoom}
+            >
+              {savingRoom
+                ? bulkMode
+                  ? "Creating rooms..."
+                  : "Creating..."
+                : bulkMode
+                  ? "Create Rooms"
+                  : "Create Room"}
             </Button>
           </DialogFooter>
         </DialogContent>

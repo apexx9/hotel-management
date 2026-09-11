@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "guests_hotel_phone_unique" ON "guests" USING btree ("hotel_id","phone");--> statement-breakpoint
+CREATE UNIQUE INDEX "guests_hotel_email_unique" ON "guests" USING btree ("hotel_id","email");

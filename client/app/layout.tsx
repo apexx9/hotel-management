@@ -10,9 +10,13 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "Hotel Management System",
+  title: {
+    template: "%s | Hotel Management System",
+    default: "Hotel Management System",
+  },
   description:
     "A centralized hotel management system for guests, rooms, payments and daily operations.",
+  applicationName: "Hotel Management System",
 };
 
 export default function RootLayout({

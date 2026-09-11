@@ -1,42 +1,92 @@
-Receipt PDF & Email Notes
+# Receipt & Email Notes
 
-Overview
+## Overview
 
-- The server can generate HTML receipts and convert them to PDF using Puppeteer.
-- Emails (including PDF attachments) are sent via Nodemailer. If SMTP environment variables are not set, the MailService will log and skip sending (returns `{ ok: true, skipped: true }`).
+- The server generates branded HTML receipts and converts them to PDF using Puppeteer (`ReceiptsService`).
+- Emails are sent via Brevo through the centralized `EmailModule` (`EmailService`). If `BREVO_API_KEY` is not set, sending is skipped and returns `{ ok: true, skipped: true }` — email never blocks or rolls back a business operation.
+- Guests/rooms/receipt/email data is always loaded server-side from the database (backend is the source of truth), so emails and receipts can never show a wrong guest name or email.
 
-Required environment variables
+## Required environment variables
 
-- `SMTP_HOST` - SMTP host (optional for local/dev; required to actually send mail)
-- `SMTP_PORT` - SMTP port (default 587)
-- `SMTP_USER` - SMTP username (optional)
-- `SMTP_PASS` - SMTP password (optional)
-- `SMTP_FROM` - From address used when sending mail (default: `no-reply@example.com`)
-- `FRONTEND_URL` - URL used by invite links (e.g., `https://app.example.com`)
+| Variable         | Purpose                                                            |
+| ---------------- | ------------------------------------------------------------------ |
+| `BREVO_API_KEY`  | Brevo API key. Unset = email disabled (skipped)                    |
+| `SMTP_FROM`      | **Verified Brevo sender** (default `no-reply@example.com`)          |
+| `SMTP_FROM_NAME` | Platform-default display sender name (default `Hotel Management`)   |
+| `FRONTEND_URL`   | Public client origin used for links inside emails                  |
 
-Puppeteer notes
+## One platform email service (SaaS)
 
-- Puppeteer is used to render HTML receipts to PDF in `OperationsService.getInvoiceReceiptPdf`.
-- The server launches Chromium with flags `--no-sandbox --disable-setuid-sandbox` for compatibility in many containerized environments.
-- In some environments (restricted containers, Alpine musl, serverless) a custom Chromium build or additional libs may be required.
+All hotels send through a **single shared Brevo client** configured
+with the environment variables above — hotels cannot configure their own
+email provider.
 
-Deployment guidance
+**SaaS sender model (Reply-To):** every email is sent From the platform's
+verified Brevo sender (`SMTP_FROM`) so SPF/DKIM/DMARC pass for all
+hotels. Per-hotel customization (Settings → Hotel → **Email & Branding**,
+stored on `hotel_settings`, migration `0006_email_branding_settings.sql`)
+controls:
 
-- When deploying, ensure the environment has enough memory and the required system libraries for Chromium. On Debian/Ubuntu install the `libnss3`, `libatk1.0-0`, `libgtk-3-0`, `libx11-xcb1`, and related packages.
-- If running in Docker, use a base image that supports Chromium or use a prebuilt Chromium binary. Example Docker base: `node:18-bullseye-slim` and install dependencies.
+- `email_from` — the **Reply-To** address: where replies land (the hotel's
+  mailbox). Falls back to the hotel contact email. Never used as the From
+  header (an unverified customer domain would fail DMARC).
+- `email_from_name` — the display name shown before the platform address
+  (defaults to the hotel name), e.g. `"The Grand Hotel"
+  <notifications@yourplatform.com>`.
+- `logo_url` — a hosted logo shown at the top of receipts and in the email
+  header.
+- `primary_color`, `accent_color` — brand colors used by email templates and
+  the receipt document (header banner, buttons, accents).
 
-Optional improvements
+A **Send Test Email** button (`POST /settings/test-email`, requires
+`settings.update`) verifies the platform SMTP + the hotel's branding from
+the UI (service reports `skipped` when `BREVO_API_KEY` is not configured).
+Both auth emails and operations emails resolve the hotel's sender/branding.
 
-- Add a background email queue (BullMQ/Redis) to handle retries and avoid blocking request handlers during PDF generation and email sending.
-- Add a `GET /invoices/:id/receipt.pdf?download=1` query parameter to toggle `Content-Disposition: attachment` vs `inline` if you want both behaviors.
+## Email flows (server)
 
-Location of implementation
+- **Automatic (fire-and-forget, after the DB transaction commits):**
+  - Booking created → booking confirmation to the authoritative guest email (`stays.confirmationEmailSentAt`)
+  - Booking cancelled → cancellation notice
+  - Payment recorded → invoice/receipt emailed (`invoices.receiptEmailSentAt`)
+  - Checkout completed → receipt emailed (`invoices.receiptEmailSentAt`)
+- **Manual (await result, `{ ok, skipped, info, to }`):**
+  - `POST /invoices/:id/send-receipt` — re-send a receipt
+  - `POST /bookings/:id/send-confirmation` — (re)send a reservation confirmation
+- Auth emails (verification code, password reset, staff invitation) also go through `EmailService`.
 
-- PDF generation: `server/src/operations/operations.service.ts` -> `getInvoiceReceiptPdf`
-- PDF endpoint: `server/src/operations/operations.controller.ts` -> `GET /invoices/:id/receipt.pdf`
-- Mail sending with attachment: `server/src/auth/mail.service.ts` and usage in `OperationsService.sendInvoiceReceipt`.
+## Endpoints & RBAC
 
-Testing locally
+- `GET  /invoices/:id/receipt`            — branded HTML receipt — requires `invoices.view`
+- `GET  /invoices/:id/receipt.pdf`        — PDF receipt — requires `invoices.view`
+- `POST /invoices/:id/send-receipt`       — email receipt — requires `invoices.send`
+- `POST /bookings/:id/send-confirmation`  — email confirmation — requires `reservations.update`
 
-- To test PDF generation without SMTP, ensure `SMTP_HOST` is unset and request the PDF endpoint in the browser: `http://localhost:3001/api/invoices/:id/receipt.pdf`.
-- To test email sending, set SMTP env vars (or use a testing SMTP service like Mailtrap) and call the send endpoint.
+All queries are scoped to the caller's hotel via the `users.hotelId` chain.
+
+## Location of implementation
+
+- Email config/templates/service/module: `server/src/email/`
+- Branded receipt renderer + PDF: `server/src/receipts/`
+- Orchestration (auto-send + manual endpoints): `server/src/operations/operations.service.ts`
+- Schema columns: `stays.confirmation_email_sent_at`, `invoices.receipt_email_sent_at`
+
+## Database migration
+
+- `server/drizzle/0004_email_tracking.sql` adds the two tracking columns (idempotent `IF NOT EXISTS`). The columns are already applied to the database.
+- Note: `rooms.is_active` is NOT part of this migration — it already exists in the DB.
+
+## Puppeteer notes
+
+- `ReceiptsService` launches a shared Chromium instance lazily with `--no-sandbox --disable-setuid-sandbox` for container compatibility.
+- In restricted environments (Alpine musl, serverless) a custom Chromium build or additional system libraries may be required.
+
+## Deployment guidance
+
+- Ensure enough memory + Chromium system libraries (`libnss3`, `libatk1.0-0`, `libgtk-3-0`, `libx11-xcb1`, etc.). Docker base `node:18-bullseye-slim` with dependencies installed works.
+- Configure the Brevo API key before relying on email delivery.
+
+## Optional improvements
+
+- Replace fire-and-forget sends with a background email queue (BullMQ/Redis) for retries and to avoid blocking request handlers during PDF generation.
+- Add `?download=1` to toggle `Content-Disposition: attachment` vs `inline` for the PDF endpoint.

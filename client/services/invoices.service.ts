@@ -15,6 +15,7 @@ export interface Invoice {
   total: string;
   amountPaid: string;
   outstanding: string;
+  receiptEmailSentAt?: string | null;
   issuedAt?: string;
   createdAt: string;
   updatedAt: string;

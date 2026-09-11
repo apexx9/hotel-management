@@ -36,8 +36,9 @@ import {
   TransferRoomDto,
 } from './dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Roles } from '../auth/roles.decorator';
-import { RolesGuard } from '../auth/roles.guard';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { RequirePermissions } from '../auth/permissions.decorator';
+import { PERMISSIONS } from '../auth/permissions';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -46,7 +47,7 @@ interface AuthenticatedRequest extends Request {
   };
 }
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller()
 export class OperationsController {
   constructor(private readonly operations: OperationsService) {}
@@ -73,7 +74,7 @@ export class OperationsController {
   }
 
   @Post('room-types')
-  @Roles('admin', 'manager', 'owner')
+  @RequirePermissions(PERMISSIONS.roomTypesCreate)
   createRoomType(
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreateRoomTypeDto,
@@ -82,7 +83,7 @@ export class OperationsController {
   }
 
   @Patch('room-types/:id')
-  @Roles('admin', 'manager', 'owner')
+  @RequirePermissions(PERMISSIONS.roomTypesUpdate)
   updateRoomType(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -92,7 +93,7 @@ export class OperationsController {
   }
 
   @Delete('room-types/:id')
-  @Roles('admin', 'manager', 'owner')
+  @RequirePermissions(PERMISSIONS.roomTypesDelete)
   deleteRoomType(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.operations.deleteRoomType(req.user.userId, id);
   }
@@ -111,13 +112,13 @@ export class OperationsController {
   }
 
   @Post('guests')
-  @Roles('admin', 'manager', 'front_desk', 'owner')
+  @RequirePermissions(PERMISSIONS.guestsCreate)
   createGuest(@Req() req: AuthenticatedRequest, @Body() dto: CreateGuestDto) {
     return this.operations.createGuest(req.user.userId, dto);
   }
 
   @Patch('guests/:id')
-  @Roles('admin', 'manager', 'front_desk', 'owner')
+  @RequirePermissions(PERMISSIONS.guestsUpdate)
   updateGuest(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -153,7 +154,7 @@ export class OperationsController {
   @Get('stays/arrivals')
   listArrivals(@Req() req: AuthenticatedRequest) {
     return this.operations.listStays(req.user.userId, {
-      status: 'pending_arrival',
+      status: ['pending_arrival', 'reserved'],
     });
   }
 
@@ -176,7 +177,7 @@ export class OperationsController {
   }
 
   @Post('bookings')
-  @Roles('admin', 'manager', 'front_desk', 'owner')
+  @RequirePermissions(PERMISSIONS.reservationsCreate)
   createBooking(
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreateBookingDto,
@@ -185,7 +186,7 @@ export class OperationsController {
   }
 
   @Patch('bookings/:id')
-  @Roles('admin', 'manager', 'front_desk', 'finance', 'owner')
+  @RequirePermissions(PERMISSIONS.reservationsUpdate)
   updateBooking(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -195,13 +196,19 @@ export class OperationsController {
   }
 
   @Post('bookings/:id/cancel')
-  @Roles('admin', 'manager', 'front_desk', 'owner')
+  @RequirePermissions(PERMISSIONS.reservationsCancel)
   cancelBooking(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.operations.cancelBooking(req.user.userId, id);
   }
 
+  @Post('bookings/:id/send-confirmation')
+  @RequirePermissions(PERMISSIONS.reservationsUpdate)
+  sendConfirmation(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.operations.sendReservationConfirmation(req.user.userId, id);
+  }
+
   @Patch('stays/:id/room')
-  @Roles('admin', 'manager', 'front_desk', 'owner')
+  @RequirePermissions(PERMISSIONS.transfersManage)
   transferRoom(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -214,13 +221,13 @@ export class OperationsController {
   }
 
   @Post('check-in')
-  @Roles('admin', 'manager', 'front_desk', 'owner')
+  @RequirePermissions(PERMISSIONS.checkinsCreate)
   checkIn(@Req() req: AuthenticatedRequest, @Body() dto: CheckInDto) {
     return this.operations.checkIn(req.user.userId, dto);
   }
 
   @Post('check-out')
-  @Roles('admin', 'manager', 'front_desk', 'finance', 'owner')
+  @RequirePermissions(PERMISSIONS.checkoutsCreate)
   checkOut(@Req() req: AuthenticatedRequest, @Body() dto: CheckOutDto) {
     return this.operations.checkOut(req.user.userId, dto);
   }
@@ -242,11 +249,13 @@ export class OperationsController {
   }
 
   @Get('invoices/:id/receipt')
+  @RequirePermissions(PERMISSIONS.invoicesView)
   getInvoiceReceipt(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.operations.getInvoiceReceipt(req.user.userId, id);
   }
 
   @Get('invoices/:id/receipt.pdf')
+  @RequirePermissions(PERMISSIONS.invoicesView)
   async getInvoiceReceiptPdf(
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
@@ -265,6 +274,7 @@ export class OperationsController {
   }
 
   @Post('invoices/:id/send-receipt')
+  @RequirePermissions(PERMISSIONS.invoicesSend)
   sendInvoiceReceipt(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -292,7 +302,7 @@ export class OperationsController {
   }
 
   @Post('payments')
-  @Roles('admin', 'manager', 'finance', 'owner', 'front_desk')
+  @RequirePermissions(PERMISSIONS.paymentsCreate)
   recordPayment(
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreatePaymentDto,
@@ -301,7 +311,7 @@ export class OperationsController {
   }
 
   @Post('payments/:id/reverse')
-  @Roles('admin', 'manager', 'finance', 'owner')
+  @RequirePermissions(PERMISSIONS.paymentsReverse)
   reversePayment(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.operations.reversePayment(req.user.userId, id);
   }
@@ -320,7 +330,7 @@ export class OperationsController {
   }
 
   @Post('services')
-  @Roles('admin', 'manager', 'owner')
+  @RequirePermissions(PERMISSIONS.servicesManage)
   createService(
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreateServiceDto,
@@ -329,7 +339,7 @@ export class OperationsController {
   }
 
   @Patch('services/:id')
-  @Roles('admin', 'manager', 'owner')
+  @RequirePermissions(PERMISSIONS.servicesManage)
   updateService(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -339,7 +349,7 @@ export class OperationsController {
   }
 
   @Delete('services/:id')
-  @Roles('admin', 'manager', 'owner')
+  @RequirePermissions(PERMISSIONS.servicesManage)
   deleteService(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.operations.deleteService(req.user.userId, id);
   }
@@ -353,7 +363,7 @@ export class OperationsController {
   }
 
   @Post('service-charges')
-  @Roles('admin', 'manager', 'front_desk', 'service', 'owner')
+  @RequirePermissions(PERMISSIONS.chargesCreate)
   addServiceCharge(
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreateServiceChargeDto,
@@ -375,7 +385,7 @@ export class OperationsController {
   }
 
   @Post('housekeeping')
-  @Roles('admin', 'manager', 'housekeeping', 'owner')
+  @RequirePermissions(PERMISSIONS.housekeepingCreate)
   createHousekeepingTask(
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreateHousekeepingTaskDto,
@@ -384,7 +394,7 @@ export class OperationsController {
   }
 
   @Patch('housekeeping')
-  @Roles('admin', 'manager', 'housekeeping', 'owner')
+  @RequirePermissions(PERMISSIONS.housekeepingUpdate)
   updateHousekeeping(
     @Req() req: AuthenticatedRequest,
     @Body() dto: UpdateHousekeepingDto,
@@ -435,25 +445,37 @@ export class OperationsController {
   // STAFF MANAGEMENT
   // ==========================================
   @Get('staff')
-  @Roles('admin', 'manager', 'owner')
+  @RequirePermissions(PERMISSIONS.staffRead)
   listStaff(@Req() req: AuthenticatedRequest) {
     return this.operations.listStaff(req.user.userId);
   }
 
   @Get('staff/:id')
-  @Roles('admin', 'manager', 'owner')
+  @RequirePermissions(PERMISSIONS.staffRead)
   getStaffMember(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.operations.getStaffMember(req.user.userId, id);
   }
 
   @Post('staff/invite')
-  @Roles('admin', 'manager', 'owner')
+  @RequirePermissions(PERMISSIONS.staffInvite)
   inviteStaff(@Req() req: AuthenticatedRequest, @Body() dto: InviteStaffDto) {
     return this.operations.inviteStaff(req.user.userId, dto);
   }
 
+  @Delete('staff/invitations/:id')
+  @RequirePermissions(PERMISSIONS.staffInvite)
+  revokeInvitation(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.operations.revokeInvitation(req.user.userId, id);
+  }
+
+  @Post('staff/invitations/:id/resend')
+  @RequirePermissions(PERMISSIONS.staffInvite)
+  resendInvitation(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.operations.resendInvitation(req.user.userId, id);
+  }
+
   @Patch('staff/:id')
-  @Roles('admin', 'manager', 'owner')
+  @RequirePermissions(PERMISSIONS.staffUpdate)
   updateStaff(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -471,7 +493,7 @@ export class OperationsController {
   }
 
   @Patch('settings')
-  @Roles('admin', 'manager', 'owner')
+  @RequirePermissions(PERMISSIONS.settingsUpdate)
   updateSettings(
     @Req() req: AuthenticatedRequest,
     @Body() dto: UpdateSettingsDto,
@@ -479,11 +501,20 @@ export class OperationsController {
     return this.operations.updateSettings(req.user.userId, dto);
   }
 
+  @Post('settings/test-email')
+  @RequirePermissions(PERMISSIONS.settingsUpdate)
+  testEmailSend(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { to?: string },
+  ) {
+    return this.operations.testEmailSend(req.user.userId, body?.to);
+  }
+
   // ==========================================
   // REPORTS
   // ==========================================
   @Get('reports/summary')
-  @Roles('admin', 'manager', 'finance', 'owner')
+  @RequirePermissions(PERMISSIONS.reportsView)
   getReportsSummary(
     @Req() req: AuthenticatedRequest,
     @Query() query: QueryReportsDto,

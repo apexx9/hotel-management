@@ -19,6 +19,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2, Clock, Users, BedDouble, Wallet, Search, Info } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 export default function ArrivalsPage() {
   const [arrivals, setArrivals] = useState<DashboardStaySummary[]>([]);
@@ -27,22 +28,24 @@ export default function ArrivalsPage() {
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const fetchArrivals = async () => {
+  const fetchArrivals = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await StaysService().getArrivals();
       setArrivals(data);
     } catch (err) {
       console.error("Failed to fetch arrivals:", err);
-      setError("Could not load arrivals. Please try again.");
+      if (!silent) setError("Could not load arrivals. Please try again.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchArrivals();
   }, []);
+
+  useRealtimeRefresh(() => fetchArrivals(true));
 
   const handleCheckIn = async (stayId: string) => {
     setCheckingInId(stayId);

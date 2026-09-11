@@ -15,9 +15,11 @@ import { RoomService } from './room.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 import { UpdateRoomStatusDto } from './dto/update-room-status.dto';
+import { CreateRoomsBulkDto } from './dto/create-rooms-bulk.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { RequirePermissions } from '../auth/permissions.decorator';
+import { PERMISSIONS } from '../auth/permissions';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -26,7 +28,7 @@ interface AuthenticatedRequest extends Request {
   };
 }
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('rooms')
 export class RoomController {
   constructor(private readonly roomService: RoomService) {}
@@ -42,13 +44,22 @@ export class RoomController {
   }
 
   @Post()
-  @Roles('admin', 'manager', 'owner')
+  @RequirePermissions(PERMISSIONS.roomsCreate)
   create(@Req() req: AuthenticatedRequest, @Body() dto: CreateRoomDto) {
     return this.roomService.create(req.user.userId, dto);
   }
 
+  @Post('bulk')
+  @RequirePermissions(PERMISSIONS.roomsCreate)
+  createMany(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: CreateRoomsBulkDto,
+  ) {
+    return this.roomService.createMany(req.user.userId, dto);
+  }
+
   @Patch(':id')
-  @Roles('admin', 'manager', 'owner', 'front_desk')
+  @RequirePermissions(PERMISSIONS.roomsUpdate)
   update(
     @Param('id') id: string,
     @Req() req: AuthenticatedRequest,
@@ -58,7 +69,7 @@ export class RoomController {
   }
 
   @Patch(':id/status')
-  @Roles('admin', 'manager', 'owner', 'front_desk', 'housekeeping')
+  @RequirePermissions(PERMISSIONS.roomsStatus)
   updateStatus(
     @Param('id') id: string,
     @Req() req: AuthenticatedRequest,
@@ -67,8 +78,14 @@ export class RoomController {
     return this.roomService.updateStatus(id, req.user.userId, dto);
   }
 
+  @Post(':id/mark-available')
+  @RequirePermissions(PERMISSIONS.roomsStatus)
+  markAvailable(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.roomService.markAvailable(id, req.user.userId);
+  }
+
   @Delete(':id')
-  @Roles('admin', 'manager', 'owner')
+  @RequirePermissions(PERMISSIONS.roomsDelete)
   remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.roomService.remove(id, req.user.userId);
   }

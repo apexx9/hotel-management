@@ -43,6 +43,7 @@ import { Label } from "@/components/ui/label";
 import { AlertCircle, Plus, Search, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 
 export default function PaymentsPage() {
@@ -67,18 +68,25 @@ export default function PaymentsPage() {
     notes: "",
   });
 
-  const fetchPayments = async () => {
+  const fetchPayments = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await PaymentsService().getPayments();
       setPayments(data);
+      setError(null);
     } catch (err) {
       console.error("Failed to fetch payments:", err);
-      setError("Could not load payments. Please try again.");
+      if (!silent) setError("Could not load payments. Please try again.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchPayments();
+  }, []);
+
+  useRealtimeRefresh(() => fetchPayments(true));
 
   const handleReverse = async (payment: Payment) => {
     if (

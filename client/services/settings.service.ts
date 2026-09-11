@@ -1,7 +1,13 @@
 import operationsApi, { HotelSettingsResponse } from "@/actions/operations";
 import { getErrorMessage } from "@/lib/errors";
 
-
+export type TestEmailResult = {
+  ok: boolean;
+  skipped?: boolean;
+  error?: string | null;
+  info?: string | null;
+  to?: string;
+};
 
 const SettingsService = () => {
   async function getSettings(): Promise<HotelSettingsResponse> {
@@ -49,9 +55,25 @@ const SettingsService = () => {
     }
   }
 
+  async function testEmail(to?: string): Promise<TestEmailResult> {
+    try {
+      const response = await operationsApi.testEmailSend(
+        to ? { to } : undefined,
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        "Failed to send test email:",
+        getErrorMessage(error, "Failed to send test email"),
+      );
+      throw error;
+    }
+  }
+
   return {
     getSettings,
     updateSettings,
+    testEmail,
   };
 };
 

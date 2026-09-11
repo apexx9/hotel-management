@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Check, Circle } from "lucide-react";
+import { ArrowLeft, Check, Circle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import Wrapper from "./wrapper";
@@ -47,6 +47,58 @@ const SetupAccount = () => {
   const token = params?.token as string;
 
   const [isLoading, setIsLoading] = useState(false);
+
+  const [invitation, setInvitation] = useState<{
+    email: string;
+    hotelName: string;
+    role: string;
+  } | null>(null);
+
+  const [invitationError, setInvitationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let isMounted = true;
+
+    const loadInvitation = async () => {
+      try {
+        const res = await (
+          await import("@/actions/auth")
+        ).authApi.getInvitation(token);
+
+        if (!isMounted) return;
+
+        if (!res.data?.ok || !res.data?.invitation) {
+          setInvitationError(
+            String(
+              res.data?.message ||
+                "This invitation is no longer active.",
+            ),
+          );
+          return;
+        }
+
+        setInvitation({
+          email: res.data.invitation?.email,
+          hotelName: res.data.invitation?.hotelName || "Hotel",
+          role: res.data.invitation?.role,
+        });
+      } catch {
+        if (isMounted) {
+          setInvitationError(
+            "This invitation is no longer active.",
+          );
+        }
+      }
+    };
+
+    loadInvitation();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [token]);
 
   const {
     register,
@@ -98,6 +150,14 @@ const SetupAccount = () => {
         password: data.password,
       });
 
+      if (!res.data?.ok) {
+        toast.error(
+          res.data?.message || "This invitation is no longer valid.",
+        );
+        router.replace(`/invite/${token}/invalid`);
+        return;
+      }
+
       toast.success("Your account has been created.");
       router.push(`/invite/${token}/success`);
     } catch {
@@ -106,6 +166,31 @@ const SetupAccount = () => {
       setIsLoading(false);
     }
   };
+
+  if (invitationError) {
+    return (
+      <Wrapper>
+        <div className="flex min-h-dvh flex-col px-6 py-8 sm:px-10 md:px-14 lg:px-16 xl:px-24">
+          <div className="mx-auto flex w-full max-w-[520px] flex-1 flex-col items-center justify-center text-center">
+            <XCircle size={32} className="text-[#EF4444]" />
+            <h1 className="mt-6 text-3xl font-bold tracking-tight text-[#0C0332]">
+              Invitation expired
+            </h1>
+            <p className="mt-3 max-w-sm text-sm leading-6 text-[#6B6B6B]">
+              {invitationError} Please contact your hotel administrator for a
+              new invitation.
+            </p>
+            <div className="mt-8 w-full">
+              <Link href="/login" className="block">
+                <Button type="button" variant="primary" text="Go to login" />
+              </Link>
+            </div>
+          </div>
+          <AuthFooter />
+        </div>
+      </Wrapper>
+    );
+  }
 
   return (
     <Wrapper>
@@ -146,6 +231,22 @@ const SetupAccount = () => {
               Your administrator has already assigned your hotel and
               permissions.
             </p>
+
+            {invitation ? (
+              <div className="mt-3 flex flex-col gap-1 border-t border-[#F0F0F0] pt-3">
+                <p className="text-xs font-medium text-[#969696]">
+                  Account you&apos;re creating
+                </p>
+
+                <p className="text-sm font-bold text-[#0C0332]">
+                  {invitation.email}
+                </p>
+
+                <p className="text-xs font-medium text-[#969696]">
+                  {invitation.hotelName} · {invitation.role}
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <form

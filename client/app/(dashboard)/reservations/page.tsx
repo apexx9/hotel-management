@@ -29,10 +29,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, Plus, Search, CalendarClock, Info } from "lucide-react";
+import {
+  AlertCircle,
+  Plus,
+  Search,
+  CalendarClock,
+  Info,
+  Mail,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 export default function ReservationsPage() {
   const [reservations, setReservations] = useState<DashboardStaySummary[]>([]);
@@ -44,6 +53,7 @@ export default function ReservationsPage() {
     string | null
   >(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
 
   const [editForm, setEditForm] = useState({
@@ -54,22 +64,25 @@ export default function ReservationsPage() {
     editReason: "",
   });
 
-  const fetchReservations = async () => {
+  const fetchReservations = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const reserved = await StaysService().getStays({ status: "reserved" });
       setReservations(reserved);
+      setError(null);
     } catch (err) {
       console.error("Failed to fetch reservations:", err);
-      setError("Could not load reservations. Please try again.");
+      if (!silent) setError("Could not load reservations. Please try again.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchReservations();
   }, []);
+
+  useRealtimeRefresh(() => fetchReservations(true));
 
   const filteredReservations = reservations.filter((r) => {
     const q = searchQuery.toLowerCase();
@@ -117,6 +130,37 @@ export default function ReservationsPage() {
       toast.error("Failed to update reservation");
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleSendConfirmation = async (res: DashboardStaySummary) => {
+    setSendingEmailId(res.id);
+    try {
+      const result = await BookingsService().sendConfirmation(res.id);
+      if (result?.ok) {
+        if (result?.skipped) {
+          toast.info(
+            result.info ??
+              "Email delivery is not configured — confirmation was not sent",
+          );
+        } else {
+          toast.success(
+            result.to
+              ? `Confirmation sent to ${result.to}`
+              : "Confirmation email sent",
+          );
+        }
+      } else {
+        toast.error(result?.info ?? "Failed to send confirmation email");
+      }
+      await fetchReservations(true);
+    } catch (err) {
+      console.error("Failed to send confirmation:", err);
+      toast.error(
+        "Failed to send confirmation. Please check email settings and try again.",
+      );
+    } finally {
+      setSendingEmailId(null);
     }
   };
 
@@ -276,6 +320,11 @@ export default function ReservationsPage() {
                     </TableCell>
                     <TableCell className="font-medium text-foreground">
                       {res.guestName}
+                      {res.confirmationEmailSentAt && (
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          Emailed {formatDateTime(res.confirmationEmailSentAt)}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {res.roomNumber ? (
@@ -309,6 +358,25 @@ export default function ReservationsPage() {
                     </TableCell>
                     <TableCell className="text-right pr-6">
                       <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full"
+                          disabled={sendingEmailId === res.id}
+                          onClick={() => handleSendConfirmation(res)}
+                          title={
+                            res.guestEmail
+                              ? `Email confirmation to ${res.guestEmail}`
+                              : "No guest email on file"
+                          }
+                        >
+                          {sendingEmailId === res.id ? (
+                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Mail className="mr-1 h-3.5 w-3.5" />
+                          )}
+                          {res.confirmationEmailSentAt ? "Resend" : "Email"}
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"

@@ -4,7 +4,7 @@ import { AuthController, InvitationsController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './jwt.strategy';
-import { MailService } from './mail.service';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -13,9 +13,10 @@ import { MailService } from './mail.service';
       secret: process.env.JWT_SECRET || 'dev-secret',
       signOptions: { expiresIn: '1h' },
     }),
+    EmailModule,
   ],
   controllers: [AuthController, InvitationsController],
-  providers: [AuthService, JwtStrategy, MailService],
-  exports: [AuthService, MailService],
+  providers: [AuthService, JwtStrategy],
+  exports: [AuthService, EmailModule],
 })
 export class AuthModule {}

@@ -1,0 +1,1 @@
+ALTER TABLE rooms ADD COLUMN is_active boolean NOT NULL DEFAULT true;--> statement-breakpoint

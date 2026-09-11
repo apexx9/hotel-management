@@ -23,6 +23,7 @@ const Invitation = () => {
     hotelName: string;
     email: string;
     role: string;
+    expiresAt?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -36,13 +37,18 @@ const Invitation = () => {
           await import("@/actions/auth")
         ).authApi.getInvitation(token);
         if (!isMounted) return;
+
+        if (!res.data?.ok || !res.data?.invitation) {
+          const message = String(res.data?.message || "").toLowerCase();
+          setState(message.includes("expired") ? "expired" : "invalid");
+          return;
+        }
+
         setInvitation({
-          hotelName:
-            res.data.invitation?.hotelName ||
-            res.data.invitation?.hotelName ||
-            "Hotel",
+          hotelName: res.data.invitation?.hotelName || "Hotel",
           email: res.data.invitation?.email,
           role: res.data.invitation?.role,
+          expiresAt: res.data.invitation?.expiresAt,
         });
         setState("valid");
       } catch {
@@ -146,6 +152,25 @@ const Invitation = () => {
                   {invitation?.role}
                 </p>
               </div>
+
+              {invitation?.expiresAt ? (
+                <div>
+                  <p className="text-xs font-medium text-[#969696]">
+                    Invitation expires
+                  </p>
+
+                  <p className="mt-1 text-sm font-bold text-[#0C0332]">
+                    {new Date(invitation.expiresAt).toLocaleDateString(
+                      undefined,
+                      {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      },
+                    )}
+                  </p>
+                </div>
+              ) : null}
             </div>
           </div>
 

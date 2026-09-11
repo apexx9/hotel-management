@@ -118,6 +118,26 @@ export const hotelSettings = pgTable('hotel_settings', {
 
   systemPrefs: text('system_prefs'),
 
+  emailFrom: varchar('email_from', {
+    length: 255,
+  }),
+
+  emailFromName: varchar('email_from_name', {
+    length: 255,
+  }),
+
+  primaryColor: varchar('primary_color', {
+    length: 16,
+  })
+    .notNull()
+    .default('#1900ff'),
+
+  accentColor: varchar('accent_color', {
+    length: 16,
+  })
+    .notNull()
+    .default('#0ea5e9'),
+
   createdAt: timestamp('created_at', {
     withTimezone: true,
   })

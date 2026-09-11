@@ -16,12 +16,19 @@ export interface AppNotification {
 
 
 const NotificationsService = () => {
-  const getNotifications = async (): Promise<AppNotification[]> => {
+  const getNotifications = async (options?: {
+    silent?: boolean;
+  }): Promise<AppNotification[]> => {
     try {
       const response = await operationsApi.getNotifications();
       return response.data ?? [];
     } catch (error) {
-      console.error("Failed to fetch notifications:", getErrorMessage(error, "Failed to fetch notifications"));
+      if (!options?.silent) {
+        console.error(
+          "Failed to fetch notifications:",
+          getErrorMessage(error, "Failed to fetch notifications"),
+        );
+      }
       throw error;
     }
   };

@@ -32,6 +32,7 @@ import { AlertCircle, Sparkles, ClipboardList, CheckCircle2, Wrench, Eye, Search
 import { cn } from "@/lib/utils";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { toast } from "sonner";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 const statusColors: Record<HousekeepingTask["status"], { bg: string, text: string, border: string }> = {
   cleaning: { bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-500", border: "border-amber-500/20" },
@@ -48,22 +49,25 @@ export default function HousekeepingPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const fetchTasks = async () => {
+  const fetchTasks = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await HousekeepingService().getHousekeepingTasks();
       setTasks(data);
+      setError(null);
     } catch (err) {
       console.error("Failed to fetch housekeeping tasks:", err);
-      setError("Could not load housekeeping tasks. Please try again.");
+      if (!silent) setError("Could not load housekeeping tasks. Please try again.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchTasks();
   }, []);
+
+  useRealtimeRefresh(() => fetchTasks(true));
 
   const handleStatusChange = async (task: HousekeepingTask, newStatus: HousekeepingTask["status"]) => {
     setUpdatingId(task.id);

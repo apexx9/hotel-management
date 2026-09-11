@@ -1,0 +1,2 @@
+ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "receipt_email_sent_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "stays" ADD COLUMN IF NOT EXISTS "confirmation_email_sent_at" timestamp with time zone;

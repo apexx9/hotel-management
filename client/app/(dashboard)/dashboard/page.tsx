@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardSummaryResponse | null>(null);
@@ -51,15 +52,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchData();
-
-    const refreshOnFocus = () => {
-      if (document.visibilityState === "visible" && !isFetchingRef.current) {
-        fetchData(false);
-      }
-    };
-    document.addEventListener("visibilitychange", refreshOnFocus);
-    return () => document.removeEventListener("visibilitychange", refreshOnFocus);
   }, [fetchData]);
+
+  useRealtimeRefresh(() => fetchData(false), 20000);
 
   if (loading) {
     return <PageLoading showHeader showStats={3} showTable />;
@@ -297,6 +292,37 @@ export default function DashboardPage() {
             <Wallet className="h-3.5 w-3.5" /> Projected EOD
           </p>
         </div>
+      </div>
+
+      {/* ─── TODAY SNAPSHOT STRIP (ADR · RevPAR · check-ins/outs) ──── */}
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          <span className="text-xs font-medium text-muted-foreground">
+            Check-ins today
+          </span>
+          <span className="text-sm font-bold text-foreground">{dashboardStats.todayCheckIns}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-amber-500" />
+          <span className="text-xs font-medium text-muted-foreground">
+            Check-outs today
+          </span>
+          <span className="text-sm font-bold text-foreground">{dashboardStats.todayCheckOuts}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-blue-500" />
+          <span className="text-xs font-medium text-muted-foreground">ADR</span>
+          <span className="text-sm font-bold text-foreground">{formatCurrency(dashboardStats.averageDailyRate)}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-indigo-500" />
+          <span className="text-xs font-medium text-muted-foreground">RevPAR</span>
+          <span className="text-sm font-bold text-foreground">{formatCurrency(dashboardStats.revPar)}</span>
+        </div>
+        <span className="hidden sm:inline text-xs text-muted-foreground border-l border-border/40 pl-8">
+          Snapshot effective {new Date().toLocaleDateString()}
+        </span>
       </div>
 
       {/* ─── CORE MODULES / DETAILED BREAKDOWN ──────────────────────── */}

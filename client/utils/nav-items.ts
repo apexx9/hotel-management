@@ -43,6 +43,7 @@ export const navItems: NavItem[] = [
     children: [
       { href: "/rooms", label: "Overview", icon: LayoutDashboard },
       { href: "/rooms/grid", label: "Room Grid", icon: DoorOpen },
+      { href: "/rooms/availability", label: "Availability", icon: CalendarClock },
       { href: "/rooms/types", label: "Room Types", icon: BedDouble },
     ],
   },

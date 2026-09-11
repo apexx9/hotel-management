@@ -1,8 +1,14 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, lt, or } from 'drizzle-orm';
 import type { Database } from '../database/database.types';
 import { InjectDatabase } from '../database/database.decorator';
 import {
@@ -61,6 +67,28 @@ export class AuthService {
   /** Hash a token before storing it in the database. */
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  /** Generate a fresh 6-digit code that is unique across auth tokens. */
+  private async generateUniqueCode(): Promise<string> {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const code = crypto
+        .randomInt(0, 1_000_000)
+        .toString()
+        .padStart(6, '0');
+
+      const [existing] = await this.db
+        .select({ id: authTokens.id })
+        .from(authTokens)
+        .where(eq(authTokens.token, code))
+        .limit(1);
+
+      if (!existing) return code;
+    }
+
+    throw new InternalServerErrorException(
+      'Could not generate a unique verification code.',
+    );
   }
 
   /** Generate a JWT access token. */
@@ -130,8 +158,8 @@ export class AuthService {
         })
         .returning();
 
-      // Create email verification token
-      const verificationToken = crypto.randomBytes(32).toString('hex');
+      // Create email verification code
+      const verificationToken = await this.generateUniqueCode();
       await tx.insert(authTokens).values({
         token: verificationToken,
         userId: createdUser.id,
@@ -383,21 +411,34 @@ export class AuthService {
     };
   }
 
-  /** Create a one-time authentication token. */
+  /** Create a one-time 6-digit verification code. */
   async createTokenForUser(
     userId: string,
     type: string,
     ttlMs = 60 * 60 * 1000,
   ): Promise<string> {
-    const token = crypto.randomBytes(32).toString('hex');
+    // Clear stale codes for this user + type so they don't pile up.
+    await this.db
+      .delete(authTokens)
+      .where(
+        and(
+          eq(authTokens.userId, userId),
+          eq(authTokens.type, type),
+          or(eq(authTokens.used, true), lt(authTokens.expiresAt, new Date())),
+        ),
+      );
+
+    const code = await this.generateUniqueCode();
+
     await this.db.insert(authTokens).values({
-      token,
+      token: code,
       userId,
       type,
       expiresAt: new Date(Date.now() + ttlMs),
       used: false,
     });
-    return token;
+
+    return code;
   }
 
   /** Request email verification. */
@@ -457,6 +498,52 @@ export class AuthService {
         .update(authTokens)
         .set({ used: true })
         .where(eq(authTokens.id, authToken.id));
+    });
+
+    return { ok: true };
+  }
+
+  /** Delete the owner's master account and its hotel (permanent). */
+  async deleteAccount(userId: string) {
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!user) throw new NotFoundException('Account not found.');
+
+    if (!user.hotelId) {
+      throw new BadRequestException('No hotel is linked to this account.');
+    }
+
+    if (user.role !== 'owner') {
+      throw new ForbiddenException(
+        'Only the hotel owner can delete the master account.',
+      );
+    }
+
+    await this.db.transaction(async (tx) => {
+      // Withdraw pending staff invitations for the hotel.
+      await tx
+        .delete(invitations)
+        .where(eq(invitations.hotelId, user.hotelId!));
+
+      // Delete every account in the hotel (owner + staff).
+      // Their auth/refresh tokens cascade; other references are set to null.
+      const hotelUsers = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.hotelId, user.hotelId!));
+
+      const userIds = hotelUsers.map((u) => u.id);
+      if (userIds.length > 0) {
+        await tx.delete(users).where(inArray(users.id, userIds));
+      }
+
+      // Deleting the hotel cascades rooms, guests, stays, invoices,
+      // payments, bookings, notifications, activity logs, settings etc.
+      await tx.delete(hotels).where(eq(hotels.id, user.hotelId!));
     });
 
     return { ok: true };

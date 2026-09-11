@@ -68,7 +68,9 @@ const renderPanel = (inner: string, extraStyle = ''): string => `
 
 /** Modern code box: oversized letters on a soft panel. */
 const renderCodeBox = (code: string, color: string): string => {
-  const groups = (code.replace(/\s+/g, '') || code).match(/.{1,4}/g) ?? [code];
+  const clean = code.replace(/\s+/g, '') || code;
+  const groupSize = clean.length === 6 ? 3 : 4;
+  const groups = clean.match(new RegExp(`.{1,${groupSize}}`, 'g')) ?? [clean];
   return renderPanel(
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
       <tr>

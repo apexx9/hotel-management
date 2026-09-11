@@ -44,6 +44,16 @@ const StaffService = () => {
     }
   }
 
+  async function deleteStaff(id: string): Promise<any> {
+    try {
+      const response = await operationsApi.deleteStaff(id);
+      return response.data;
+    } catch (error) {
+      console.error("Failed to delete staff:", getErrorMessage(error, "Failed to delete staff"));
+      throw error;
+    }
+  }
+
   async function revokeInvitation(id: string): Promise<any> {
     try {
       const response = await operationsApi.revokeInvitation(id);
@@ -69,6 +79,7 @@ const StaffService = () => {
     getStaffMember,
     inviteStaff,
     updateStaff,
+    deleteStaff,
     revokeInvitation,
     resendInvitation,
   };

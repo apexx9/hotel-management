@@ -344,6 +344,7 @@ const operationsApi = {
     instance.post("/staff/invite", data),
   updateStaff: (id: string, data: z.infer<typeof updateStaffSchema>) =>
     instance.patch(`/staff/${id}`, data),
+  deleteStaff: (id: string) => instance.delete(`/staff/${id}`),
   revokeInvitation: (id: string) => instance.delete(`/staff/invitations/${id}`),
   resendInvitation: (id: string) =>
     instance.post(`/staff/invitations/${id}/resend`),

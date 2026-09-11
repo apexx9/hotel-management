@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import StaffService from "@/services/staff.service";
+import AuthService from "@/services/auth.service";
 import { formatDate } from "@/utils/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +72,12 @@ export default function StaffPage() {
   const [resendingInviteId, setResendingInviteId] = useState<string | null>(
     null,
   );
+  const [removingStaff, setRemovingStaff] = useState<any | null>(null);
+  const [deletingStaff, setDeletingStaff] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{
+    id: string;
+    role: string;
+  } | null>(null);
 
   // Invite form
   const [inviteForm, setInviteForm] = useState({
@@ -101,6 +108,12 @@ export default function StaffPage() {
 
   useEffect(() => {
     fetchData();
+    AuthService()
+      .getCurrentUser()
+      .then((user) =>
+        setCurrentUser(user ? { id: user.id, role: user.role } : null),
+      )
+      .catch(() => setCurrentUser(null));
   }, []);
 
   const handleInvite = async () => {
@@ -177,6 +190,22 @@ export default function StaffPage() {
       toast.error("Failed to remove invitation");
     } finally {
       setRevoking(false);
+    }
+  };
+
+  const handleRemoveStaff = async () => {
+    if (!removingStaff) return;
+    setDeletingStaff(true);
+    try {
+      await StaffService().deleteStaff(removingStaff.id);
+      toast.success(`${removingStaff.fullName} was removed from the hotel`);
+      setRemovingStaff(null);
+      await fetchData();
+    } catch (err) {
+      console.error("Failed to remove staff:", err);
+      toast.error("Failed to remove staff member");
+    } finally {
+      setDeletingStaff(false);
     }
   };
 
@@ -397,14 +426,28 @@ export default function StaffPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditDialog(member)}
-                          className="rounded-lg text-xs font-medium hover:bg-muted/40"
-                        >
-                          Edit
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditDialog(member)}
+                            className="rounded-lg text-xs font-medium hover:bg-muted/40"
+                          >
+                            Edit
+                          </Button>
+                          {member.role !== "owner" &&
+                          member.id !== currentUser?.id ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setRemovingStaff(member)}
+                              className="rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" />
+                              Remove
+                            </Button>
+                          ) : null}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -619,6 +662,48 @@ export default function StaffPage() {
             >
               <Trash2 className="h-4 w-4 mr-1" />
               {revoking ? "Removing..." : "Remove Invitation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── REMOVE STAFF DIALOG ───────────────────────────────────── */}
+      <Dialog
+        open={!!removingStaff}
+        onOpenChange={(open) => !open && setRemovingStaff(null)}
+      >
+        <DialogContent className="sm:max-w-[420px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">Remove staff</DialogTitle>
+            <DialogDescription>
+              Remove{" "}
+              <span className="font-semibold text-foreground">
+                {removingStaff?.fullName} ({removingStaff?.email})
+              </span>
+              from the hotel?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-2xl bg-muted/30 border border-border/40 p-4 text-sm text-muted-foreground leading-relaxed">
+            They will immediately lose access to the hotel workspace and any
+            pending invitation for their email will stop working. Bookings,
+            invoices, and history stay intact — only the account is removed.
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRemovingStaff(null)}
+              className="rounded-full"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRemoveStaff}
+              disabled={deletingStaff}
+              className="rounded-full"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              {deletingStaff ? "Removing..." : "Remove Member"}
             </Button>
           </DialogFooter>
         </DialogContent>

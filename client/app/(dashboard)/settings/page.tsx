@@ -9,15 +9,25 @@ import NotificationsService, {
   AppNotification,
 } from "@/services/notifications.service";
 import type { HotelSettingsResponse } from "@/actions/operations";
+import { authApi } from "@/actions/auth";
 import { formatDateTime } from "@/utils/utils";
 import { notificationTypeColors } from "@/lib/status-colors";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageLoading } from "@/components/dashboard/page-loading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   AlertCircle,
   ArrowRight,
@@ -33,6 +43,7 @@ import {
   Map,
   Mail,
   MailOpen,
+  Trash2,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -66,6 +77,10 @@ function SettingsOverviewContent() {
   );
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const fetchNotifications = async () => {
     try {
@@ -104,6 +119,10 @@ function SettingsOverviewContent() {
 
     fetchSetupData();
     fetchNotifications();
+    authApi
+      .getCurrentUser()
+      .then((res) => setIsOwner(res.data?.user?.role === "owner"))
+      .catch(() => setIsOwner(false));
   }, []);
 
   const handleMarkAsRead = async (id: string) => {
@@ -131,6 +150,22 @@ function SettingsOverviewContent() {
       toast.error("Failed to update notifications");
     } finally {
       setMarkingAll(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeletingAccount(true);
+    try {
+      await authApi.deleteAccount();
+      localStorage.removeItem("token");
+      document.cookie =
+        "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      window.location.assign("/login");
+    } catch (err) {
+      console.error("Failed to delete account:", err);
+      toast.error("Failed to delete account. Please try again.");
+    } finally {
+      setDeletingAccount(false);
     }
   };
 
@@ -412,6 +447,42 @@ function SettingsOverviewContent() {
               </CardContent>
             </Card>
           )}
+
+          {isOwner ? (
+            <Card className="overflow-hidden rounded-3xl border border-destructive/30 bg-destructive/5 shadow-sm">
+              <CardHeader className="border-b border-destructive/20 bg-destructive/5 pb-4">
+                <CardTitle className="flex items-center gap-2 text-base font-bold text-destructive">
+                  <Trash2 className="h-5 w-5" />
+                  Danger Zone
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                  <div>
+                    <p className="font-semibold text-foreground">
+                      Delete hotel and master account
+                    </p>
+                    <p className="mt-1 max-w-2xl text-sm text-muted-foreground leading-relaxed">
+                      Permanently delete this hotel, every staff account, and
+                      all rooms, guests, bookings, invoices and settings. This
+                      cannot be undone.
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      setConfirmText("");
+                      setDeleteDialogOpen(true);
+                    }}
+                    className="shrink-0 rounded-full"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete account
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
         </>
       ) : (
         <>
@@ -631,6 +702,55 @@ function SettingsOverviewContent() {
           )}
         </>
       )}
+
+      <Dialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => !open && setDeleteDialogOpen(false)}
+      >
+        <DialogContent className="sm:max-w-[440px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">
+              Delete hotel account?
+            </DialogTitle>
+            <DialogDescription>
+              This permanently deletes the hotel, all staff accounts, and all
+              bookings, guests, invoices, rooms and settings. This action
+              cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="rounded-2xl bg-destructive/5 border border-destructive/20 p-4 text-sm text-muted-foreground leading-relaxed">
+              To confirm, type{" "}
+              <span className="font-bold text-destructive">DELETE</span> in the
+              box below.
+            </div>
+            <Input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="Type DELETE to confirm"
+              className="h-11 rounded-xl bg-muted/30 border-border/50"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              className="rounded-full"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={deletingAccount || confirmText !== "DELETE"}
+              className="rounded-full"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              {deletingAccount ? "Deleting..." : "Delete permanently"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

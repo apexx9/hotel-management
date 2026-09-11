@@ -1,6 +1,17 @@
-import { Body, Controller, Get, Param, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RequestVerifyDto } from './dto/request-verify.dto';
@@ -51,6 +62,13 @@ export class AuthController {
   @Post('validate-token')
   async validateToken(@Body() body: { token: string }) {
     return this.authService.validateToken(body.token);
+  }
+
+  @Delete('account')
+  @UseGuards(JwtAuthGuard)
+  async deleteAccount(@Req() req: Request) {
+    const userId = (req as any).user?.userId as string;
+    return this.authService.deleteAccount(userId);
   }
 
   @Post('request-reset')

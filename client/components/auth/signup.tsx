@@ -103,7 +103,9 @@ const Signup = () => {
         sessionStorage.setItem("pendingEmail", data.owner.email);
       }
       toast.success("Hotel account created. Please verify your account.");
-      router.push("/signup/verify");
+      router.push(
+        `/signup/verify?email=${encodeURIComponent(data.owner.email)}`,
+      );
     } catch (err: unknown) {
       console.error(err);
       toast.error(

@@ -3427,6 +3427,66 @@ export class OperationsService {
     return updated;
   }
 
+  async deleteStaff(userId: string, id: string) {
+    const currentUser = await this.getCurrentUser(userId);
+    const hotelId = currentUser.hotelId;
+    if (!hotelId) throw new BadRequestException('Hotel context not found');
+
+    if (currentUser.id === id) {
+      throw new BadRequestException(
+        'You cannot remove your own account here.',
+      );
+    }
+
+    const [existing] = await this.db
+      .select()
+      .from(users)
+      .where(and(eq(users.hotelId, hotelId), eq(users.id, id)))
+      .limit(1);
+
+    if (!existing) throw new NotFoundException('Staff member not found');
+
+    if (existing.role === 'owner') {
+      throw new ForbiddenException(
+        'The hotel owner account cannot be removed by another staff member.',
+      );
+    }
+
+    const [removed] = await this.db
+      .delete(users)
+      .where(and(eq(users.hotelId, hotelId), eq(users.id, id)))
+      .returning({
+        id: users.id,
+        email: users.email,
+        fullName: users.fullName,
+        role: users.role,
+      });
+
+    // Also withdraw any pending invitation sent to that address.
+    await this.db
+      .update(invitations)
+      .set({ status: 'revoked', updatedAt: new Date() })
+      .where(
+        and(
+          eq(invitations.hotelId, hotelId),
+          eq(invitations.email, existing.email.toLowerCase()),
+          eq(invitations.status, 'pending'),
+        ),
+      );
+
+    await this.writeActivity(
+      hotelId,
+      currentUser.id,
+      currentUser.fullName,
+      'staff removed',
+      `Staff ${removed.fullName} (${removed.email}) was removed from the hotel.`,
+      'user',
+      removed.id,
+    );
+
+    return { ok: true, removed };
+  }
+
   // ==========================================
   // SETTINGS PERSISTENCE
   // ==========================================

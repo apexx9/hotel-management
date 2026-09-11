@@ -504,6 +504,12 @@ export class OperationsController {
     return this.operations.updateStaff(req.user.userId, id, dto);
   }
 
+  @Delete('staff/:id')
+  @RequirePermissions(PERMISSIONS.staffUpdate)
+  deleteStaff(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.operations.deleteStaff(req.user.userId, id);
+  }
+
   // ==========================================
   // SETTINGS
   // ==========================================

@@ -36,10 +36,7 @@ import { toast } from "sonner";
 import BookingsService from "@/services/bookings.service";
 import GuestsService, { type Guest } from "@/services/guests.service";
 import InvoicesService from "@/services/invoices.service";
-import RoomsService, {
-  type Room,
-  type RoomType,
-} from "@/services/rooms.service";
+import RoomsService, { type RoomType } from "@/services/rooms.service";
 import SettingsService from "@/services/settings.service";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { cn } from "@/lib/utils";
@@ -101,7 +98,6 @@ export function NewBookingDialog({
   const [step, setStep] = useState(0);
   const [form, setForm] = useState(initialForm);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
-  const [allRooms, setAllRooms] = useState<Room[]>([]);
   const [loadingRoomTypes, setLoadingRoomTypes] = useState(false);
   const [creating, setCreating] = useState(false);
   const [guestId, setGuestId] = useState<string>("");
@@ -109,6 +105,13 @@ export function NewBookingDialog({
   const [guestSearch, setGuestSearch] = useState("");
   const [guestResults, setGuestResults] = useState<Guest[]>([]);
   const [searchingGuests, setSearchingGuests] = useState(false);
+  const [availability, setAvailability] = useState<{
+    availableCount: number;
+    totalCandidates: number;
+    blockedByDates: number;
+    checkOut: string;
+  } | null>(null);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
 
   const resolveValue = (
     amount: number,
@@ -129,10 +132,6 @@ export function NewBookingDialog({
     ),
   );
   const total = Number((subtotal - discountAmount + taxAmount).toFixed(2));
-  const availableRoomsForType = allRooms.filter(
-    (room) =>
-      room.roomTypeId === form.roomTypeId && room.status === "available",
-  );
 
   const guestStepValid =
     !!selectedGuest ||
@@ -143,13 +142,11 @@ export function NewBookingDialog({
       const fetchData = async () => {
         setLoadingRoomTypes(true);
         try {
-          const [types, settings, rooms] = await Promise.all([
+          const [types, settings] = await Promise.all([
             RoomsService().getRoomTypes(),
             SettingsService().getSettings(),
-            RoomsService().getRooms(),
           ]);
           setRoomTypes(types.filter((t) => t.isActive));
-          setAllRooms(rooms);
           setForm((current) => ({
             ...current,
             discountMode: settings.defaultDiscountType ?? "value",
@@ -177,6 +174,8 @@ export function NewBookingDialog({
         setSelectedGuest(null);
         setGuestSearch("");
         setGuestResults([]);
+        setAvailability(null);
+        setCheckingAvailability(false);
       }, 300);
     }
   }, [open]);
@@ -201,6 +200,50 @@ export function NewBookingDialog({
     }, 350);
     return () => clearTimeout(timer);
   }, [guestSearch, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const valid =
+      !!form.roomTypeId && !!form.expectedCheckInAt && Number(form.nights) >= 1;
+    const timer = setTimeout(
+      async () => {
+        if (!valid) {
+          setAvailability(null);
+          setCheckingAvailability(false);
+          return;
+        }
+        setCheckingAvailability(true);
+        try {
+          const res = await BookingsService().getAvailability({
+            roomTypeId: form.roomTypeId,
+            checkIn: form.expectedCheckInAt,
+            nights: form.nights,
+            guests: form.guestsCount,
+            checkInNow: form.checkInNow,
+          });
+          setAvailability({
+            availableCount: res.availableCount,
+            totalCandidates: res.totalCandidates,
+            blockedByDates: res.blockedByDates,
+            checkOut: res.checkOut,
+          });
+        } catch {
+          setAvailability(null);
+        } finally {
+          setCheckingAvailability(false);
+        }
+      },
+      valid ? 350 : 0,
+    );
+    return () => clearTimeout(timer);
+  }, [
+    open,
+    form.roomTypeId,
+    form.expectedCheckInAt,
+    form.nights,
+    form.guestsCount,
+    form.checkInNow,
+  ]);
 
   const handleSelectGuest = (guest: Guest) => {
     setSelectedGuest(guest);
@@ -246,9 +289,15 @@ export function NewBookingDialog({
         );
         return;
       }
-      if (availableRoomsForType.length === 0) {
+      if (checkingAvailability) {
+        toast.error("Still checking availability, please wait.");
+        return;
+      }
+      if (availability && availability.availableCount === 0) {
         toast.error(
-          "No available rooms are configured for this room type. Create or enable a room first.",
+          availability.totalCandidates === 0
+            ? "No room can host this stay for these dates. Pick a larger room type or fewer guests."
+            : "All matching rooms are reserved for these dates. Try different dates or guests.",
         );
         return;
       }
@@ -259,6 +308,14 @@ export function NewBookingDialog({
   const handleSubmit = async () => {
     if (!form.phone || !form.nights || !form.expectedCheckInAt) {
       toast.error("Phone, nights, and check-in date are required");
+      return;
+    }
+    if (
+      availability &&
+      availability.availableCount === 0 &&
+      !checkingAvailability
+    ) {
+      toast.error("No rooms are available for the selected dates.");
       return;
     }
 
@@ -283,9 +340,7 @@ export function NewBookingDialog({
         toast.success("Booking created successfully");
       }
       try {
-        const invoice = (
-          result as { invoice?: { id?: string } }
-        )?.invoice;
+        const invoice = (result as { invoice?: { id?: string } })?.invoice;
         if (invoice?.id) {
           const html = await InvoicesService().getInvoiceReceipt(invoice.id);
           const win = window.open("", "_blank");
@@ -387,7 +442,10 @@ export function NewBookingDialog({
             className="min-h-full"
           >
             {step === 0 && (
-              <motion.section variants={itemVariants} className="p-8 pt-6 space-y-5">
+              <motion.section
+                variants={itemVariants}
+                className="p-8 pt-6 space-y-5"
+              >
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
                   <User className="h-4 w-4 text-blue-600" />
                   <h3 className="text-sm font-medium text-slate-900">
@@ -433,7 +491,9 @@ export function NewBookingDialog({
                     <div className="space-y-2">
                       <Label className="text-slate-600 text-sm">
                         Search for an existing guest{" "}
-                        <span className="text-slate-400">(min 2 characters)</span>
+                        <span className="text-slate-400">
+                          (min 2 characters)
+                        </span>
                       </Label>
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -544,7 +604,10 @@ export function NewBookingDialog({
             )}
 
             {step === 1 && (
-              <motion.section variants={itemVariants} className="p-8 pt-6 space-y-5">
+              <motion.section
+                variants={itemVariants}
+                className="p-8 pt-6 space-y-5"
+              >
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
                   <CalendarDays className="h-4 w-4 text-blue-600" />
                   <h3 className="text-sm font-medium text-slate-900">
@@ -607,14 +670,22 @@ export function NewBookingDialog({
                       <p
                         className={cn(
                           "text-xs",
-                          availableRoomsForType.length > 0
-                            ? "text-emerald-600"
-                            : "text-amber-600",
+                          checkingAvailability
+                            ? "text-slate-400"
+                            : availability && availability.availableCount > 0
+                              ? "text-emerald-600"
+                              : "text-amber-600",
                         )}
                       >
-                        {availableRoomsForType.length > 0
-                          ? `${availableRoomsForType.length} available room${availableRoomsForType.length === 1 ? "" : "s"} for this type`
-                          : "No available rooms for this type"}
+                        {checkingAvailability
+                          ? "Checking availability for these dates…"
+                          : availability
+                            ? availability.availableCount > 0
+                              ? `${availability.availableCount} room${availability.availableCount === 1 ? "" : "s"} available for these dates. Check-out: ${new Date(availability.checkOut).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}.`
+                              : availability.totalCandidates === 0
+                                ? "No room can host this stay (all inactive, out of service, or too small for the party)."
+                                : "All matching rooms are already reserved for these dates. Try different dates or fewer guests."
+                            : "Select a check-in date to check availability."}
                       </p>
                     )}
                   </div>
@@ -722,7 +793,10 @@ export function NewBookingDialog({
             )}
 
             {step === 2 && (
-              <motion.section variants={itemVariants} className="p-8 pt-6 space-y-6">
+              <motion.section
+                variants={itemVariants}
+                className="p-8 pt-6 space-y-6"
+              >
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
                   <CreditCard className="h-4 w-4 text-blue-600" />
                   <h3 className="text-sm font-medium text-slate-900">
@@ -869,8 +943,12 @@ export function NewBookingDialog({
                         <SelectContent>
                           <SelectItem value="cash">Cash</SelectItem>
                           <SelectItem value="card">Card</SelectItem>
-                          <SelectItem value="mobile_money">Mobile Money</SelectItem>
-                          <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                          <SelectItem value="mobile_money">
+                            Mobile Money
+                          </SelectItem>
+                          <SelectItem value="bank_transfer">
+                            Bank Transfer
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -908,7 +986,11 @@ export function NewBookingDialog({
                           night{form.nights === 1 ? "" : "s"}
                         </span>
                         <span className="font-medium text-slate-800">
-                          {selectedRoomType?.name ? form.nights + " × $" + Number(form.rate).toFixed(2) : ""}
+                          {selectedRoomType?.name
+                            ? form.nights +
+                              " × $" +
+                              Number(form.rate).toFixed(2)
+                            : ""}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm text-slate-600">
@@ -934,7 +1016,11 @@ export function NewBookingDialog({
                       <div className="flex items-center justify-between text-sm font-semibold text-blue-700 border-t border-slate-200 pt-2">
                         <span>Balance due</span>
                         <span>
-                          ${Math.max(0, total - Number(form.amountPaid || 0)).toFixed(2)}
+                          $
+                          {Math.max(
+                            0,
+                            total - Number(form.amountPaid || 0),
+                          ).toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -978,7 +1064,9 @@ export function NewBookingDialog({
           <Button
             variant="outline"
             onClick={() =>
-              step === 0 ? onOpenChange(false) : setStep((s) => Math.max(0, s - 1))
+              step === 0
+                ? onOpenChange(false)
+                : setStep((s) => Math.max(0, s - 1))
             }
             className="h-10 text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
           >

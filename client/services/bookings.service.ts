@@ -2,8 +2,6 @@ import operationsApi from "@/actions/operations";
 import type { UpdateBookingSchema } from "@/schema/operations.schema";
 import { getErrorMessage } from "@/lib/errors";
 
-
-
 export interface BookingData {
   guestId?: string;
   firstName?: string;
@@ -108,6 +106,25 @@ const BookingsService = () => {
     return response.data;
   };
 
+  const getAvailability = async (params: {
+    roomTypeId: string;
+    checkIn: string;
+    nights: number;
+    guests: number;
+    checkInNow: boolean;
+  }) => {
+    try {
+      const response = await operationsApi.getBookingAvailability(params);
+      return response.data;
+    } catch (error) {
+      const message = getErrorMessage(
+        error,
+        "Could not check availability for the selected dates.",
+      );
+      throw new Error(message);
+    }
+  };
+
   return {
     createBooking,
     updateBooking,
@@ -116,6 +133,7 @@ const BookingsService = () => {
     transferRoom,
     checkIn,
     checkOut,
+    getAvailability,
   };
 };
 

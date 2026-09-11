@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { date, version } from "@/utils/utils";
+import { date } from "@/utils/utils";
 
 const AuthFooter = () => {
   return (
@@ -32,9 +32,6 @@ const AuthFooter = () => {
       <div className="mt-3 space-y-1 text-center">
         <p className="text-[10px] font-medium text-neutral-400">
           © 2024–{date} AltBit Softwares. All rights reserved.
-        </p>
-        <p className="text-[10px] font-medium text-neutral-400">
-          Hotel Management System · v{version}
         </p>
       </div>
     </footer>

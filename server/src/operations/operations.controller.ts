@@ -185,6 +185,26 @@ export class OperationsController {
     return this.operations.createBooking(req.user.userId, dto);
   }
 
+  @Get('bookings/availability')
+  getBookingAvailability(
+    @Req() req: AuthenticatedRequest,
+    @Query('roomTypeId') roomTypeId?: string,
+    @Query('roomId') roomId?: string,
+    @Query('checkIn') checkIn?: string,
+    @Query('nights') nights?: string,
+    @Query('guests') guests?: string,
+    @Query('checkInNow') checkInNow?: string,
+  ) {
+    return this.operations.getBookingAvailability(req.user.userId, {
+      roomTypeId,
+      roomId,
+      checkIn: checkIn ?? '',
+      nights: nights ?? '',
+      guests,
+      checkInNow,
+    });
+  }
+
   @Patch('bookings/:id')
   @RequirePermissions(PERMISSIONS.reservationsUpdate)
   updateBooking(

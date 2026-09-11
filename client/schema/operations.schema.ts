@@ -218,6 +218,35 @@ export const staysQuerySchema = z.object({
   q: z.string().optional(),
 });
 
+export const bookingAvailabilityQuerySchema = z.object({
+  roomTypeId: z.string().uuid("Invalid room type ID").optional(),
+  roomId: z.string().uuid("Invalid room ID").optional(),
+  checkIn: z.string().min(1, "Check-in date is required"),
+  nights: z.number().int().positive("Nights must be positive"),
+  guests: z.number().int().positive("Guests must be positive").optional(),
+  checkInNow: z.boolean().optional(),
+});
+
+export const bookingAvailabilityResponseSchema = z.object({
+  checkIn: z.string(),
+  checkOut: z.string(),
+  nights: z.number(),
+  guests: z.number(),
+  roomTypeId: z.string().nullable().optional(),
+  totalCandidates: z.number(),
+  availableCount: z.number(),
+  blockedByDates: z.number(),
+  rooms: z.array(
+    z.object({
+      id: z.string(),
+      number: z.string(),
+      floor: z.string(),
+      status: z.string(),
+      capacity: z.number(),
+    }),
+  ),
+});
+
 export const resourceIdQuerySchema = z.object({
   stayId: z.string().uuid().optional(),
   guestId: z.string().uuid().optional(),

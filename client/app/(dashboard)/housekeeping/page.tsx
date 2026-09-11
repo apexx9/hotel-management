@@ -88,7 +88,10 @@ export default function HousekeepingPage() {
   };
 
   const filteredTasks = tasks.filter((task) => {
-    const matchesStatus = statusFilter === "all" || task.status === statusFilter;
+    const matchesStatus =
+      statusFilter === "all"
+        ? task.status !== "ready"
+        : task.status === statusFilter;
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       task.roomId.toLowerCase().includes(q) ||
@@ -159,7 +162,7 @@ export default function HousekeepingPage() {
               </div>
               <div className="bg-background/80 backdrop-blur-md border border-border/60 rounded-2xl p-5 shadow-sm">
                 <p className={cn("text-4xl font-extrabold tracking-tight", item.color)}>{item.value}</p>
-                <p className="text-xs text-muted-foreground mt-1">Current Tasks</p>
+                <p className="text-xs text-muted-foreground mt-1">{item.label === "Ready" ? "Rooms Ready" : "Pending Tasks"}</p>
               </div>
             </div>
           </div>

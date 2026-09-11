@@ -1,5 +1,4 @@
 export const date = new Date().getFullYear();
-export const version: string = "1.0";
 
 export { cn } from "@/lib/utils";
 

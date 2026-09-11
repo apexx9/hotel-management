@@ -26,6 +26,8 @@ import {
   searchQuerySchema,
   transferRoomSchema,
   createRoomSchema,
+  bookingAvailabilityQuerySchema,
+  bookingAvailabilityResponseSchema,
 } from "../schema/operations.schema";
 
 // Response types (kept as TypeScript types, not Zod, for read operations)
@@ -218,16 +220,16 @@ const operationsApi = {
   getRoom: (id: string) => instance.get(`/rooms/${id}`),
   createRoom: (data: z.infer<typeof createRoomSchema>) =>
     instance.post("/rooms", data),
-  createRoomsBulk: (data: {
-    rooms: Array<z.infer<typeof createRoomSchema>>;
-  }) => instance.post("/rooms/bulk", data),
+  createRoomsBulk: (data: { rooms: Array<z.infer<typeof createRoomSchema>> }) =>
+    instance.post("/rooms/bulk", data),
   updateRoom: (id: string, data: z.infer<typeof updateRoomSchema>) =>
     instance.patch(`/rooms/${id}`, data),
   updateRoomStatus: (
     id: string,
     data: z.infer<typeof updateRoomStatusSchema>,
   ) => instance.patch(`/rooms/${id}/status`, data),
-  markRoomAvailable: (id: string) => instance.post(`/rooms/${id}/mark-available`),
+  markRoomAvailable: (id: string) =>
+    instance.post(`/rooms/${id}/mark-available`),
   deleteRoom: (id: string) => instance.delete(`/rooms/${id}`),
 
   // Room Types
@@ -258,6 +260,13 @@ const operationsApi = {
   getStay: (id: string) => instance.get(`/stays/${id}`),
   createBooking: (data: z.infer<typeof createBookingSchema>) =>
     instance.post("/bookings", data),
+  getBookingAvailability: (
+    params?: z.infer<typeof bookingAvailabilityQuerySchema>,
+  ) =>
+    instance.get<z.infer<typeof bookingAvailabilityResponseSchema>>(
+      "/bookings/availability",
+      { params },
+    ),
   updateBooking: (id: string, data: z.infer<typeof updateBookingSchema>) =>
     instance.patch(`/bookings/${id}`, data),
   cancelBooking: (id: string) =>
@@ -335,8 +344,7 @@ const operationsApi = {
     instance.post("/staff/invite", data),
   updateStaff: (id: string, data: z.infer<typeof updateStaffSchema>) =>
     instance.patch(`/staff/${id}`, data),
-  revokeInvitation: (id: string) =>
-    instance.delete(`/staff/invitations/${id}`),
+  revokeInvitation: (id: string) => instance.delete(`/staff/invitations/${id}`),
   resendInvitation: (id: string) =>
     instance.post(`/staff/invitations/${id}/resend`),
 

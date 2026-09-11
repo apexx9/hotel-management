@@ -379,7 +379,7 @@ export default function InvoicesPage() {
                           {item.description || item.serviceName || "Item"}
                         </span>
                         <span className="font-medium">
-                          {formatCurrency(item.amount || item.price)}
+                          {formatCurrency(item.total ?? item.unitPrice)}
                         </span>
                       </div>
                     ))}

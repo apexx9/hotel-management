@@ -4,11 +4,12 @@ import { Injectable } from '@nestjs/common';
  * Centralized email configuration loaded from environment variables.
  *
  * | Variable       | Required | Default               | Description                          |
- * |----------------|----------|-----------------------|--------------------------------------|
- * | BREVO_API_KEY  | yes      | — (email disabled)    | Brevo API key                       |
- * | SMTP_FROM      | no       | no-reply@example.com  | Sender email address (must be a verified Brevo sender) |
- * | SMTP_FROM_NAME | no       | Hotel Management      | Display name shown as sender         |
- * | FRONTEND_URL   | no       | http://localhost:3000 | Public frontend origin (email links) |
+ * |----------------|----------|------------------------------|--------------------------------------|
+ * | BREVO_API_KEY  | yes      | — (email disabled)          | Brevo API key                       |
+ * | SMTP_FROM      | no       | no-reply@example.com        | Sender email address (must be a verified Brevo sender) |
+ * | SMTP_FROM_NAME | no       | Hotel Management            | Display name shown as sender         |
+ * | FRONTEND_URL   | no       | localhost:3000 in dev,      | Public frontend origin (email links) |
+ * |                |          | the Vercel app in production|                                      |
  *
  * When `BREVO_API_KEY` is not set the application runs fully without email
  * delivery: every send is short-circuited and reported as `skipped`. This
@@ -33,6 +34,9 @@ export class EmailConfig {
     this.fromEmail = process.env.SMTP_FROM?.trim() || 'no-reply@example.com';
     this.fromName = process.env.SMTP_FROM_NAME?.trim() || 'Hotel Management';
     this.frontendUrl =
-      process.env.FRONTEND_URL?.trim() || 'http://localhost:3000';
+      process.env.FRONTEND_URL?.trim() ||
+      (process.env.NODE_ENV === 'production'
+        ? 'https://hotel-management-orcin-eight.vercel.app'
+        : 'http://localhost:3000');
   }
 }

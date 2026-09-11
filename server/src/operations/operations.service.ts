@@ -27,14 +27,17 @@ import {
 } from '../database/schema';
 import {
   and,
+  asc,
   desc,
   eq,
   isNull,
   sql,
   or,
   inArray,
-  ilike,
   not,
+  notInArray,
+  gte,
+  ilike,
 } from 'drizzle-orm';
 import {
   CheckInDto,
@@ -148,6 +151,74 @@ export class OperationsService {
       },
       replyTo: settings?.emailFrom ?? settings?.email ?? null,
     };
+  }
+
+  /**
+   * Date-aware room availability. Returns candidate rooms (bookable by
+   * physical state and capacity) plus which of them are blocked by
+   * overlapping active stays.
+   */
+  private async findBookableRooms(
+    db: { select: Database['select'] },
+    opts: {
+      hotelId: string;
+      roomTypeId?: string;
+      roomId?: string;
+      checkIn: Date;
+      checkOut: Date;
+      guestsCount: number;
+      checkInNow: boolean;
+      excludeStayId?: string;
+    },
+  ) {
+    const { hotelId, checkIn, checkOut, guestsCount, excludeStayId } = opts;
+
+    const statusFilter = opts.checkInNow
+      ? inArray(rooms.status, ['available', 'reserved'])
+      : notInArray(rooms.status, ['out_of_service', 'maintenance']);
+
+    const candidates = await db
+      .select()
+      .from(rooms)
+      .where(
+        and(
+          eq(rooms.hotelId, hotelId),
+          eq(rooms.isActive, true),
+          statusFilter,
+          gte(rooms.capacity, guestsCount || 1),
+          opts.roomTypeId ? eq(rooms.roomTypeId, opts.roomTypeId) : undefined,
+          opts.roomId ? eq(rooms.id, opts.roomId) : undefined,
+        ),
+      )
+      .orderBy(asc(rooms.number));
+
+    if (candidates.length === 0)
+      return {
+        candidates,
+        available: [] as typeof candidates,
+        blockedRoomIds: new Set<string>(),
+      };
+
+    const overlapRows = await db
+      .select({ roomId: stays.roomId })
+      .from(stays)
+      .where(
+        and(
+          eq(stays.hotelId, hotelId),
+          inArray(
+            stays.roomId,
+            candidates.map((r) => r.id),
+          ),
+          inArray(stays.status, ['reserved', 'pending_arrival', 'checked_in']),
+          excludeStayId ? not(eq(stays.id, excludeStayId)) : undefined,
+          sql`${stays.expectedCheckoutAt}::timestamptz > ${checkIn}::timestamptz AND ${stays.expectedCheckInAt}::timestamptz < ${checkOut}::timestamptz`,
+        ),
+      );
+
+    const blockedRoomIds = new Set(overlapRows.map((row) => row.roomId));
+    const available = candidates.filter((room) => !blockedRoomIds.has(room.id));
+
+    return { candidates, available, blockedRoomIds };
   }
 
   /** Load the authoritative stay + guest + room context for an email. */
@@ -1243,6 +1314,62 @@ export class OperationsService {
     return this.listStays(userId, { guestId });
   }
 
+  async getBookingAvailability(
+    userId: string,
+    dto: {
+      roomTypeId?: string;
+      roomId?: string;
+      checkIn: string;
+      nights: string;
+      guests?: string;
+      checkInNow?: string;
+    },
+  ) {
+    const hotelId = await this.getRequiredHotelId(userId);
+
+    const checkIn = new Date(dto.checkIn);
+    if (Number.isNaN(checkIn.getTime())) {
+      throw new BadRequestException('Invalid check-in date');
+    }
+
+    const nights = Number(dto.nights);
+    if (!Number.isInteger(nights) || nights < 1) {
+      throw new BadRequestException('Nights must be a positive integer');
+    }
+
+    const guests = Math.max(1, Number(dto.guests ?? 1) || 1);
+    const checkOut = new Date(checkIn.getTime() + nights * 86400000);
+
+    const { candidates, available, blockedRoomIds } =
+      await this.findBookableRooms(this.db, {
+        hotelId,
+        roomTypeId: dto.roomTypeId,
+        roomId: dto.roomId,
+        checkIn,
+        checkOut,
+        guestsCount: guests,
+        checkInNow: dto.checkInNow === 'true' || dto.checkInNow === '1',
+      });
+
+    return {
+      checkIn: checkIn.toISOString(),
+      checkOut: checkOut.toISOString(),
+      nights,
+      guests,
+      roomTypeId: dto.roomTypeId ?? null,
+      totalCandidates: candidates.length,
+      availableCount: available.length,
+      blockedByDates: blockedRoomIds.size,
+      rooms: available.map((room) => ({
+        id: room.id,
+        number: room.number,
+        floor: room.floor,
+        status: room.status,
+        capacity: room.capacity,
+      })),
+    };
+  }
+
   async createBooking(userId: string, dto: CreateBookingDto) {
     const createdBooking = await this.db.transaction(async (tx) => {
       const user = await this.getCurrentUser(userId);
@@ -1250,108 +1377,166 @@ export class OperationsService {
       if (!hotelId) throw new BadRequestException('Hotel context not found');
       const hotelFilter = eq(guests.hotelId, hotelId);
 
-      let guestRecord = dto.guestId
-        ? (
-            await tx
-              .select()
-              .from(guests)
-              .where(and(hotelFilter, eq(guests.id, dto.guestId)))
-              .limit(1)
-          )[0]
-        : undefined;
+      const nameConflicts = (existing: {
+        firstName: string;
+        lastName: string;
+      }): boolean => {
+        const first = dto.firstName?.trim();
+        const last = dto.lastName?.trim();
+        if (!first && !last) return false;
+        const matches = () =>
+          (!first ||
+            first.toLowerCase() ===
+              String(existing.firstName ?? '').toLowerCase()) &&
+          (!last ||
+            last.toLowerCase() ===
+              String(existing.lastName ?? '').toLowerCase());
+        return !matches();
+      };
 
-      if (!guestRecord && dto.phone) {
-        const [byPhone] = await tx
+      let guestRecord: typeof guests.$inferSelect | undefined;
+      if (dto.guestId) {
+        [guestRecord] = await tx
           .select()
           .from(guests)
-          .where(and(hotelFilter, eq(guests.phone, dto.phone)))
+          .where(and(hotelFilter, eq(guests.id, dto.guestId)))
           .limit(1);
-        guestRecord = byPhone;
-      }
+        if (!guestRecord) {
+          throw new BadRequestException('Selected guest was not found');
+        }
+      } else {
+        const lookups: Array<{
+          match?: typeof guests.$inferSelect;
+          by: string;
+        }> = [];
+        if (dto.phone) {
+          const [byPhone] = await tx
+            .select()
+            .from(guests)
+            .where(and(hotelFilter, eq(guests.phone, dto.phone)))
+            .limit(1);
+          lookups.push({ match: byPhone, by: 'this phone number' });
+        }
+        if (dto.email) {
+          const [byEmail] = await tx
+            .select()
+            .from(guests)
+            .where(and(hotelFilter, eq(guests.email, dto.email)))
+            .limit(1);
+          if (byEmail && !lookups.some((l) => l.match?.id === byEmail.id)) {
+            lookups.push({ match: byEmail, by: 'this email' });
+          }
+        }
+        if (dto.identificationNumber) {
+          const [byId] = await tx
+            .select()
+            .from(guests)
+            .where(
+              and(
+                hotelFilter,
+                eq(guests.identificationNumber, dto.identificationNumber),
+              ),
+            )
+            .limit(1);
+          if (byId && !lookups.some((l) => l.match?.id === byId.id)) {
+            lookups.push({ match: byId, by: 'this ID number' });
+          }
+        }
 
-      if (!guestRecord && dto.email) {
-        const [byEmail] = await tx
-          .select()
-          .from(guests)
-          .where(and(hotelFilter, eq(guests.email, dto.email)))
-          .limit(1);
-        guestRecord = byEmail;
-      }
-
-      if (!guestRecord && dto.identificationNumber) {
-        const [byIdNumber] = await tx
-          .select()
-          .from(guests)
-          .where(
-            and(
-              hotelFilter,
-              eq(guests.identificationNumber, dto.identificationNumber),
-            ),
-          )
-          .limit(1);
-        guestRecord = byIdNumber;
-      }
-
-      if (!guestRecord) {
-        const [createdGuest] = await tx
-          .insert(guests)
-          .values({
-            hotelId,
-            firstName: dto.firstName ?? dto.phone,
-            lastName: dto.lastName ?? 'Guest',
-            phone: dto.phone,
-            email: dto.email,
-            nationality: dto.nationality,
-            identificationType: dto.identificationType,
-            identificationNumber: dto.identificationNumber,
-            address: dto.address,
-            emergencyContact: dto.emergencyContact,
-            notes: dto.notes,
-          })
-          .returning();
-        guestRecord = createdGuest;
+        const matched = lookups.find((l) => l.match)?.match;
+        if (matched) {
+          if (nameConflicts(matched)) {
+            throw new ConflictException(
+              `A guest with ${
+                lookups.find((l) => l.match?.id === matched.id)?.by ??
+                'these details'
+              } already exists as "${matched.firstName} ${
+                matched.lastName
+              }". Search and select that guest instead, or update the guest's details first.`,
+            );
+          }
+          guestRecord = matched;
+        } else {
+          const [createdGuest] = await tx
+            .insert(guests)
+            .values({
+              hotelId,
+              firstName: dto.firstName ?? dto.phone,
+              lastName: dto.lastName ?? 'Guest',
+              phone: dto.phone,
+              email: dto.email,
+              nationality: dto.nationality,
+              identificationType: dto.identificationType,
+              identificationNumber: dto.identificationNumber,
+              address: dto.address,
+              emergencyContact: dto.emergencyContact,
+              notes: dto.notes,
+            })
+            .returning();
+          guestRecord = createdGuest;
+        }
       }
 
       if (!guestRecord) {
         throw new BadRequestException('Unable to resolve guest');
       }
 
-      let roomRecord: any = undefined;
+      const checkInDate = dto.checkInNow
+        ? new Date()
+        : dto.expectedCheckInAt
+          ? new Date(dto.expectedCheckInAt)
+          : new Date();
+      if (Number.isNaN(checkInDate.getTime())) {
+        throw new BadRequestException('Invalid check-in date');
+      }
+      const checkOutDate = new Date(
+        checkInDate.getTime() + dto.nights * 86400000,
+      );
 
+      const availability = await this.findBookableRooms(tx, {
+        hotelId,
+        roomTypeId: dto.roomTypeId,
+        roomId: dto.roomId,
+        checkIn: checkInDate,
+        checkOut: checkOutDate,
+        guestsCount: dto.guestsCount,
+        checkInNow: !!dto.checkInNow,
+      });
+
+      let roomRecord: (typeof availability.candidates)[number];
       if (dto.roomId) {
-        [roomRecord] = await tx
-          .select()
-          .from(rooms)
-          .where(and(eq(rooms.hotelId, hotelId), eq(rooms.id, dto.roomId)))
-          .limit(1);
-      } else if (dto.roomTypeId) {
-        [roomRecord] = await tx
-          .select()
-          .from(rooms)
-          .where(
-            and(
-              eq(rooms.hotelId, hotelId),
-              eq(rooms.roomTypeId, dto.roomTypeId),
-              eq(rooms.status, 'available'),
-            ),
-          )
-          .limit(1);
-      } else {
-        [roomRecord] = await tx
-          .select()
-          .from(rooms)
-          .where(and(eq(rooms.hotelId, hotelId), eq(rooms.status, 'available')))
-          .limit(1);
-      }
-
-      if (!roomRecord) {
-        throw new ConflictException(
-          'No available room found for the selected room type or dates.',
+        const specific = availability.candidates.find(
+          (room) => room.id === dto.roomId,
         );
-      }
-
-      if (!['available'].includes(roomRecord.status)) {
-        throw new ConflictException('Selected room is not available');
+        if (!specific) {
+          throw new ConflictException(
+            'This room is not bookable for the selected dates (not found, inactive, out of service, too small for the party, or already reserved).',
+          );
+        }
+        if (availability.blockedRoomIds.has(specific.id)) {
+          throw new ConflictException(
+            `Room ${specific.number} is already reserved for the selected dates (${checkInDate.toLocaleDateString()} – ${checkOutDate.toLocaleDateString()}).`,
+          );
+        }
+        roomRecord = specific;
+      } else {
+        if (availability.candidates.length === 0) {
+          throw new ConflictException(
+            dto.roomTypeId
+              ? `No room of this type can host ${dto.guestsCount} guest${
+                  dto.guestsCount === 1 ? '' : 's'
+                } (no active rooms, all out of service, or capacity too small).`
+              : `No room in this hotel can host ${dto.guestsCount} guest${
+                  dto.guestsCount === 1 ? '' : 's'
+                } (all out of service or too small).`,
+          );
+        }
+        if (availability.available.length === 0) {
+          throw new ConflictException(
+            'All matching rooms are already reserved for the selected dates. Try different dates or another room type.',
+          );
+        }
+        roomRecord = availability.available[0];
       }
 
       const [roomTypeRecord] = await tx
@@ -1397,15 +1582,6 @@ export class OperationsService {
       const stayStatus = dto.checkInNow ? 'checked_in' : 'reserved';
       const reference = formatReference('ST');
 
-      const checkInDate = dto.checkInNow
-        ? new Date()
-        : dto.expectedCheckInAt
-          ? new Date(dto.expectedCheckInAt)
-          : new Date();
-      const checkOutDate = new Date(
-        checkInDate.getTime() + dto.nights * 86400000,
-      );
-
       const [overlapStay] = await tx
         .select({ id: stays.id, reference: stays.reference })
         .from(stays)
@@ -1438,12 +1614,8 @@ export class OperationsService {
           roomId: roomRecord.id,
           roomTypeId: roomTypeRecord.id,
           status: stayStatus,
-          expectedCheckInAt: dto.checkInNow
-            ? new Date()
-            : dto.expectedCheckInAt
-              ? new Date(dto.expectedCheckInAt)
-              : new Date(),
-          expectedCheckoutAt: new Date(Date.now() + dto.nights * 86400000),
+          expectedCheckInAt: checkInDate,
+          expectedCheckoutAt: checkOutDate,
           guestsCount: dto.guestsCount,
           nights: dto.nights,
           rate: String(rate),
@@ -1588,6 +1760,12 @@ export class OperationsService {
 
     // Best-effort, non-blocking confirmation email after the commit.
     void this.dispatchBookingConfirmation(userId, createdBooking.stay.id);
+
+    // Guests who pay up front get their receipt immediately — the receipt
+    // must not wait until checkout.
+    if (money(dto.amountPaid) > 0) {
+      void this.dispatchInvoiceReceipt(userId, createdBooking.invoice.id);
+    }
 
     return createdBooking;
   }
@@ -1737,17 +1915,36 @@ export class OperationsService {
         .set({ status: 'cancelled', updatedAt: new Date() })
         .where(eq(stays.id, stay.id));
 
-      // Release the room only if it is still reserved for this stay.
+      // Release the room only if it is still reserved for this stay AND no
+      // other active stay occupies it for overlapping or future dates.
       const [room] = await tx
         .select()
         .from(rooms)
         .where(eq(rooms.id, stay.roomId))
         .limit(1);
       if (room && room.status === 'reserved') {
-        await tx
-          .update(rooms)
-          .set({ status: 'available', updatedAt: new Date() })
-          .where(eq(rooms.id, room.id));
+        const [otherActiveStay] = await tx
+          .select({ id: stays.id })
+          .from(stays)
+          .where(
+            and(
+              eq(stays.roomId, room.id),
+              eq(stays.hotelId, stay.hotelId),
+              not(eq(stays.id, stay.id)),
+              inArray(stays.status, [
+                'reserved',
+                'pending_arrival',
+                'checked_in',
+              ]),
+            ),
+          )
+          .limit(1);
+        if (!otherActiveStay) {
+          await tx
+            .update(rooms)
+            .set({ status: 'available', updatedAt: new Date() })
+            .where(eq(rooms.id, room.id));
+        }
       }
 
       const [invoice] = await tx
@@ -1820,9 +2017,33 @@ export class OperationsService {
 
       const targetOccupied =
         stay.status === 'checked_in' ? 'occupied' : 'reserved';
-      if (!['available', 'reserved'].includes(targetRoom.status)) {
+      if (targetRoom.status !== 'available') {
         throw new ConflictException(
-          `Room ${targetRoom.number} is not available for transfer`,
+          `Room ${targetRoom.number} is not available for transfer (current status: ${targetRoom.status}).`,
+        );
+      }
+
+      const [targetOverlap] = await tx
+        .select({ id: stays.id, reference: stays.reference })
+        .from(stays)
+        .where(
+          and(
+            eq(stays.hotelId, stay.hotelId),
+            eq(stays.roomId, targetRoom.id),
+            not(eq(stays.id, stay.id)),
+            inArray(stays.status, [
+              'reserved',
+              'pending_arrival',
+              'checked_in',
+            ]),
+            sql`${stays.expectedCheckoutAt}::timestamptz > ${stay.expectedCheckInAt}::timestamptz AND ${stays.expectedCheckInAt}::timestamptz < ${stay.expectedCheckoutAt}::timestamptz`,
+          ),
+        )
+        .limit(1);
+
+      if (targetOverlap) {
+        throw new ConflictException(
+          `Room ${targetRoom.number} is already reserved for these dates (stay ${targetOverlap.reference}).`,
         );
       }
 
@@ -2046,13 +2267,40 @@ export class OperationsService {
           })
           .where(eq(rooms.id, stay.roomId));
 
-        await tx.insert(housekeepingTasks).values({
-          hotelId: stay.hotelId,
-          roomId: stay.roomId,
-          stayId: stay.id,
-          status: 'cleaning',
-          note: `Turnaround task from checkout ${stay.reference}`,
-        });
+        // One turnaround task per room: reuse the room's existing task row
+        // (a completed "ready" cycle or an in-flight one) instead of piling up
+        // a new housekeeping record on every checkout.
+        const [existingTask] = await tx
+          .select({ id: housekeepingTasks.id })
+          .from(housekeepingTasks)
+          .where(
+            and(
+              eq(housekeepingTasks.hotelId, stay.hotelId),
+              eq(housekeepingTasks.roomId, stay.roomId),
+            ),
+          )
+          .orderBy(desc(housekeepingTasks.createdAt))
+          .limit(1);
+
+        if (existingTask) {
+          await tx
+            .update(housekeepingTasks)
+            .set({
+              status: 'cleaning',
+              stayId: stay.id,
+              note: `Turnaround task from checkout ${stay.reference}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(housekeepingTasks.id, existingTask.id));
+        } else {
+          await tx.insert(housekeepingTasks).values({
+            hotelId: stay.hotelId,
+            roomId: stay.roomId,
+            stayId: stay.id,
+            status: 'cleaning',
+            note: `Turnaround task from checkout ${stay.reference}`,
+          });
+        }
       } else {
         await tx
           .update(rooms)
@@ -2693,6 +2941,7 @@ export class OperationsService {
           ]),
         ),
       )
+      .orderBy(desc(housekeepingTasks.createdAt))
       .limit(1);
 
     if (task) {
@@ -2901,8 +3150,7 @@ export class OperationsService {
     try {
       const { branding, sender, replyTo } =
         await this.getHotelBranding(hotelId);
-      const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
-      const inviteUrl = `${frontend}/invite/${token}`;
+      const inviteUrl = `${this.emailConfig.frontendUrl}/invite/${token}`;
       await this.emailService.sendStaffInvitation(
         dto.email,
         {
@@ -2996,8 +3244,7 @@ export class OperationsService {
     try {
       const { branding, sender, replyTo } =
         await this.getHotelBranding(hotelId);
-      const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
-      const inviteUrl = `${frontend}/invite/${token}`;
+      const inviteUrl = `${this.emailConfig.frontendUrl}/invite/${token}`;
       await this.emailService.sendStaffInvitation(
         invitation.email,
         {

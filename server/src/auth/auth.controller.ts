@@ -9,6 +9,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -25,12 +26,15 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @Throttle({ default: { limit: 10, ttl: 60_000 * 60 } })
   async register(@Body() body: RegisterDto) {
     return this.authService.registerHotel(body);
   }
 
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60_000 * 15 } })
   async login(
+    @Req() req: Request,
     @Body() body: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ) {
@@ -50,16 +54,19 @@ export class AuthController {
   }
 
   @Post('request-verify')
+  @Throttle({ default: { limit: 5, ttl: 60_000 * 15 } })
   async requestVerify(@Body() body: RequestVerifyDto) {
     return this.authService.requestVerification(body.email);
   }
 
   @Post('verify')
+  @Throttle({ default: { limit: 10, ttl: 60_000 * 15 } })
   async verifyAccount(@Body() body: VerifyDto) {
     return this.authService.verifyAccount(body.token);
   }
 
   @Post('validate-token')
+  @Throttle({ default: { limit: 10, ttl: 60_000 * 15 } })
   async validateToken(@Body() body: { token: string }) {
     return this.authService.validateToken(body.token);
   }
@@ -72,11 +79,13 @@ export class AuthController {
   }
 
   @Post('request-reset')
+  @Throttle({ default: { limit: 5, ttl: 60_000 * 15 } })
   async requestReset(@Body() body: RequestResetDto) {
     return this.authService.requestPasswordReset(body.identifier);
   }
 
   @Post('reset')
+  @Throttle({ default: { limit: 10, ttl: 60_000 * 15 } })
   async resetPassword(@Body() body: ResetDto) {
     return this.authService.resetPassword(body.token, body.password);
   }

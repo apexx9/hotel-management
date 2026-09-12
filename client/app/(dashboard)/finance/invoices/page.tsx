@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import InvoicesService, { Invoice } from "@/services/invoices.service";
 import { formatCurrency, formatDateTime } from "@/utils/utils";
+import { useCurrency } from "@/utils/currency";
 import { invoiceStatusColors } from "@/lib/status-colors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +38,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  AlertCircle,
   Search,
   FileText,
   Eye,
@@ -49,6 +49,12 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
+interface InvoiceItemRow {
+  description?: string;
+  serviceName?: string;
+  total?: number;
+  unitPrice?: number;
+}
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -57,9 +63,10 @@ export default function InvoicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
+  const [invoiceItems, setInvoiceItems] = useState<InvoiceItemRow[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
   const [sendingReceipt, setSendingReceipt] = useState(false);
+  const currency = useCurrency();
 
   const fetchInvoices = async (silent = false) => {
     try {
@@ -76,7 +83,15 @@ export default function InvoicesPage() {
   };
 
   useEffect(() => {
-    fetchInvoices();
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchInvoices();
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useRealtimeRefresh(() => fetchInvoices(true));
@@ -257,8 +272,8 @@ export default function InvoicesPage() {
                         {invoice.status.replace("_", " ")}
                       </Badge>
                     </TableCell>
-                    <TableCell>{formatCurrency(invoice.total)}</TableCell>
-                    <TableCell>{formatCurrency(invoice.amountPaid)}</TableCell>
+                    <TableCell>{formatCurrency(invoice.total, currency)}</TableCell>
+                    <TableCell>{formatCurrency(invoice.amountPaid, currency)}</TableCell>
                     <TableCell
                       className={
                         Number(invoice.outstanding) > 0
@@ -266,7 +281,7 @@ export default function InvoicesPage() {
                           : "text-green-600"
                       }
                     >
-                      {formatCurrency(invoice.outstanding)}
+                      {formatCurrency(invoice.outstanding, currency)}
                     </TableCell>
                     <TableCell>
                       {invoice.issuedAt
@@ -307,57 +322,63 @@ export default function InvoicesPage() {
         open={!!selectedInvoice}
         onOpenChange={(open) => !open && setSelectedInvoice(null)}
       >
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Invoice Details</DialogTitle>
-            <DialogDescription>
-              {selectedInvoice?.reference} ·{" "}
-              {selectedInvoice?.status.replace("_", " ")}
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-[600px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl border border-slate-200 p-0 shadow-xl bg-white">
+          <div className="shrink-0 bg-slate-50/80 px-6 pt-6 pb-4 border-b border-slate-100">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold tracking-tight text-slate-900">Invoice Details</DialogTitle>
+              <DialogDescription className="mt-1 text-slate-500">
+                {selectedInvoice?.reference} ·{" "}
+                {selectedInvoice?.status.replace("_", " ")}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
           {selectedInvoice && (
-            <div className="space-y-4 py-2">
-              <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full">
+              <div className="space-y-6 p-6">
+              <div className="grid grid-cols-2 gap-3 text-sm space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
                 <div>
-                  <p className="text-muted-foreground">Subtotal</p>
-                  <p className="font-medium">
-                    {formatCurrency(selectedInvoice.subtotal)}
+                  <p className="text-slate-500">Subtotal</p>
+                  <p className="font-medium text-slate-900">
+                    {formatCurrency(selectedInvoice.subtotal, currency)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Discount</p>
-                  <p className="font-medium">
-                    {formatCurrency(selectedInvoice.discount)}
+                  <p className="text-slate-500">Discount</p>
+                  <p className="font-medium text-slate-900">
+                    {formatCurrency(selectedInvoice.discount, currency)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Taxes</p>
-                  <p className="font-medium">
-                    {formatCurrency(selectedInvoice.taxes)}
+                  <p className="text-slate-500">Taxes</p>
+                  <p className="font-medium text-slate-900">
+                    {formatCurrency(selectedInvoice.taxes, currency)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Total</p>
-                  <p className="font-medium">
-                    {formatCurrency(selectedInvoice.total)}
+                  <p className="text-slate-500">Total</p>
+                  <p className="font-medium text-slate-900">
+                    {formatCurrency(selectedInvoice.total, currency)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Amount Paid</p>
+                  <p className="text-slate-500">Amount Paid</p>
                   <p className="font-medium text-green-600">
-                    {formatCurrency(selectedInvoice.amountPaid)}
+                    {formatCurrency(selectedInvoice.amountPaid, currency)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Outstanding</p>
+                  <p className="text-slate-500">Outstanding</p>
                   <p className="font-medium text-red-600">
-                    {formatCurrency(selectedInvoice.outstanding)}
+                    {formatCurrency(selectedInvoice.outstanding, currency)}
                   </p>
                 </div>
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold mb-2">Items</h3>
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-2 mb-3">
+                  <FileText className="h-4 w-4 text-blue-600" />
+                  <h3 className="text-sm font-medium text-slate-900">Items</h3>
+                </div>
                 {loadingItems ? (
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-full" />
@@ -365,30 +386,31 @@ export default function InvoicesPage() {
                     <Skeleton className="h-4 w-full" />
                   </div>
                 ) : invoiceItems.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-slate-500">
                     No items found.
                   </p>
                 ) : (
-                  <div className="border rounded-lg divide-y">
-                    {invoiceItems.map((item: any, index: number) => (
+                  <div className="rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                    {invoiceItems.map((item, index: number) => (
                       <div
                         key={index}
-                        className="flex justify-between py-2 px-3 text-sm"
+                        className="flex justify-between py-2.5 px-4 text-sm"
                       >
-                        <span>
+                        <span className="text-slate-600">
                           {item.description || item.serviceName || "Item"}
                         </span>
-                        <span className="font-medium">
-                          {formatCurrency(item.total ?? item.unitPrice)}
+                        <span className="font-medium text-slate-900">
+                          {formatCurrency(item.total ?? item.unitPrice, currency)}
                         </span>
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="flex gap-2 mt-4">
+                <div className="flex flex-wrap gap-2 mt-4">
                   <Button
                     variant="outline"
                     onClick={() => openReceiptPreview(false)}
+                    className="h-10 rounded-lg border-slate-200 hover:bg-slate-50"
                   >
                     <Eye className="mr-2 h-4 w-4" />
                     Preview
@@ -397,6 +419,7 @@ export default function InvoicesPage() {
                     variant="outline"
                     onClick={() => openReceiptPreview(true)}
                     disabled={sendingReceipt}
+                    className="h-10 rounded-lg border-slate-200 hover:bg-slate-50"
                   >
                     <Printer className="mr-2 h-4 w-4" />
                     Print
@@ -408,6 +431,7 @@ export default function InvoicesPage() {
                       const url = `/api/invoices/${selectedInvoice.id}/receipt.pdf`;
                       window.open(url, "_blank");
                     }}
+                    className="h-10 rounded-lg border-slate-200 hover:bg-slate-50"
                   >
                     <FileText className="mr-2 h-4 w-4" />
                     Download PDF
@@ -415,7 +439,7 @@ export default function InvoicesPage() {
                   <Button
                     onClick={handleSendReceipt}
                     disabled={sendingReceipt}
-                    className="ml-auto"
+                    className="ml-auto h-10 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-70 transition-colors"
                   >
                     {sendingReceipt ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -426,11 +450,12 @@ export default function InvoicesPage() {
                   </Button>
                 </div>
                 {selectedInvoice.receiptEmailSentAt && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-slate-500">
                     Receipt last emailed on{" "}
                     {formatDateTime(selectedInvoice.receiptEmailSentAt)}
                   </p>
                 )}
+              </div>
               </div>
             </div>
           )}

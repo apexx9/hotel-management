@@ -35,7 +35,15 @@ export const poolProvider: Provider = {
       poolConfig.connectionString = connectionString;
     }
 
-    return new Pool(poolConfig);
+    const pool = new Pool(poolConfig);
+
+    pool.on('error', (err) => {
+      // pg emits 'error' on idle clients (e.g. server-side disconnect).
+      // Without a listener this would crash the process.
+      console.error('[db-pool] idle client error:', err.message);
+    });
+
+    return pool;
   },
 };
 

@@ -19,7 +19,7 @@ import {
   stays,
   users,
 } from '../database/schema';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 
 @Injectable()
 export class RoomService {
@@ -180,7 +180,7 @@ export class RoomService {
       throw new NotFoundException(`Room with ID ${id} not found`);
     }
 
-    return foundRoom;
+    return (await this.applyEffectiveStatus([foundRoom], hotelId))[0];
   }
 
   async findAll(userId: string, query?: string) {
@@ -202,7 +202,7 @@ export class RoomService {
       );
     }
 
-    return rows;
+    return this.applyEffectiveStatus(rows, hotelId);
   }
 
   async update(id: string, userId: string, dto: UpdateRoomDto) {
@@ -219,7 +219,9 @@ export class RoomService {
       throw new NotFoundException(`Room with ID ${id} not found`);
     }
 
-    const updateFields: any = {
+    const updateFields: Partial<typeof rooms.$inferInsert> & {
+      updatedAt: Date;
+    } = {
       updatedAt: new Date(),
     };
 
@@ -249,13 +251,18 @@ export class RoomService {
     return updatedRoom;
   }
 
-  private readonly activeStayStatuses = [
-    'reserved',
-    'pending_arrival',
-    'checked_in',
-  ] as const;
+  private startOfTomorrow(): Date {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  }
 
-  private async activeStayForRoom(hotelId: string, roomId: string) {
+  private isDueStay(
+    stay: Pick<NonNullable<typeof stays.$inferSelect>, 'expectedCheckInAt'>,
+  ): boolean {
+    return stay.expectedCheckInAt.getTime() < this.startOfTomorrow().getTime();
+  }
+
+  private async blockingStayForRoom(hotelId: string, roomId: string) {
     const [stay] = await this.db
       .select()
       .from(stays)
@@ -263,11 +270,53 @@ export class RoomService {
         and(
           eq(stays.hotelId, hotelId),
           eq(stays.roomId, roomId),
-          inArray(stays.status, this.activeStayStatuses),
+          or(
+            eq(stays.status, 'checked_in'),
+            and(
+              inArray(stays.status, ['reserved', 'pending_arrival']),
+              sql`${stays.expectedCheckInAt}::timestamptz < ${this.startOfTomorrow()}::timestamptz`,
+            ),
+          ),
         ),
       )
       .limit(1);
     return stay ?? null;
+  }
+
+  private async applyEffectiveStatus(
+    rows: (typeof rooms.$inferSelect)[],
+    hotelId: string | null,
+  ) {
+    if (rows.length === 0) return rows;
+
+    const stayHotelFilter = hotelId ? eq(stays.hotelId, hotelId) : sql`true`;
+
+    const dueStays = await this.db
+      .select({ roomId: stays.roomId })
+      .from(stays)
+      .where(
+        and(
+          stayHotelFilter,
+          inArray(
+            stays.roomId,
+            rows.map((room) => room.id),
+          ),
+          inArray(stays.status, ['reserved', 'pending_arrival']),
+          sql`${stays.expectedCheckInAt}::timestamptz < ${this.startOfTomorrow()}::timestamptz`,
+        ),
+      );
+
+    const dueRoomIds = new Set(dueStays.map((stay) => stay.roomId));
+
+    return rows.map((room) => {
+      if (room.status === 'available' && dueRoomIds.has(room.id)) {
+        return { ...room, status: 'reserved' };
+      }
+      if (room.status === 'reserved' && !dueRoomIds.has(room.id)) {
+        return { ...room, status: 'available' };
+      }
+      return room;
+    });
   }
 
   async updateStatus(id: string, userId: string, dto: UpdateRoomStatusDto) {
@@ -290,14 +339,14 @@ export class RoomService {
       );
     }
 
-    const activeStay = await this.activeStayForRoom(hotelId, existing.id);
-    if (activeStay && dto.status === 'available') {
+    const blockingStay = await this.blockingStayForRoom(hotelId, existing.id);
+    if (blockingStay && dto.status === 'available') {
       throw new ConflictException(
         `Room ${existing.number} has an active stay and cannot be marked available`,
       );
     }
     if (
-      activeStay &&
+      blockingStay &&
       (dto.status === 'maintenance' || dto.status === 'out_of_service')
     ) {
       throw new ConflictException(
@@ -352,8 +401,8 @@ export class RoomService {
       throw new NotFoundException(`Room with ID ${id} not found`);
     }
 
-    const activeStay = await this.activeStayForRoom(hotelId, existing.id);
-    if (activeStay) {
+    const blockingStay = await this.blockingStayForRoom(hotelId, existing.id);
+    if (blockingStay) {
       throw new ConflictException(
         `Room ${existing.number} has an active stay and cannot be marked available`,
       );
@@ -429,8 +478,13 @@ export class RoomService {
       throw new NotFoundException(`Room with ID ${id} not found`);
     }
 
-    if (existing.status === 'occupied') {
-      throw new BadRequestException('Cannot delete an occupied room');
+    if (
+      existing.status === 'occupied' ||
+      (await this.blockingStayForRoom(hotelId, id))
+    ) {
+      throw new BadRequestException(
+        'Cannot delete a room that is occupied or has a stay due today',
+      );
     }
 
     await this.db.delete(rooms).where(and(hotelFilter, eq(rooms.id, id)));

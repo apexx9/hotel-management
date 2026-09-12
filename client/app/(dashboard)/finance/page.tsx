@@ -7,8 +7,6 @@ import Link from "next/link";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageLoading } from "@/components/dashboard/page-loading";
@@ -23,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import { AlertCircle, ArrowRight, Wallet, FileText, CreditCard, TrendingUp, DollarSign } from "lucide-react";
 import { formatCurrency, formatDateTime } from "@/utils/utils";
+import { useCurrency } from "@/utils/currency";
 import { cn } from "@/lib/utils";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
 
@@ -31,6 +30,8 @@ export default function FinanceOverviewPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const currency = useCurrency();
 
   const fetchData = async () => {
     try {
@@ -50,7 +51,15 @@ export default function FinanceOverviewPage() {
   };
 
   useEffect(() => {
-    fetchData();
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchData();
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (loading) {
@@ -77,7 +86,7 @@ export default function FinanceOverviewPage() {
   const summaryCards = [
     {
       label: "Total Invoiced",
-      value: formatCurrency(totalInvoiced),
+      value: formatCurrency(totalInvoiced, currency),
       icon: FileText,
       href: "/finance/invoices",
       color: "text-blue-600 dark:text-blue-400",
@@ -85,7 +94,7 @@ export default function FinanceOverviewPage() {
     },
     {
       label: "Total Payments",
-      value: formatCurrency(totalPayments),
+      value: formatCurrency(totalPayments, currency),
       icon: CreditCard,
       href: "/finance/payments",
       color: "text-emerald-600",
@@ -93,7 +102,7 @@ export default function FinanceOverviewPage() {
     },
     {
       label: "Outstanding",
-      value: formatCurrency(totalOutstanding),
+      value: formatCurrency(totalOutstanding, currency),
       icon: Wallet,
       href: "/finance/invoices",
       color: "text-amber-600 dark:text-amber-500",
@@ -101,7 +110,7 @@ export default function FinanceOverviewPage() {
     },
     {
       label: "Net Revenue",
-      value: formatCurrency(totalPaid),
+      value: formatCurrency(totalPaid, currency),
       icon: TrendingUp,
       href: "/finance/reports",
       color: "text-indigo-600 dark:text-indigo-400",
@@ -127,7 +136,7 @@ export default function FinanceOverviewPage() {
         </div>
         <div className="flex flex-col items-start md:items-end gap-3">
           <p className="text-sm text-muted-foreground max-w-xs leading-relaxed md:text-right">
-            Monitor your property's revenue, outstanding balances, and recent payment activity.
+            Monitor your property&apos;s revenue, outstanding balances, and recent payment activity.
           </p>
           <RefreshButton onRefresh={() => fetchData()} />
         </div>
@@ -194,9 +203,9 @@ export default function FinanceOverviewPage() {
                       {invoices.slice(0, 5).map((invoice) => (
                         <TableRow key={invoice.id} className="hover:bg-muted/20 transition-colors">
                           <TableCell className="font-semibold text-foreground pl-6">{invoice.reference}</TableCell>
-                          <TableCell className="font-medium">{formatCurrency(invoice.total)}</TableCell>
+                          <TableCell className="font-medium">{formatCurrency(invoice.total, currency)}</TableCell>
                           <TableCell className={Number(invoice.outstanding) > 0 ? "text-amber-600 font-semibold" : "text-emerald-600 font-medium"}>
-                            {formatCurrency(invoice.outstanding)}
+                            {formatCurrency(invoice.outstanding, currency)}
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={
@@ -259,7 +268,7 @@ export default function FinanceOverviewPage() {
                               {payment.method.replace("_", " ")}
                             </Badge>
                           </TableCell>
-                          <TableCell className="font-semibold text-emerald-600">+{formatCurrency(payment.amount)}</TableCell>
+                          <TableCell className="font-semibold text-emerald-600">+{formatCurrency(payment.amount, currency)}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{formatDateTime(payment.createdAt)}</TableCell>
                         </TableRow>
                       ))}

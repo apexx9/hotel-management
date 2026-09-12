@@ -49,6 +49,7 @@ export const paymentStatusEnum = pgEnum('payment_status', [
   'pending',
   'overdue',
   'reversed',
+  'refunded',
 ]);
 
 export const invoiceStatusEnum = pgEnum('invoice_status', [

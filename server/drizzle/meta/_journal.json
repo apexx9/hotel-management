@@ -50,6 +50,13 @@
       "when": 1789131265670,
       "tag": "0006_email_branding_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789336800000,
+      "tag": "0007_add_refunded_payment_status",
+      "breakpoints": true
     }
   ]
 }

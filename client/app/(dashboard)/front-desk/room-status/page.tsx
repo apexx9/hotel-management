@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import RoomsService, { Room } from "@/services/rooms.service";
 import { formatCurrency } from "@/utils/utils";
+import { useCurrency } from "@/utils/currency";
 import { roomStatusColors } from "@/lib/status-colors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,7 @@ export default function RoomStatusPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const currency = useCurrency();
 
   const fetchRooms = async (silent = false) => {
     try {
@@ -52,7 +54,15 @@ export default function RoomStatusPage() {
   };
 
   useEffect(() => {
-    fetchRooms();
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchRooms();
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useRealtimeRefresh(() => fetchRooms(true));
@@ -165,7 +175,7 @@ export default function RoomStatusPage() {
                     </div>
                     <div className="space-y-1 col-span-2">
                       <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1.5"><Wallet className="h-3 w-3" /> Base Rate</span>
-                      <p className="font-medium text-foreground">{formatCurrency(room.rate)} <span className="text-muted-foreground text-xs font-normal">/ night</span></p>
+                      <p className="font-medium text-foreground">{formatCurrency(room.rate, currency)} <span className="text-muted-foreground text-xs font-normal">/ night</span></p>
                     </div>
                   </div>
 

@@ -6,7 +6,9 @@ import BookingsService from "@/services/bookings.service";
 import InvoicesService from "@/services/invoices.service";
 import type { DashboardStaySummary } from "@/actions/operations";
 import type { Invoice } from "@/services/invoices.service";
-import { formatDateTime, formatCurrency } from "@/utils/utils";
+import { formatCurrency, formatDateTimeWithDate } from "@/utils/utils";
+import { useCurrency } from "@/utils/currency";
+import { getCurrency } from "@/utils/currency";
 import {
   Card,
   CardContent,
@@ -57,7 +59,7 @@ interface InvoiceLineItem {
   quantity: string | number;
   unitPrice: string | number;
   total: string | number;
-  category?: string | null;
+  itemType?: string | null;
 }
 
 export default function DeparturesPage() {
@@ -75,6 +77,7 @@ export default function DeparturesPage() {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([]);
   const [loadingFolio, setLoadingFolio] = useState(false);
+  const currency = useCurrency();
 
   const fetchDepartures = async (showLoading = false) => {
     try {
@@ -91,7 +94,15 @@ export default function DeparturesPage() {
   };
 
   useEffect(() => {
-    fetchDepartures(true);
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchDepartures(true);
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useRealtimeRefresh(() => fetchDepartures(false));
@@ -270,11 +281,11 @@ export default function DeparturesPage() {
                   </div>
                   <div className="space-y-1">
                     <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1.5"><ArrowRightLeft className="h-3 w-3" /> Arrived</span>
-                    <p className="font-medium text-foreground">{formatDateTime(stay.checkInAt || stay.expectedCheckInAt)}</p>
+                    <p className="font-medium text-foreground">{formatDateTimeWithDate(stay.checkInAt || stay.expectedCheckInAt)}</p>
                   </div>
                   <div className="space-y-1">
                     <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1.5"><Clock className="h-3 w-3" /> Checkout</span>
-                    <p className="font-medium text-foreground">{formatDateTime(stay.expectedCheckoutAt)}</p>
+                    <p className="font-medium text-foreground">{formatDateTimeWithDate(stay.expectedCheckoutAt)}</p>
                   </div>
                   <div className="space-y-1">
                     <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1.5"><Users className="h-3 w-3" /> Stay</span>
@@ -282,7 +293,7 @@ export default function DeparturesPage() {
                   </div>
                   <div className="space-y-1">
                     <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1.5"><Wallet className="h-3 w-3" /> Total</span>
-                    <p className="font-medium text-foreground">{formatCurrency(stay.total)}</p>
+                    <p className="font-medium text-foreground">{formatCurrency(stay.total, currency)}</p>
                   </div>
                   <div className="space-y-1">
                     <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1.5"><Wallet className="h-3 w-3" /> Balance</span>
@@ -291,7 +302,7 @@ export default function DeparturesPage() {
                         "inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold",
                         Number(stay.outstandingBalance) > 0 ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-600"
                       )}>
-                        {formatCurrency(stay.outstandingBalance)}
+                        {formatCurrency(stay.outstandingBalance, currency)}
                       </span>
                     </p>
                   </div>
@@ -353,20 +364,20 @@ export default function DeparturesPage() {
                 <div className="bg-slate-50/60 rounded-xl border border-slate-200 p-4 space-y-2.5">
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600">
-                      Room · {stayNights} night{stayNights === 1 ? "" : "s"} × {formatCurrency(stayRate)}
+                      Room · {stayNights} night{stayNights === 1 ? "" : "s"} × {formatCurrency(stayRate, currency)}
                     </span>
-                    <span className="font-medium text-slate-800">{formatCurrency(stayRate * stayNights)}</span>
+                    <span className="font-medium text-slate-800">{formatCurrency(stayRate * stayNights, currency)}</span>
                   </div>
 
-                  {lineItems.filter((i) => i.category !== "room").length > 0 && (
+                  {lineItems.filter((i) => i.itemType === "service").length > 0 && (
                     <>
                       <div className="h-px bg-slate-200/60" />
                       {lineItems
-                        .filter((i) => i.category !== "room")
+                        .filter((i) => i.itemType === "service")
                         .map((item) => (
                           <div key={item.id} className="flex justify-between text-sm">
                             <span className="text-slate-600">{item.description}</span>
-                            <span className="font-medium text-slate-800">{formatCurrency(item.total)}</span>
+                            <span className="font-medium text-slate-800">{formatCurrency(item.total, currency)}</span>
                           </div>
                         ))}
                     </>
@@ -383,7 +394,7 @@ export default function DeparturesPage() {
                       <div className="h-px bg-slate-200/60" />
                       <div className="flex justify-between text-sm text-emerald-700">
                         <span>Discount</span>
-                        <span>- {formatCurrency(stayDiscount)}</span>
+                        <span>- {formatCurrency(stayDiscount, currency)}</span>
                       </div>
                     </>
                   )}
@@ -391,20 +402,20 @@ export default function DeparturesPage() {
                   {stayTax > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-600">Taxes</span>
-                      <span className="font-medium text-slate-800">+ {formatCurrency(stayTax)}</span>
+                      <span className="font-medium text-slate-800">+ {formatCurrency(stayTax, currency)}</span>
                     </div>
                   )}
 
                   {stayServiceTotal > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-600">Service charges</span>
-                      <span className="font-medium text-slate-800">+ {formatCurrency(stayServiceTotal)}</span>
+                      <span className="font-medium text-slate-800">+ {formatCurrency(stayServiceTotal, currency)}</span>
                     </div>
                   )}
 
                   <div className="flex justify-between text-sm font-semibold border-t border-slate-200 pt-2.5 mt-1">
                     <span className="text-slate-800">Total</span>
-                    <span className="text-slate-900">{formatCurrency(stayTotal)}</span>
+                    <span className="text-slate-900">{formatCurrency(stayTotal, currency)}</span>
                   </div>
                 </div>
               </div>
@@ -419,12 +430,12 @@ export default function DeparturesPage() {
                 <div className="bg-slate-50/60 rounded-xl border border-slate-200 p-4 space-y-2.5">
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600">Already paid</span>
-                    <span className="font-medium text-slate-800">{formatCurrency(alreadyPaid)}</span>
+                    <span className="font-medium text-slate-800">{formatCurrency(alreadyPaid, currency)}</span>
                   </div>
                   {outstanding > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-600">Outstanding before checkout</span>
-                      <span className="font-medium text-destructive">{formatCurrency(outstanding)}</span>
+                      <span className="font-medium text-destructive">{formatCurrency(outstanding, currency)}</span>
                     </div>
                   )}
 
@@ -437,7 +448,7 @@ export default function DeparturesPage() {
                             Amount collected now
                           </Label>
                           <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">{getCurrency()}</span>
                             <Input
                               type="number"
                               className="h-10 pl-7 rounded-lg bg-white border-slate-200 focus:border-blue-600 shadow-sm"
@@ -471,7 +482,7 @@ export default function DeparturesPage() {
                         <span className={cn(
                           remaining > 0 ? "text-destructive" : "text-emerald-600"
                         )}>
-                          {formatCurrency(remaining)}
+                          {formatCurrency(remaining, currency)}
                         </span>
                       </div>
                     </>

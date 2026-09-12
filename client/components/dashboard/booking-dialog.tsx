@@ -38,6 +38,7 @@ import GuestsService, { type Guest } from "@/services/guests.service";
 import InvoicesService from "@/services/invoices.service";
 import RoomsService, { type RoomType } from "@/services/rooms.service";
 import SettingsService from "@/services/settings.service";
+import { getCurrency } from "@/utils/currency";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +54,17 @@ const steps = [
   { key: "financials", label: "Payment", icon: CreditCard },
 ] as const;
 
+const nowDateString = () => new Date().toISOString().slice(0, 16);
+
+const isWithinNowWindow = (dateTime: string) => {
+  const arrival = new Date(dateTime).getTime();
+  if (Number.isNaN(arrival)) return false;
+  const now = Date.now();
+  return (
+    arrival >= now - 15 * 60 * 1000 && arrival <= now + 24 * 60 * 60 * 1000
+  );
+};
+
 const initialForm = {
   firstName: "",
   lastName: "",
@@ -61,7 +73,7 @@ const initialForm = {
   roomTypeId: "",
   guestsCount: 1,
   nights: 1,
-  expectedCheckInAt: new Date().toISOString().slice(0, 16),
+  expectedCheckInAt: nowDateString(),
   rate: 0,
   discount: 0,
   discountMode: "value" as "value" | "percentage",
@@ -133,6 +145,8 @@ export function NewBookingDialog({
   );
   const total = Number((subtotal - discountAmount + taxAmount).toFixed(2));
 
+  const [canCheckInNow, setCanCheckInNow] = useState(false);
+
   const guestStepValid =
     !!selectedGuest ||
     (!!form.firstName.trim() && !!form.lastName.trim() && !!form.phone.trim());
@@ -169,7 +183,11 @@ export function NewBookingDialog({
     } else {
       setTimeout(() => {
         setStep(0);
-        setForm(initialForm);
+        setForm({
+          ...initialForm,
+          expectedCheckInAt: nowDateString(),
+        });
+        setCanCheckInNow(true);
         setGuestId("");
         setSelectedGuest(null);
         setGuestSearch("");
@@ -659,7 +677,7 @@ export function NewBookingDialog({
                             >
                               <span className="font-medium">{type.name}</span>
                               <span className="text-slate-500 ml-2">
-                                — ${type.basePrice}/nt
+                                — {getCurrency()} {type.basePrice}/nt
                               </span>
                             </SelectItem>
                           ))
@@ -698,9 +716,16 @@ export function NewBookingDialog({
                     <Input
                       type="datetime-local"
                       value={form.expectedCheckInAt}
-                      onChange={(e) =>
-                        setForm({ ...form, expectedCheckInAt: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const stillNow = isWithinNowWindow(value);
+                        setCanCheckInNow(stillNow);
+                        setForm((current) => ({
+                          ...current,
+                          expectedCheckInAt: value,
+                          checkInNow: stillNow ? current.checkInNow : false,
+                        }));
+                      }}
                       required
                       className="h-10 rounded-lg bg-white border-slate-200 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all shadow-sm"
                     />
@@ -741,53 +766,72 @@ export function NewBookingDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <label
-                    htmlFor="checkInNow"
-                    className={`flex items-center justify-between cursor-pointer rounded-lg border p-4 transition-all select-none ${
-                      form.checkInNow
-                        ? "border-blue-600 bg-blue-50/30"
-                        : "border-slate-200 bg-white hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex flex-col gap-1">
-                      <span
-                        className={`text-sm font-medium ${form.checkInNow ? "text-blue-700" : "text-slate-700"}`}
-                      >
-                        Check In Immediately
-                      </span>
-                      <span className="text-xs text-slate-500">
-                        Update guest status to checked-in upon saving.
-                      </span>
-                    </div>
-                    <div
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${form.checkInNow ? "border-blue-600 bg-blue-600" : "border-slate-300"}`}
+                  {canCheckInNow ? (
+                    <label
+                      htmlFor="checkInNow"
+                      className={`flex items-center justify-between cursor-pointer rounded-lg border p-4 transition-all select-none ${
+                        form.checkInNow
+                          ? "border-blue-600 bg-blue-50/30"
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
                     >
-                      {form.checkInNow && (
-                        <svg
-                          className="w-3.5 h-3.5 text-white"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={3}
+                      <div className="flex flex-col gap-1">
+                        <span
+                          className={`text-sm font-medium ${form.checkInNow ? "text-blue-700" : "text-slate-700"}`}
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      )}
+                          Guest is checking in now
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          Create the booking and check the guest in immediately
+                          (walk-in). Room shows as occupied on save.
+                        </span>
+                      </div>
+                      <div
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${form.checkInNow ? "border-blue-600 bg-blue-600" : "border-slate-300"}`}
+                      >
+                        {form.checkInNow && (
+                          <svg
+                            className="w-3.5 h-3.5 text-white"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={3}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                        )}
+                      </div>
+                      <input
+                        type="checkbox"
+                        id="checkInNow"
+                        checked={form.checkInNow}
+                        onChange={(e) =>
+                          setForm({ ...form, checkInNow: e.target.checked })
+                        }
+                        className="hidden"
+                      />
+                    </label>
+                  ) : (
+                    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <CalendarDays className="h-5 w-5 shrink-0 text-slate-400" />
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-sm font-medium text-slate-600">
+                          Arriving{" "}
+                          {new Date(
+                            form.expectedCheckInAt,
+                          ).toLocaleString()}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          This is a future reservation — the guest checks in at
+                          the front desk on arrival.
+                        </span>
+                      </div>
                     </div>
-                    <input
-                      type="checkbox"
-                      id="checkInNow"
-                      checked={form.checkInNow}
-                      onChange={(e) =>
-                        setForm({ ...form, checkInNow: e.target.checked })
-                      }
-                      className="hidden"
-                    />
-                  </label>
+                  )}
                 </div>
               </motion.section>
             )}
@@ -810,7 +854,7 @@ export function NewBookingDialog({
                       <Label className="text-slate-600">Nightly Rate</Label>
                       <div className="relative w-28">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
-                          $
+                          {getCurrency()}
                         </span>
                         <Input
                           type="number"
@@ -829,7 +873,7 @@ export function NewBookingDialog({
                       <div className="flex items-center gap-2">
                         <div className="relative w-24">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
-                            {form.discountMode === "percentage" ? "%" : "$"}
+                            {form.discountMode === "percentage" ? "%" : getCurrency()}
                           </span>
                           <Input
                             type="number"
@@ -870,7 +914,7 @@ export function NewBookingDialog({
                       <div className="flex items-center gap-2">
                         <div className="relative w-24">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
-                            {form.taxMode === "percentage" ? "%" : "$"}
+                            {form.taxMode === "percentage" ? "%" : getCurrency()}
                           </span>
                           <Input
                             type="number"
@@ -910,7 +954,7 @@ export function NewBookingDialog({
                       <Label className="text-slate-600">Deposit Received</Label>
                       <div className="relative w-28">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
-                          $
+                          {getCurrency()}
                         </span>
                         <Input
                           type="number"
@@ -988,35 +1032,37 @@ export function NewBookingDialog({
                         <span className="font-medium text-slate-800">
                           {selectedRoomType?.name
                             ? form.nights +
-                              " × $" +
+                              " × " +
+                              getCurrency() +
+                              " " +
                               Number(form.rate).toFixed(2)
                             : ""}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm text-slate-600">
                         <span>Subtotal</span>
-                        <span>${subtotal.toFixed(2)}</span>
+                        <span>{getCurrency()} {subtotal.toFixed(2)}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm text-green-700">
                         <span>Discount</span>
-                        <span>- ${discountAmount.toFixed(2)}</span>
+                        <span>- {getCurrency()} {discountAmount.toFixed(2)}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm text-slate-600">
                         <span>Tax</span>
-                        <span>+ ${taxAmount.toFixed(2)}</span>
+                        <span>+ {getCurrency()} {taxAmount.toFixed(2)}</span>
                       </div>
                       <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base font-semibold text-slate-900">
                         <span>Total</span>
-                        <span>${total.toFixed(2)}</span>
+                        <span>{getCurrency()} {total.toFixed(2)}</span>
                       </div>
                       <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
                         <span>Deposit received</span>
-                        <span>- ${Number(form.amountPaid).toFixed(2)}</span>
+                        <span>- {getCurrency()} {Number(form.amountPaid).toFixed(2)}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm font-semibold text-blue-700 border-t border-slate-200 pt-2">
                         <span>Balance due</span>
                         <span>
-                          $
+                          {getCurrency()}{" "}
                           {Math.max(
                             0,
                             total - Number(form.amountPaid || 0),
@@ -1048,7 +1094,7 @@ export function NewBookingDialog({
                         )}
                         <br />
                         {form.checkInNow
-                          ? "Will check in immediately after saving."
+                          ? "Will be checked in as a walk-in immediately after saving."
                           : `Arriving ${new Date(form.expectedCheckInAt).toLocaleString()}`}
                       </div>
                     </div>

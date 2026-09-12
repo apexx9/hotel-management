@@ -9,6 +9,12 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 
 async function bootstrap() {
+  if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+    throw new Error(
+      'JWT_SECRET must be set in production. Refusing to start with the default dev secret.',
+    );
+  }
+
   const app = await NestFactory.create(AppModule);
 
   // Compress JSON/text responses (gzip). Most dashboard/list endpoints return

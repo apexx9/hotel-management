@@ -56,7 +56,13 @@ const BookingsService = () => {
     const response = await operationsApi.updateBooking(id, {
       rate: data.rate,
       discount: data.discount,
+      discountMode: data.discountMode,
       taxes: data.taxes,
+      taxMode: data.taxMode,
+      expectedCheckInAt: data.expectedCheckInAt,
+      nights: data.nights,
+      specialRequests: data.specialRequests,
+      roomId: data.roomId,
       notes: data.notes,
       editReason: data.editReason,
     });
@@ -107,11 +113,13 @@ const BookingsService = () => {
   };
 
   const getAvailability = async (params: {
-    roomTypeId: string;
+    roomTypeId?: string;
+    roomId?: string;
     checkIn: string;
     nights: number;
     guests: number;
     checkInNow: boolean;
+    excludeStayId?: string;
   }) => {
     try {
       const response = await operationsApi.getBookingAvailability(params);

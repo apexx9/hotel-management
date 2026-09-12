@@ -3,10 +3,9 @@
 import { useEffect, useState } from "react";
 import RoomsService, { RoomType } from "@/services/rooms.service";
 import { formatCurrency } from "@/utils/utils";
-import { roomStatusColors } from "@/lib/status-colors";
+import { getCurrency, useCurrency } from "@/utils/currency";
 import {
   Card,
-  CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -27,7 +26,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -44,6 +42,7 @@ export default function RoomTypesPage() {
   const [editingType, setEditingType] = useState<RoomType | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const currency = useCurrency();
 
   const [form, setForm] = useState({
     name: "",
@@ -69,7 +68,15 @@ export default function RoomTypesPage() {
   };
 
   useEffect(() => {
-    fetchRoomTypes();
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchRoomTypes();
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const openCreateDialog = () => {
@@ -230,7 +237,7 @@ export default function RoomTypesPage() {
                 {roomTypes.map((type) => (
                   <TableRow key={type.id} className="hover:bg-muted/20 transition-colors">
                     <TableCell className="font-bold text-foreground pl-6">{type.name}</TableCell>
-                    <TableCell className="font-medium text-primary">{formatCurrency(type.basePrice)}</TableCell>
+                    <TableCell className="font-medium text-primary">{formatCurrency(type.basePrice, currency)}</TableCell>
                     <TableCell>{type.capacity} Guests</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{type.bedConfiguration || "—"}</TableCell>
                     <TableCell>
@@ -277,110 +284,112 @@ export default function RoomTypesPage() {
 
       {/* ─── CREATE/EDIT DIALOG ────────────────────────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[550px] rounded-3xl p-0 border-border/50 overflow-hidden">
-          <div className="bg-muted/30 p-6 border-b border-border/40">
+        <DialogContent className="sm:max-w-[550px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl border border-slate-200 p-0 shadow-xl bg-white">
+          <div className="shrink-0 bg-slate-50/80 px-6 pt-6 pb-4 border-b border-slate-100">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold tracking-tight">
+              <DialogTitle className="text-xl font-bold tracking-tight text-slate-900">
                 {editingType ? "Edit Room Category" : "Add Room Category"}
               </DialogTitle>
-              <DialogDescription className="mt-1">
+              <DialogDescription className="mt-1 text-slate-500">
                 {editingType
                   ? "Update the details and pricing for this room type."
                   : "Define a new category of rooms for your hotel."}
               </DialogDescription>
             </DialogHeader>
           </div>
-          
-          <div className="p-6 grid gap-5 bg-background">
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Name *</Label>
-              <Input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g., Deluxe Ocean View"
-                className="h-11 rounded-xl bg-muted/20"
-                required
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description</Label>
-              <Input
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Brief description of the room..."
-                className="h-11 rounded-xl bg-muted/20"
-              />
-            </div>
 
-            <div className="grid grid-cols-2 gap-5">
+          <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div className="space-y-6 p-6">
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Base Price *</Label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">$</span>
+                <Label className="text-sm font-medium text-slate-700">Name *</Label>
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g., Deluxe Ocean View"
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-slate-700">Description</Label>
+                <Input
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Brief description of the room..."
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Base Price *</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">{getCurrency()}</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.basePrice}
+                      onChange={(e) => setForm({ ...form, basePrice: Number(e.target.value) })}
+                      className="h-10 pl-8 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Capacity *</Label>
                   <Input
                     type="number"
-                    min={0}
-                    step="0.01"
-                    value={form.basePrice}
-                    onChange={(e) => setForm({ ...form, basePrice: Number(e.target.value) })}
-                    className="h-11 pl-8 rounded-xl bg-muted/20"
+                    min={1}
+                    value={form.capacity}
+                    onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })}
+                    className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     required
                   />
                 </div>
               </div>
+
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Capacity *</Label>
+                <Label className="text-sm font-medium text-slate-700">Bed Configuration</Label>
                 <Input
-                  type="number"
-                  min={1}
-                  value={form.capacity}
-                  onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })}
-                  className="h-11 rounded-xl bg-muted/20"
-                  required
+                  value={form.bedConfiguration}
+                  onChange={(e) => setForm({ ...form, bedConfiguration: e.target.value })}
+                  placeholder="e.g., 1 King, 2 Twins"
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Bed Configuration</Label>
-              <Input
-                value={form.bedConfiguration}
-                onChange={(e) => setForm({ ...form, bedConfiguration: e.target.value })}
-                placeholder="e.g., 1 King, 2 Twins"
-                className="h-11 rounded-xl bg-muted/20"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Amenities</Label>
-              <Input
-                value={form.amenities}
-                onChange={(e) => setForm({ ...form, amenities: e.target.value })}
-                placeholder="WiFi, Balcony, Mini-bar (comma separated)"
-                className="h-11 rounded-xl bg-muted/20"
-              />
-            </div>
-
-            {editingType && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/50 mt-2">
-                <input
-                  type="checkbox"
-                  id="isActive"
-                  checked={form.isActive}
-                  onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-                  className="h-4 w-4 rounded border-border/50 text-primary focus:ring-primary"
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-slate-700">Amenities</Label>
+                <Input
+                  value={form.amenities}
+                  onChange={(e) => setForm({ ...form, amenities: e.target.value })}
+                  placeholder="WiFi, Balcony, Mini-bar (comma separated)"
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
-                <Label htmlFor="isActive" className="text-sm font-medium cursor-pointer">Category is currently active and bookable</Label>
               </div>
-            )}
+
+              {editingType && (
+                <div className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 bg-slate-50/60">
+                  <input
+                    type="checkbox"
+                    id="isActive"
+                    checked={form.isActive}
+                    onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                    className="h-4 w-4 rounded accent-blue-600"
+                  />
+                  <Label htmlFor="isActive" className="text-sm font-medium text-slate-700 cursor-pointer">Category is currently active and bookable</Label>
+                </div>
+              )}
+            </div>
           </div>
-          
-          <div className="bg-muted/30 p-4 border-t border-border/40 flex justify-end gap-3">
-            <Button variant="outline" className="rounded-full h-10 px-5" onClick={() => setDialogOpen(false)}>
+
+          <div className="flex shrink-0 items-center justify-end gap-3 rounded-b-2xl border-t border-slate-100 bg-white p-5">
+            <Button variant="outline" className="h-10 rounded-lg border-slate-200 hover:bg-slate-50" onClick={() => setDialogOpen(false)}>
               Cancel
             </Button>
-            <Button className="rounded-full h-10 px-6" onClick={handleSave} disabled={saving || !form.name || form.basePrice < 0}>
+            <Button className="h-10 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-70 transition-colors" onClick={handleSave} disabled={saving || !form.name || form.basePrice < 0}>
               {saving ? "Saving..." : editingType ? "Update Category" : "Create Category"}
             </Button>
           </div>

@@ -1,7 +1,6 @@
 import { instance } from "./api";
 import { z } from "zod";
 import {
-  roomSchema,
   updateRoomSchema,
   updateRoomStatusSchema,
   roomTypeSchema,
@@ -302,6 +301,12 @@ const operationsApi = {
   getPayment: (id: string) => instance.get(`/payments/${id}`),
   recordPayment: (data: z.infer<typeof recordPaymentSchema>) =>
     instance.post("/payments", data),
+  recordRefund: (data: {
+    stayId: string;
+    amount: number;
+    method: string;
+    notes?: string;
+  }) => instance.post("/payments/refund", data),
   reversePayment: (paymentId: string) =>
     instance.post<{ ok: boolean; paymentId: string }>(
       `/payments/${paymentId}/reverse`,

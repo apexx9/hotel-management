@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import RoomsService, { Room, RoomType } from "@/services/rooms.service";
 import { formatCurrency } from "@/utils/utils";
+import { useCurrency } from "@/utils/currency";
 import { roomStatusColors } from "@/lib/status-colors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageLoading } from "@/components/dashboard/page-loading";
@@ -27,6 +28,7 @@ export default function RoomGridPage() {
   const [floorFilter, setFloorFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const currency = useCurrency();
 
   const fetchData = async (silent = false) => {
     try {
@@ -47,7 +49,15 @@ export default function RoomGridPage() {
   };
 
   useEffect(() => {
-    fetchData();
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchData();
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useRealtimeRefresh(() => fetchData(true));
@@ -319,7 +329,7 @@ export default function RoomGridPage() {
                         <Wallet className="h-3 w-3" /> Rate
                       </span>
                       <p className="font-semibold">
-                        {formatCurrency(room.rate)}{" "}
+                        {formatCurrency(room.rate, currency)}{" "}
                         <span className="opacity-70 text-xs font-normal">
                           / night
                         </span>

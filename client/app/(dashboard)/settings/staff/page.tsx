@@ -23,7 +23,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -40,7 +39,6 @@ import {
   Plus,
   Users,
   Mail,
-  ShieldCheck,
   CheckCircle2,
   XCircle,
   Info,
@@ -56,9 +54,18 @@ interface PendingInvitation {
   createdAt?: string;
 }
 
+interface StaffMember {
+  id: string;
+  fullName?: string | null;
+  name?: string | null;
+  email?: string | null;
+  role: string;
+  isVerified: boolean;
+}
+
 export default function StaffPage() {
-  const [staff, setStaff] = useState<any[]>([]);
-  const [invitations, setInvitations] = useState<any[]>([]);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -72,7 +79,7 @@ export default function StaffPage() {
   const [resendingInviteId, setResendingInviteId] = useState<string | null>(
     null,
   );
-  const [removingStaff, setRemovingStaff] = useState<any | null>(null);
+  const [removingStaff, setRemovingStaff] = useState<StaffMember | null>(null);
   const [deletingStaff, setDeletingStaff] = useState(false);
   const [currentUser, setCurrentUser] = useState<{
     id: string;
@@ -107,13 +114,24 @@ export default function StaffPage() {
   };
 
   useEffect(() => {
-    fetchData();
-    AuthService()
-      .getCurrentUser()
-      .then((user) =>
-        setCurrentUser(user ? { id: user.id, role: user.role } : null),
-      )
-      .catch(() => setCurrentUser(null));
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchData();
+      AuthService()
+        .getCurrentUser()
+        .then((user) => {
+          if (active)
+            setCurrentUser(user ? { id: user.id, role: user.role } : null);
+        })
+        .catch(() => {
+          if (active) setCurrentUser(null);
+        });
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleInvite = async () => {
@@ -136,7 +154,7 @@ export default function StaffPage() {
     }
   };
 
-  const openEditDialog = (staffMember: any) => {
+  const openEditDialog = (staffMember: StaffMember) => {
     setEditingStaffId(staffMember.id);
     setEditForm({
       role: staffMember.role || "",
@@ -253,84 +271,88 @@ export default function StaffPage() {
               <Plus className="h-4 w-4" />
               Invite Staff
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] rounded-2xl">
-              <DialogHeader>
-                <DialogTitle className="text-lg font-bold">
-                  Invite Staff Member
-                </DialogTitle>
-                <DialogDescription>
-                  Send an invitation email to join your hotel team.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Full Name
-                  </Label>
-                  <Input
-                    className="h-11 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/20"
-                    value={inviteForm.fullName}
-                    onChange={(e) =>
-                      setInviteForm({ ...inviteForm, fullName: e.target.value })
-                    }
-                    placeholder="Optional"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Email *
-                  </Label>
-                  <Input
-                    type="email"
-                    className="h-11 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/20"
-                    value={inviteForm.email}
-                    onChange={(e) =>
-                      setInviteForm({ ...inviteForm, email: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Role *
-                  </Label>
-                  <Select
-                    value={inviteForm.role}
-                    onValueChange={(value) =>
-                      setInviteForm({ ...inviteForm, role: value || "" })
-                    }
-                  >
-                    <SelectTrigger className="h-11 rounded-xl bg-muted/30 border-border/50">
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      <SelectItem value="owner">Owner</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="front_desk">Front Desk</SelectItem>
-                      <SelectItem value="housekeeping">Housekeeping</SelectItem>
-                      <SelectItem value="finance">Finance</SelectItem>
-                      <SelectItem value="staff">Staff</SelectItem>
-                    </SelectContent>
-                  </Select>
+            <DialogContent className="sm:max-w-[500px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl border border-slate-200 p-0 shadow-xl bg-white">
+              <div className="shrink-0 bg-slate-50/80 px-6 pt-6 pb-4 border-b border-slate-100">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-bold tracking-tight text-slate-900">
+                    Invite Staff Member
+                  </DialogTitle>
+                  <DialogDescription className="mt-1 text-slate-500">
+                    Send an invitation email to join your hotel team.
+                  </DialogDescription>
+                </DialogHeader>
+              </div>
+              <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full">
+                <div className="space-y-6 p-6">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">
+                      Full Name
+                    </Label>
+                    <Input
+                      className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                      value={inviteForm.fullName}
+                      onChange={(e) =>
+                        setInviteForm({ ...inviteForm, fullName: e.target.value })
+                      }
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">
+                      Email *
+                    </Label>
+                    <Input
+                      type="email"
+                      className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                      value={inviteForm.email}
+                      onChange={(e) =>
+                        setInviteForm({ ...inviteForm, email: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">
+                      Role *
+                    </Label>
+                    <Select
+                      value={inviteForm.role}
+                      onValueChange={(value) =>
+                        setInviteForm({ ...inviteForm, role: value || "" })
+                      }
+                    >
+                      <SelectTrigger className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600">
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="owner">Owner</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="front_desk">Front Desk</SelectItem>
+                        <SelectItem value="housekeeping">Housekeeping</SelectItem>
+                        <SelectItem value="finance">Finance</SelectItem>
+                        <SelectItem value="staff">Staff</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
-              <DialogFooter>
+              <div className="flex shrink-0 items-center justify-end gap-3 rounded-b-2xl border-t border-slate-100 bg-white p-5">
                 <Button
                   variant="outline"
                   onClick={() => setInviteDialogOpen(false)}
-                  className="rounded-full"
+                  className="h-10 rounded-lg border-slate-200 hover:bg-slate-50"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleInvite}
                   disabled={inviting}
-                  className="rounded-full"
+                  className="h-10 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-70 transition-colors"
                 >
                   {inviting ? "Sending..." : "Send Invitation"}
                 </Button>
-              </DialogFooter>
+              </div>
             </DialogContent>
           </Dialog>
         </div>
@@ -563,62 +585,78 @@ export default function StaffPage() {
         open={!!editingStaffId}
         onOpenChange={(open) => !open && setEditingStaffId(null)}
       >
-        <DialogContent className="sm:max-w-[400px] rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold">
-              Edit Staff Member
-            </DialogTitle>
-            <DialogDescription>
-              Update role and verification status.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Role
-              </Label>
-              <Input
-                className="h-11 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/20"
-                value={editForm.role}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, role: e.target.value })
-                }
-              />
-            </div>
-            <div className="flex items-center gap-3 rounded-2xl bg-muted/30 border border-border/40 p-4">
-              <input
-                type="checkbox"
-                id="isVerified"
-                checked={editForm.isVerified}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, isVerified: e.target.checked })
-                }
-                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-              />
-              <Label
-                htmlFor="isVerified"
-                className="text-sm font-medium text-foreground cursor-pointer"
-              >
-                Verified
-              </Label>
+        <DialogContent className="sm:max-w-[400px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl border border-slate-200 p-0 shadow-xl bg-white">
+          <div className="shrink-0 bg-slate-50/80 px-6 pt-6 pb-4 border-b border-slate-100">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold tracking-tight text-slate-900">
+                Edit Staff Member
+              </DialogTitle>
+              <DialogDescription className="mt-1 text-slate-500">
+                Update role and verification status.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div className="space-y-6 p-6">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-slate-700">
+                  Role
+                </Label>
+                <Select
+                  value={editForm.role}
+                  onValueChange={(value) =>
+                    setEditForm({ ...editForm, role: value || "" })
+                  }
+                >
+                  <SelectTrigger className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="owner">Owner</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="front_desk">Front Desk</SelectItem>
+                    <SelectItem value="housekeeping">Housekeeping</SelectItem>
+                    <SelectItem value="finance">Finance</SelectItem>
+                    <SelectItem value="staff">Staff</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 bg-slate-50/60">
+                <input
+                  type="checkbox"
+                  id="isVerified"
+                  checked={editForm.isVerified}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, isVerified: e.target.checked })
+                  }
+                  className="h-4 w-4 rounded accent-blue-600"
+                />
+                <Label
+                  htmlFor="isVerified"
+                  className="text-sm font-medium text-slate-700 cursor-pointer"
+                >
+                  Verified
+                </Label>
+              </div>
             </div>
           </div>
-          <DialogFooter>
+          <div className="flex shrink-0 items-center justify-end gap-3 rounded-b-2xl border-t border-slate-100 bg-white p-5">
             <Button
               variant="outline"
               onClick={() => setEditingStaffId(null)}
-              className="rounded-full"
+              className="h-10 rounded-lg border-slate-200 hover:bg-slate-50"
             >
               Cancel
             </Button>
             <Button
               onClick={handleUpdateStaff}
               disabled={savingStaff}
-              className="rounded-full"
+              className="h-10 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-70 transition-colors"
             >
               {savingStaff ? "Saving..." : "Save Changes"}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -627,30 +665,36 @@ export default function StaffPage() {
         open={!!revokingInvite}
         onOpenChange={(open) => !open && setRevokingInvite(null)}
       >
-        <DialogContent className="sm:max-w-[420px] rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold">
-              Remove invitation
-            </DialogTitle>
-            <DialogDescription>
-              Withdraw the pending invitation to{" "}
-              <span className="font-semibold text-foreground">
-                {revokingInvite?.email}
-              </span>
-              ?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="rounded-2xl bg-muted/30 border border-border/40 p-4 text-sm text-muted-foreground leading-relaxed">
-            The invite link they received will stop working immediately. If
-            they haven&apos;t created their account yet, they won&apos;t be
-            able to sign up. Anyone who already joined shows up in the Staff
-            list instead and is unaffected.
+        <DialogContent className="sm:max-w-[420px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl border border-slate-200 p-0 shadow-xl bg-white">
+          <div className="shrink-0 bg-slate-50/80 px-6 pt-6 pb-4 border-b border-slate-100">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold tracking-tight text-slate-900">
+                Remove invitation
+              </DialogTitle>
+              <DialogDescription className="mt-1 text-slate-500">
+                Withdraw the pending invitation to{" "}
+                <span className="font-semibold text-slate-900">
+                  {revokingInvite?.email}
+                </span>
+                ?
+              </DialogDescription>
+            </DialogHeader>
           </div>
-          <DialogFooter>
+          <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div className="space-y-6 p-6">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-600 leading-relaxed">
+                The invite link they received will stop working immediately. If
+                they haven&apos;t created their account yet, they won&apos;t be
+                able to sign up. Anyone who already joined shows up in the Staff
+                list instead and is unaffected.
+              </div>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center justify-end gap-3 rounded-b-2xl border-t border-slate-100 bg-white p-5">
             <Button
               variant="outline"
               onClick={() => setRevokingInvite(null)}
-              className="rounded-full"
+              className="h-10 rounded-lg border-slate-200 hover:bg-slate-50"
             >
               Cancel
             </Button>
@@ -658,12 +702,12 @@ export default function StaffPage() {
               variant="destructive"
               onClick={handleRevokeInvitation}
               disabled={revoking}
-              className="rounded-full"
+              className="h-10 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-70 transition-colors"
             >
               <Trash2 className="h-4 w-4 mr-1" />
               {revoking ? "Removing..." : "Remove Invitation"}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -672,27 +716,33 @@ export default function StaffPage() {
         open={!!removingStaff}
         onOpenChange={(open) => !open && setRemovingStaff(null)}
       >
-        <DialogContent className="sm:max-w-[420px] rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold">Remove staff</DialogTitle>
-            <DialogDescription>
-              Remove{" "}
-              <span className="font-semibold text-foreground">
-                {removingStaff?.fullName} ({removingStaff?.email})
-              </span>
-              from the hotel?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="rounded-2xl bg-muted/30 border border-border/40 p-4 text-sm text-muted-foreground leading-relaxed">
-            They will immediately lose access to the hotel workspace and any
-            pending invitation for their email will stop working. Bookings,
-            invoices, and history stay intact — only the account is removed.
+        <DialogContent className="sm:max-w-[420px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl border border-slate-200 p-0 shadow-xl bg-white">
+          <div className="shrink-0 bg-slate-50/80 px-6 pt-6 pb-4 border-b border-slate-100">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold tracking-tight text-slate-900">Remove staff</DialogTitle>
+              <DialogDescription className="mt-1 text-slate-500">
+                Remove{" "}
+                <span className="font-semibold text-slate-900">
+                  {removingStaff?.fullName} ({removingStaff?.email})
+                </span>
+                from the hotel?
+              </DialogDescription>
+            </DialogHeader>
           </div>
-          <DialogFooter>
+          <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div className="space-y-6 p-6">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-600 leading-relaxed">
+                They will immediately lose access to the hotel workspace and any
+                pending invitation for their email will stop working. Bookings,
+                invoices, and history stay intact — only the account is removed.
+              </div>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center justify-end gap-3 rounded-b-2xl border-t border-slate-100 bg-white p-5">
             <Button
               variant="outline"
               onClick={() => setRemovingStaff(null)}
-              className="rounded-full"
+              className="h-10 rounded-lg border-slate-200 hover:bg-slate-50"
             >
               Cancel
             </Button>
@@ -700,12 +750,12 @@ export default function StaffPage() {
               variant="destructive"
               onClick={handleRemoveStaff}
               disabled={deletingStaff}
-              className="rounded-full"
+              className="h-10 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-70 transition-colors"
             >
               <Trash2 className="h-4 w-4 mr-1" />
               {deletingStaff ? "Removing..." : "Remove Member"}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

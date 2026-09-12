@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import StaysService from "@/services/stays.service";
 import BookingsService from "@/services/bookings.service";
 import type { DashboardStaySummary } from "@/actions/operations";
-import { formatDateTime, formatCurrency, formatNumber } from "@/utils/utils";
+import { formatCurrency, formatDateTimeWithDate } from "@/utils/utils";
+import { useCurrency } from "@/utils/currency";
 import {
   Card,
   CardContent,
@@ -27,6 +28,7 @@ export default function ArrivalsPage() {
   const [error, setError] = useState<string | null>(null);
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const currency = useCurrency();
 
   const fetchArrivals = async (silent = false) => {
     try {
@@ -42,7 +44,15 @@ export default function ArrivalsPage() {
   };
 
   useEffect(() => {
-    fetchArrivals();
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchArrivals();
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useRealtimeRefresh(() => fetchArrivals(true));
@@ -103,7 +113,7 @@ export default function ArrivalsPage() {
           </h1>
         </div>
         <p className="text-sm text-muted-foreground max-w-xs leading-relaxed md:text-right">
-          Manage today's check-ins and process incoming guests smoothly.
+          Manage today&apos;s check-ins and process incoming guests smoothly.
         </p>
       </div>
 
@@ -157,7 +167,7 @@ export default function ArrivalsPage() {
                   </div>
                   <div className="space-y-1">
                     <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1.5"><Clock className="h-3 w-3" /> Expected</span>
-                    <p className="font-medium text-foreground">{formatDateTime(stay.expectedCheckInAt)}</p>
+                    <p className="font-medium text-foreground">{formatDateTimeWithDate(stay.expectedCheckInAt)}</p>
                   </div>
                   <div className="space-y-1">
                     <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1.5"><Users className="h-3 w-3" /> Stay</span>
@@ -170,7 +180,7 @@ export default function ArrivalsPage() {
                         "inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold",
                         Number(stay.outstandingBalance) > 0 ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-600"
                       )}>
-                        {formatCurrency(stay.outstandingBalance)}
+                        {formatCurrency(stay.outstandingBalance, currency)}
                       </span>
                     </p>
                   </div>

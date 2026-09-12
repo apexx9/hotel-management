@@ -1,7 +1,7 @@
 import {
   IsBoolean,
-  IsEnum,
   IsInt,
+  IsISO8601,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -352,6 +352,23 @@ export class UpdateBookingDto {
   taxMode?: 'value' | 'percentage';
 
   @IsOptional()
+  @IsISO8601()
+  expectedCheckInAt?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  nights?: number;
+
+  @IsOptional()
+  @IsString()
+  specialRequests?: string;
+
+  @IsOptional()
+  @IsString()
+  roomId?: string;
+
+  @IsOptional()
   @IsString()
   notes?: string;
 
@@ -396,6 +413,22 @@ export class CreatePaymentDto {
 
   @IsUUID()
   invoiceId: string;
+
+  @IsNumber()
+  @Min(0.01)
+  amount: number;
+
+  @IsIn(['cash', 'mobile_money', 'card', 'bank_transfer'])
+  method: 'cash' | 'mobile_money' | 'card' | 'bank_transfer';
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class RefundPaymentDto {
+  @IsUUID()
+  stayId: string;
 
   @IsNumber()
   @Min(0.01)

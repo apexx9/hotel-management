@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import DashboardService from "@/services/dashboard.service";
 import type { DashboardSummaryResponse } from "@/actions/operations";
 import { formatCurrency, formatDateTime, formatDate, formatNumber } from "@/utils/utils";
+import { useCurrency } from "@/utils/currency";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageLoading } from "@/components/dashboard/page-loading";
@@ -19,11 +20,9 @@ import {
   Bell,
   Activity,
   DoorOpen,
-  ArrowRight,
   ShieldAlert,
   CheckCircle2
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
@@ -32,6 +31,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const currency = useCurrency();
 
   const isFetchingRef = useRef(false);
 
@@ -51,7 +51,15 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchData();
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, [fetchData]);
 
   useRealtimeRefresh(() => fetchData(false), 20000);
@@ -183,7 +191,7 @@ export default function DashboardPage() {
                     <span className="text-muted-foreground">Folio Balance</span>
                     {nextDeparture.outstandingBalance && Number(nextDeparture.outstandingBalance) > 0 ? (
                       <span className="font-bold text-destructive">
-                        Due: {formatCurrency(nextDeparture.outstandingBalance)}
+                        Due: {formatCurrency(nextDeparture.outstandingBalance, currency)}
                       </span>
                     ) : (
                       <span className="font-semibold text-emerald-600 flex items-center gap-1">
@@ -277,7 +285,7 @@ export default function DashboardPage() {
 
         <div className="space-y-1">
           <p className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
-            {formatCurrency(dashboardStats.revenueCollectedToday)}
+            {formatCurrency(dashboardStats.revenueCollectedToday, currency)}
           </p>
           <p className="text-xs font-medium text-emerald-600 dark:text-emerald-500 flex items-center gap-1">
             <ArrowUpRight className="h-3.5 w-3.5" /> Revenue Today
@@ -286,7 +294,7 @@ export default function DashboardPage() {
 
         <div className="space-y-1">
           <p className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
-            {formatCurrency(dashboardStats.projectedEndOfDayRevenue)}
+            {formatCurrency(dashboardStats.projectedEndOfDayRevenue, currency)}
           </p>
           <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
             <Wallet className="h-3.5 w-3.5" /> Projected EOD
@@ -313,12 +321,12 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-blue-500" />
           <span className="text-xs font-medium text-muted-foreground">ADR</span>
-          <span className="text-sm font-bold text-foreground">{formatCurrency(dashboardStats.averageDailyRate)}</span>
+          <span className="text-sm font-bold text-foreground">{formatCurrency(dashboardStats.averageDailyRate, currency)}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-indigo-500" />
           <span className="text-xs font-medium text-muted-foreground">RevPAR</span>
-          <span className="text-sm font-bold text-foreground">{formatCurrency(dashboardStats.revPar)}</span>
+          <span className="text-sm font-bold text-foreground">{formatCurrency(dashboardStats.revPar, currency)}</span>
         </div>
         <span className="hidden sm:inline text-xs text-muted-foreground border-l border-border/40 pl-8">
           Snapshot effective {new Date().toLocaleDateString()}
@@ -399,7 +407,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Average Nightly Rate (ADR)</span>
-                  <span className="font-semibold text-primary">{formatCurrency(roomStatus.averageNightlyRate)}</span>
+                  <span className="font-semibold text-primary">{formatCurrency(roomStatus.averageNightlyRate, currency)}</span>
                 </div>
               </div>
 

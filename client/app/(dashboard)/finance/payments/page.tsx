@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import PaymentsService, { Payment } from "@/services/payments.service";
 import InvoicesService, { Invoice } from "@/services/invoices.service";
 import StaysService from "@/services/stays.service";
+import type { DashboardStaySummary } from "@/actions/operations";
 import { formatCurrency, formatDateTime } from "@/utils/utils";
+import { useCurrency } from "@/utils/currency";
 import { paymentStatusColors, paymentMethodColors } from "@/lib/status-colors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,10 +29,8 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -40,7 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, Plus, Search, CreditCard } from "lucide-react";
+import { Plus, Search, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
@@ -56,9 +56,10 @@ export default function PaymentsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [recording, setRecording] = useState(false);
   const [reversingId, setReversingId] = useState<string | null>(null);
+  const currency = useCurrency();
 
   // For new payment form
-  const [stays, setStays] = useState<any[]>([]);
+  const [stays, setStays] = useState<DashboardStaySummary[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [form, setForm] = useState({
     stayId: "",
@@ -83,7 +84,15 @@ export default function PaymentsPage() {
   };
 
   useEffect(() => {
-    fetchPayments();
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchPayments();
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useRealtimeRefresh(() => fetchPayments(true));
@@ -91,7 +100,7 @@ export default function PaymentsPage() {
   const handleReverse = async (payment: Payment) => {
     if (
       !window.confirm(
-        `Reverse payment ${payment.reference} of ${formatCurrency(payment.amount)}?`,
+        `Reverse payment ${payment.reference} of ${formatCurrency(payment.amount, currency)}?`,
       )
     )
       return;
@@ -123,13 +132,27 @@ export default function PaymentsPage() {
   };
 
   useEffect(() => {
-    fetchPayments();
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchPayments();
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
-    if (dialogOpen) {
+    let active = true;
+    const init = async () => {
+      if (!active || !dialogOpen) return;
       fetchFormData();
-    }
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, [dialogOpen]);
 
   const filteredPayments = payments.filter((payment) => {
@@ -197,27 +220,30 @@ export default function PaymentsPage() {
 
       {/* Payment Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Record Payment</DialogTitle>
-            <DialogDescription>
-              Enter payment details for a stay/invoice.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
+<DialogContent className="sm:max-w-[500px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl border border-slate-200 p-0 shadow-xl bg-white">
+          <div className="shrink-0 bg-slate-50/80 px-6 pt-6 pb-4 border-b border-slate-100">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold tracking-tight text-slate-900">Record Payment</DialogTitle>
+              <DialogDescription className="mt-1 text-slate-500">
+                Enter payment details for a stay/invoice.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div className="space-y-6 p-6">
               <div className="space-y-2">
-                <Label>Stay *</Label>
+                <Label className="text-sm font-medium text-slate-700">Stay *</Label>
                 <Select
                   value={form.stayId}
                   onValueChange={(value) =>
                     setForm({ ...form, stayId: value || "" })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600">
                     <SelectValue placeholder="Select stay" />
                   </SelectTrigger>
                   <SelectContent>
-                    {stays.map((stay: any) => (
+                    {stays.map((stay) => (
                       <SelectItem key={stay.id} value={stay.id}>
                         {stay.guestName || stay.reference} - Room{" "}
                         {stay.roomNumber}
@@ -227,20 +253,20 @@ export default function PaymentsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Invoice *</Label>
+                <Label className="text-sm font-medium text-slate-700">Invoice *</Label>
                 <Select
                   value={form.invoiceId}
                   onValueChange={(value) =>
                     setForm({ ...form, invoiceId: value || "" })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600">
                     <SelectValue placeholder="Select invoice" />
                   </SelectTrigger>
                   <SelectContent>
                     {invoices.map((inv) => (
                       <SelectItem key={inv.id} value={inv.id}>
-                        {inv.reference} - {formatCurrency(inv.outstanding)}{" "}
+                        {inv.reference} - {formatCurrency(inv.outstanding, currency)}{" "}
                         outstanding
                       </SelectItem>
                     ))}
@@ -248,7 +274,7 @@ export default function PaymentsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Amount *</Label>
+                <Label className="text-sm font-medium text-slate-700">Amount *</Label>
                 <Input
                   type="number"
                   min={0}
@@ -258,17 +284,18 @@ export default function PaymentsPage() {
                     setForm({ ...form, amount: Number(e.target.value) })
                   }
                   required
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Method *</Label>
+                <Label className="text-sm font-medium text-slate-700">Method *</Label>
                 <Select
                   value={form.method}
                   onValueChange={(value) =>
                     setForm({ ...form, method: value || "cash" })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600">
                     <SelectValue placeholder="Select method" />
                   </SelectTrigger>
                   <SelectContent>
@@ -280,22 +307,24 @@ export default function PaymentsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Notes</Label>
+                <Label className="text-sm font-medium text-slate-700">Notes</Label>
                 <Input
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleRecordPayment} disabled={recording}>
-                {recording ? "Recording..." : "Record Payment"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
+          </div>
+          <div className="flex shrink-0 items-center justify-end gap-3 rounded-b-2xl border-t border-slate-100 bg-white p-5">
+            <Button variant="outline" onClick={() => setDialogOpen(false)} className="h-10 rounded-lg border-slate-200 hover:bg-slate-50">
+              Cancel
+            </Button>
+            <Button onClick={handleRecordPayment} disabled={recording} className="h-10 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-70 transition-colors">
+              {recording ? "Recording..." : "Record Payment"}
+            </Button>
+          </div>
+        </DialogContent>
         </Dialog>
 
       {/* Search and filters */}
@@ -403,7 +432,7 @@ export default function PaymentsPage() {
                         {payment.status.replace("_", " ")}
                       </Badge>
                     </TableCell>
-                    <TableCell>{formatCurrency(payment.amount)}</TableCell>
+                    <TableCell>{formatCurrency(payment.amount, currency)}</TableCell>
                     <TableCell>{formatDateTime(payment.createdAt)}</TableCell>
                     <TableCell className="max-w-xs truncate">
                       {payment.notes || "—"}

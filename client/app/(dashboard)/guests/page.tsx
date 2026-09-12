@@ -5,7 +5,6 @@ import GuestsService, { Guest } from "@/services/guests.service";
 import { formatDate } from "@/utils/utils";
 import {
   Card,
-  CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -27,14 +26,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { AlertCircle, Plus, Search, Users, Pencil, Contact, Info } from "lucide-react";
+import { AlertCircle, Plus, Search, Users, Pencil, Info } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
 export default function GuestsPage() {
   const [guests, setGuests] = useState<Guest[]>([]);
@@ -87,7 +83,15 @@ export default function GuestsPage() {
   };
 
   useEffect(() => {
-    fetchGuests();
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchGuests();
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const filteredGuests = guests.filter((guest) => {
@@ -306,116 +310,116 @@ export default function GuestsPage() {
 
       {/* ─── CREATE GUEST DIALOG ────────────────────────────────────────────── */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[85vh] rounded-3xl p-0 border-border/50 overflow-hidden flex flex-col">
-          <div className="bg-muted/30 p-6 border-b border-border/40 shrink-0">
+        <DialogContent className="sm:max-w-[600px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl border border-slate-200 p-0 shadow-xl bg-white">
+          <div className="shrink-0 bg-slate-50/80 px-6 pt-6 pb-4 border-b border-slate-100">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold tracking-tight">Create Guest Profile</DialogTitle>
-              <DialogDescription className="mt-1">
+              <DialogTitle className="text-xl font-bold tracking-tight text-slate-900">Create Guest Profile</DialogTitle>
+              <DialogDescription className="mt-1 text-slate-500">
                 Enter the details to add a new guest to the directory.
               </DialogDescription>
             </DialogHeader>
           </div>
           
-          <div className="p-6 overflow-y-auto bg-background flex-1">
-            <div className="grid gap-5">
+          <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div className="space-y-6 p-6">
               <div className="grid grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">First Name *</Label>
+                  <Label className="text-sm font-medium text-slate-700">First Name *</Label>
                   <Input
                     value={createForm.firstName}
                     onChange={(e) => setCreateForm({ ...createForm, firstName: e.target.value })}
-                    className="h-11 rounded-xl bg-muted/20"
+                    className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Last Name *</Label>
+                  <Label className="text-sm font-medium text-slate-700">Last Name *</Label>
                   <Input
                     value={createForm.lastName}
                     onChange={(e) => setCreateForm({ ...createForm, lastName: e.target.value })}
-                    className="h-11 rounded-xl bg-muted/20"
+                    className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     required
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Phone *</Label>
+                  <Label className="text-sm font-medium text-slate-700">Phone *</Label>
                   <Input
                     value={createForm.phone}
                     onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
-                    className="h-11 rounded-xl bg-muted/20"
+                    className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Email</Label>
+                  <Label className="text-sm font-medium text-slate-700">Email</Label>
                   <Input
                     type="email"
                     value={createForm.email}
                     onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-                    className="h-11 rounded-xl bg-muted/20"
+                    className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nationality</Label>
+                  <Label className="text-sm font-medium text-slate-700">Nationality</Label>
                   <Input
                     value={createForm.nationality}
                     onChange={(e) => setCreateForm({ ...createForm, nationality: e.target.value })}
-                    className="h-11 rounded-xl bg-muted/20"
+                    className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">ID Type</Label>
+                  <Label className="text-sm font-medium text-slate-700">ID Type</Label>
                   <Input
                     value={createForm.identificationType}
                     onChange={(e) => setCreateForm({ ...createForm, identificationType: e.target.value })}
-                    className="h-11 rounded-xl bg-muted/20"
+                    className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     placeholder="e.g., Passport, Driver's License"
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">ID Number</Label>
+                <Label className="text-sm font-medium text-slate-700">ID Number</Label>
                 <Input
                   value={createForm.identificationNumber}
                   onChange={(e) => setCreateForm({ ...createForm, identificationNumber: e.target.value })}
-                  className="h-11 rounded-xl bg-muted/20"
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Address</Label>
+                <Label className="text-sm font-medium text-slate-700">Address</Label>
                 <Input
                   value={createForm.address}
                   onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
-                  className="h-11 rounded-xl bg-muted/20"
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Emergency Contact</Label>
+                <Label className="text-sm font-medium text-slate-700">Emergency Contact</Label>
                 <Input
                   value={createForm.emergencyContact}
                   onChange={(e) => setCreateForm({ ...createForm, emergencyContact: e.target.value })}
-                  className="h-11 rounded-xl bg-muted/20"
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Notes</Label>
+                <Label className="text-sm font-medium text-slate-700">Notes</Label>
                 <Input
                   value={createForm.notes}
                   onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
-                  className="h-11 rounded-xl bg-muted/20"
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
           </div>
-          <div className="bg-muted/30 p-4 border-t border-border/40 flex justify-end gap-3 shrink-0">
-            <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="rounded-full h-10 px-5">
+          <div className="flex shrink-0 items-center justify-end gap-3 rounded-b-2xl border-t border-slate-100 bg-white p-5">
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="h-10 rounded-lg border-slate-200 hover:bg-slate-50">
               Cancel
             </Button>
-            <Button onClick={handleCreateGuest} disabled={creating || !createForm.firstName || !createForm.lastName || !createForm.phone} className="rounded-full h-10 px-6">
+            <Button onClick={handleCreateGuest} disabled={creating || !createForm.firstName || !createForm.lastName || !createForm.phone} className="h-10 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-70 transition-colors">
               {creating ? "Adding..." : "Add Guest"}
             </Button>
           </div>
@@ -424,115 +428,115 @@ export default function GuestsPage() {
 
       {/* ─── EDIT GUEST DIALOG ────────────────────────────────────────────── */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[85vh] rounded-3xl p-0 border-border/50 overflow-hidden flex flex-col">
-          <div className="bg-muted/30 p-6 border-b border-border/40 shrink-0">
+        <DialogContent className="sm:max-w-[600px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl border border-slate-200 p-0 shadow-xl bg-white">
+          <div className="shrink-0 bg-slate-50/80 px-6 pt-6 pb-4 border-b border-slate-100">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold tracking-tight">Edit Guest Profile</DialogTitle>
-              <DialogDescription className="mt-1">
+              <DialogTitle className="text-xl font-bold tracking-tight text-slate-900">Edit Guest Profile</DialogTitle>
+              <DialogDescription className="mt-1 text-slate-500">
                 Update the information for this guest.
               </DialogDescription>
             </DialogHeader>
           </div>
           
-          <div className="p-6 overflow-y-auto bg-background flex-1">
-            <div className="grid gap-5">
+          <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div className="space-y-6 p-6">
               <div className="grid grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">First Name *</Label>
+                  <Label className="text-sm font-medium text-slate-700">First Name *</Label>
                   <Input
                     value={editForm.firstName}
                     onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
-                    className="h-11 rounded-xl bg-muted/20"
+                    className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Last Name *</Label>
+                  <Label className="text-sm font-medium text-slate-700">Last Name *</Label>
                   <Input
                     value={editForm.lastName}
                     onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
-                    className="h-11 rounded-xl bg-muted/20"
+                    className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     required
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Phone *</Label>
+                  <Label className="text-sm font-medium text-slate-700">Phone *</Label>
                   <Input
                     value={editForm.phone}
                     onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                    className="h-11 rounded-xl bg-muted/20"
+                    className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Email</Label>
+                  <Label className="text-sm font-medium text-slate-700">Email</Label>
                   <Input
                     type="email"
                     value={editForm.email}
                     onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                    className="h-11 rounded-xl bg-muted/20"
+                    className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nationality</Label>
+                  <Label className="text-sm font-medium text-slate-700">Nationality</Label>
                   <Input
                     value={editForm.nationality}
                     onChange={(e) => setEditForm({ ...editForm, nationality: e.target.value })}
-                    className="h-11 rounded-xl bg-muted/20"
+                    className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">ID Type</Label>
+                  <Label className="text-sm font-medium text-slate-700">ID Type</Label>
                   <Input
                     value={editForm.identificationType}
                     onChange={(e) => setEditForm({ ...editForm, identificationType: e.target.value })}
-                    className="h-11 rounded-xl bg-muted/20"
+                    className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">ID Number</Label>
+                <Label className="text-sm font-medium text-slate-700">ID Number</Label>
                 <Input
                   value={editForm.identificationNumber}
                   onChange={(e) => setEditForm({ ...editForm, identificationNumber: e.target.value })}
-                  className="h-11 rounded-xl bg-muted/20"
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Address</Label>
+                <Label className="text-sm font-medium text-slate-700">Address</Label>
                 <Input
                   value={editForm.address}
                   onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                  className="h-11 rounded-xl bg-muted/20"
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Emergency Contact</Label>
+                <Label className="text-sm font-medium text-slate-700">Emergency Contact</Label>
                 <Input
                   value={editForm.emergencyContact}
                   onChange={(e) => setEditForm({ ...editForm, emergencyContact: e.target.value })}
-                  className="h-11 rounded-xl bg-muted/20"
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Notes</Label>
+                <Label className="text-sm font-medium text-slate-700">Notes</Label>
                 <Input
                   value={editForm.notes}
                   onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                  className="h-11 rounded-xl bg-muted/20"
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
           </div>
-          <div className="bg-muted/30 p-4 border-t border-border/40 flex justify-end gap-3 shrink-0">
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="rounded-full h-10 px-5">
+          <div className="flex shrink-0 items-center justify-end gap-3 rounded-b-2xl border-t border-slate-100 bg-white p-5">
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="h-10 rounded-lg border-slate-200 hover:bg-slate-50">
               Cancel
             </Button>
-            <Button onClick={handleEditGuest} disabled={editing || !editForm.firstName || !editForm.lastName || !editForm.phone} className="rounded-full h-10 px-6">
+            <Button onClick={handleEditGuest} disabled={editing || !editForm.firstName || !editForm.lastName || !editForm.phone} className="h-10 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-70 transition-colors">
               {editing ? "Saving..." : "Save Changes"}
             </Button>
           </div>

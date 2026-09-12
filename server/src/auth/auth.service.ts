@@ -121,10 +121,10 @@ export class AuthService {
       .limit(1);
 
     if (existing.length > 0) {
-      return {
-        ok: false,
-        message: 'An account with this email already exists.',
-      };
+      // Do not reveal that the account already exists; treat it as success
+      // so the caller is redirected to the (non-functional for them) verify
+      // step instead of learning the email is taken.
+      return { ok: true };
     }
 
     const result = await this.db.transaction(async (tx) => {
@@ -187,7 +187,6 @@ export class AuthService {
         name: result.createdUser.fullName,
         hotelId: result.createdUser.hotelId,
       },
-      verificationToken: result.verificationToken,
     };
   }
 
@@ -473,7 +472,7 @@ export class AuthService {
       replyTo,
     );
 
-    return { ok: true, token };
+    return { ok: true };
   }
 
   /** Verify a user account. */
@@ -591,7 +590,7 @@ export class AuthService {
       replyTo,
     );
 
-    return { ok: true, token };
+    return { ok: true };
   }
 
   /** Reset a user's password. */
@@ -652,7 +651,6 @@ export class AuthService {
     return {
       ok: true,
       type: authToken.type,
-      userId: authToken.userId,
     };
   }
 

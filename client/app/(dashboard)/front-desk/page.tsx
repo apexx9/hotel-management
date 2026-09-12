@@ -23,6 +23,7 @@ import {
   Info
 } from "lucide-react";
 import { formatDateTime, formatCurrency, formatNumber } from "@/utils/utils";
+import { useCurrency } from "@/utils/currency";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
@@ -32,6 +33,7 @@ export default function FrontDeskOverviewPage() {
   const [departures, setDepartures] = useState<DashboardStaySummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const currency = useCurrency();
 
   const fetchData = async (silent = false) => {
     try {
@@ -54,7 +56,15 @@ export default function FrontDeskOverviewPage() {
   };
 
   useEffect(() => {
-    fetchData();
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchData();
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useRealtimeRefresh(() => fetchData(true));
@@ -192,7 +202,7 @@ export default function FrontDeskOverviewPage() {
                     </p>
                     {Number(stay.outstandingBalance) > 0 ? (
                       <Badge variant="outline" className="text-destructive border-destructive/30 bg-destructive/10">
-                        Owes {formatCurrency(stay.outstandingBalance)}
+                        Owes {formatCurrency(stay.outstandingBalance, currency)}
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="text-emerald-600 border-emerald-500/30 bg-emerald-500/10">

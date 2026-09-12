@@ -24,7 +24,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -117,12 +116,24 @@ function SettingsOverviewContent() {
       }
     };
 
-    fetchSetupData();
-    fetchNotifications();
-    authApi
-      .getCurrentUser()
-      .then((res) => setIsOwner(res.data?.user?.role === "owner"))
-      .catch(() => setIsOwner(false));
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchSetupData();
+      fetchNotifications();
+      authApi
+        .getCurrentUser()
+        .then((res) => {
+          if (active) setIsOwner(res.data?.user?.role === "owner");
+        })
+        .catch(() => {
+          if (active) setIsOwner(false);
+        });
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleMarkAsRead = async (id: string) => {
@@ -707,35 +718,41 @@ function SettingsOverviewContent() {
         open={deleteDialogOpen}
         onOpenChange={(open) => !open && setDeleteDialogOpen(false)}
       >
-        <DialogContent className="sm:max-w-[440px] rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold">
-              Delete hotel account?
-            </DialogTitle>
-            <DialogDescription>
-              This permanently deletes the hotel, all staff accounts, and all
-              bookings, guests, invoices, rooms and settings. This action
-              cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="rounded-2xl bg-destructive/5 border border-destructive/20 p-4 text-sm text-muted-foreground leading-relaxed">
-              To confirm, type{" "}
-              <span className="font-bold text-destructive">DELETE</span> in the
-              box below.
-            </div>
-            <Input
-              value={confirmText}
-              onChange={(e) => setConfirmText(e.target.value)}
-              placeholder="Type DELETE to confirm"
-              className="h-11 rounded-xl bg-muted/30 border-border/50"
-            />
+        <DialogContent className="sm:max-w-[440px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl border border-slate-200 p-0 shadow-xl bg-white">
+          <div className="shrink-0 bg-slate-50/80 px-6 pt-6 pb-4 border-b border-slate-100">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold tracking-tight text-slate-900">
+                Delete hotel account?
+              </DialogTitle>
+              <DialogDescription className="mt-1 text-slate-500">
+                This permanently deletes the hotel, all staff accounts, and all
+                bookings, guests, invoices, rooms and settings. This action
+                cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
           </div>
-          <DialogFooter>
+          <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div className="space-y-6 p-6">
+              <div className="rounded-xl border border-red-200 bg-red-50/60 p-4 text-sm text-slate-600 leading-relaxed">
+                To confirm, type{" "}
+                <span className="font-bold text-red-600">DELETE</span> in the
+                box below.
+              </div>
+              <div className="space-y-2">
+                <Input
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder="Type DELETE to confirm"
+                  className="h-10 rounded-lg bg-white border-slate-200 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center justify-end gap-3 rounded-b-2xl border-t border-slate-100 bg-white p-5">
             <Button
               variant="outline"
               onClick={() => setDeleteDialogOpen(false)}
-              className="rounded-full"
+              className="h-10 rounded-lg border-slate-200 hover:bg-slate-50"
             >
               Cancel
             </Button>
@@ -743,12 +760,12 @@ function SettingsOverviewContent() {
               variant="destructive"
               onClick={handleDeleteAccount}
               disabled={deletingAccount || confirmText !== "DELETE"}
-              className="rounded-full"
+              className="h-10 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-70 transition-colors"
             >
               <Trash2 className="h-4 w-4 mr-1" />
               {deletingAccount ? "Deleting..." : "Delete permanently"}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

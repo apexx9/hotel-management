@@ -89,12 +89,10 @@ export default function HousekeepingPage() {
 
   const filteredTasks = tasks.filter((task) => {
     const matchesStatus =
-      statusFilter === "all"
-        ? task.status !== "ready"
-        : task.status === statusFilter;
+      statusFilter === "all" ? true : task.status === statusFilter;
     const q = searchQuery.toLowerCase();
     const matchesSearch =
-      task.roomId.toLowerCase().includes(q) ||
+      (task.roomNumber ?? task.roomId.slice(0, 8)).toLowerCase().includes(q) ||
       (task.note || "").toLowerCase().includes(q);
     return matchesStatus && matchesSearch;
   });

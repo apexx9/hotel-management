@@ -1,9 +1,5 @@
 import { z } from "zod";
 
-// ---------- Base / Utility Schemas ----------
-const optionalString = z.string().trim().optional().nullable();
-const dateString = z.string().datetime().or(z.date()).optional().nullable();
-
 // ---------- Room Schema ----------
 const ROOM_STATUSES = [
   "available",
@@ -101,7 +97,13 @@ export const createBookingSchema = z.object({
 export const updateBookingSchema = z.object({
   rate: z.number().nonnegative().optional(),
   discount: z.number().nonnegative().optional(),
+  discountMode: z.enum(["value", "percentage"]).optional(),
   taxes: z.number().nonnegative().optional(),
+  taxMode: z.enum(["value", "percentage"]).optional(),
+  expectedCheckInAt: z.string().datetime().optional(),
+  nights: z.number().int().positive().optional(),
+  specialRequests: z.string().optional().nullable(),
+  roomId: z.string().uuid("Invalid room ID").optional(),
   notes: z.string().optional().nullable(),
   editReason: z.string().min(1, "Edit reason is required"),
 });
@@ -225,6 +227,7 @@ export const bookingAvailabilityQuerySchema = z.object({
   nights: z.number().int().positive("Nights must be positive"),
   guests: z.number().int().positive("Guests must be positive").optional(),
   checkInNow: z.boolean().optional(),
+  excludeStayId: z.string().uuid("Invalid stay ID").optional(),
 });
 
 export const bookingAvailabilityResponseSchema = z.object({

@@ -159,6 +159,7 @@ export function Topbar() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
+      const key = e.key ?? "";
       const isTyping =
         !!target &&
         (target.tagName === "INPUT" ||
@@ -166,17 +167,17 @@ export function Topbar() {
           target.tagName === "SELECT" ||
           target.isContentEditable);
 
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if ((e.metaKey || e.ctrlKey) && key === "k") {
         e.preventDefault();
         setSearchModalOpen(true);
-      } else if (e.key === "/" && !isTyping) {
+      } else if (key === "/" && !isTyping) {
         e.preventDefault();
         setSearchModalOpen(true);
-      } else if (e.key.toLowerCase() === "n" && !isTyping) {
+      } else if (key.toLowerCase() === "n" && !isTyping) {
         e.preventDefault();
         setBookingDialogOpen(true);
       }
-      if (e.key === "Escape" && searchModalOpen) {
+      if (key === "Escape" && searchModalOpen) {
         setSearchModalOpen(false);
       }
     };

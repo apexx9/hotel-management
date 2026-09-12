@@ -38,6 +38,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { formatCurrency, formatNumber } from "@/utils/utils";
+import { useCurrency } from "@/utils/currency";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { PageLoading } from "@/components/dashboard/page-loading";
@@ -48,6 +49,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState<ReportsRange>("today");
+  const currency = useCurrency();
 
   const fetchReport = async (selectedRange: ReportsRange, showLoader = false) => {
     try {
@@ -63,7 +65,15 @@ export default function ReportsPage() {
   };
 
   useEffect(() => {
-    fetchReport(range, true);
+    let active = true;
+    const init = async () => {
+      if (!active) return;
+      fetchReport(range, true);
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, [range]);
 
   if (loading) {
@@ -108,14 +118,14 @@ export default function ReportsPage() {
     },
     {
       label: "Total Revenue",
-      value: formatCurrency(revenue.totalRevenue),
-      sub: `+${formatCurrency(revenue.roomRevenue)} rooms · ${formatCurrency(revenue.serviceRevenue)} services`,
+      value: formatCurrency(revenue.totalRevenue, currency),
+      sub: `+${formatCurrency(revenue.roomRevenue, currency)} rooms · ${formatCurrency(revenue.serviceRevenue, currency)} services`,
       icon: Wallet,
       chip: "bg-emerald-500/10 text-emerald-600",
     },
     {
       label: "Outstanding",
-      value: formatCurrency(revenue.outstandingBalance),
+      value: formatCurrency(revenue.outstandingBalance, currency),
       sub: "Uncollected balance",
       icon: TrendingUp,
       chip: "bg-red-500/10 text-red-600",
@@ -279,21 +289,21 @@ export default function ReportsPage() {
             <CardContent className="space-y-3 p-5">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Room Revenue</span>
-                <span className="font-semibold">{formatCurrency(revenue.roomRevenue)}</span>
+                <span className="font-semibold">{formatCurrency(revenue.roomRevenue, currency)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Service Revenue</span>
-                <span className="font-semibold">{formatCurrency(revenue.serviceRevenue)}</span>
+                <span className="font-semibold">{formatCurrency(revenue.serviceRevenue, currency)}</span>
               </div>
               <div className="h-px bg-border/50" />
               <div className="flex justify-between text-base font-semibold">
                 <span className="text-foreground">Total Revenue</span>
-                <span className="text-emerald-600">{formatCurrency(revenue.totalRevenue)}</span>
+                <span className="text-emerald-600">{formatCurrency(revenue.totalRevenue, currency)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Outstanding</span>
                 <span className="font-semibold text-destructive">
-                  {formatCurrency(revenue.outstandingBalance)}
+                  {formatCurrency(revenue.outstandingBalance, currency)}
                 </span>
               </div>
             </CardContent>
@@ -351,7 +361,7 @@ export default function ReportsPage() {
                   <div className="flex justify-between text-sm">
                     <span className="font-medium text-foreground">{day.label}</span>
                     <span className="text-muted-foreground">
-                      {formatCurrency(day.revenue)} · {day.occupancy}% occupancy
+                      {formatCurrency(day.revenue, currency)} · {day.occupancy}% occupancy
                     </span>
                   </div>
                   <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
@@ -391,7 +401,7 @@ export default function ReportsPage() {
                 {roomTypeRevenue.map((item) => (
                   <TableRow key={item.id} className="hover:bg-muted/20 transition-colors">
                     <TableCell className="font-medium text-foreground">{item.name}</TableCell>
-                    <TableCell className="font-semibold">{formatCurrency(item.revenue)}</TableCell>
+                    <TableCell className="font-semibold">{formatCurrency(item.revenue, currency)}</TableCell>
                     <TableCell className="text-right">{item.bookingsCount}</TableCell>
                   </TableRow>
                 ))}

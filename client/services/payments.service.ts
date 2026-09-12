@@ -65,11 +65,27 @@ const PaymentsService = () => {
     }
   };
 
+  const recordRefund = async (data: {
+    stayId: string;
+    amount: number;
+    method: string;
+    notes?: string;
+  }) => {
+    try {
+      const response = await operationsApi.recordRefund(data);
+      return response.data;
+    } catch (error) {
+      console.error("Failed to record refund:", getErrorMessage(error, "Failed to record refund"));
+      throw error;
+    }
+  };
+
   return {
     getPayments,
     getPayment,
     recordPayment,
     reversePayment,
+    recordRefund,
   };
 };
 

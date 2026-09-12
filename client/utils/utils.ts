@@ -1,10 +1,12 @@
+import { getCurrency } from "@/utils/currency";
+
 export const date = new Date().getFullYear();
 
 export { cn } from "@/lib/utils";
 
 export function formatCurrency(
   value: number | string | null | undefined,
-  currency = "GHS",
+  currency = getCurrency(),
 ) {
   const amount = Number(value ?? 0);
 
@@ -54,6 +56,25 @@ export function formatDate(
     day: "numeric",
     month: "short",
     year: "numeric",
+  }).format(date);
+}
+
+export function formatDateTimeWithDate(
+  value: string | Date | null | undefined,
+) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("en-GH", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
   }).format(date);
 }
 

@@ -9,7 +9,7 @@ const baseURL = "/api";
 
 export const instance = axios.create({
   baseURL,
-  timeout: 30000,
+  timeout: 100000,
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });

@@ -238,6 +238,18 @@ export default function ReservationsPage() {
       r.id === editForm.roomId,
   );
 
+  const buildRoomLabel = (room: Room) =>
+    `Room ${room.number}${room.floor ? ` · Floor ${room.floor}` : ""}${
+      room.status !== "available" && room.status !== "reserved"
+        ? ` · ${room.status.replace("_", " ")}`
+        : ""
+    }`;
+
+  const moveRoomItems = moveRooms.map((room) => ({
+    value: room.id,
+    label: buildRoomLabel(room),
+  }));
+
   useEffect(() => {
     const shouldCheck =
       Boolean(editingReservation) &&
@@ -746,6 +758,7 @@ export default function ReservationsPage() {
                       </Label>
                       <Select
                         value={editForm.roomId}
+                        items={moveRoomItems}
                         onValueChange={(value) => {
                           if (!value) return;
                           setEditForm({ ...editForm, roomId: value });
@@ -757,12 +770,7 @@ export default function ReservationsPage() {
                         <SelectContent>
                           {moveRooms.map((room) => (
                             <SelectItem key={room.id} value={room.id}>
-                              Room {room.number}
-                              {room.floor ? ` · Floor ${room.floor}` : ""}
-                              {room.status !== "available" &&
-                              room.status !== "reserved"
-                                ? ` · ${room.status.replace("_", " ")}`
-                                : ""}
+                              {buildRoomLabel(room)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -875,6 +883,10 @@ export default function ReservationsPage() {
                         </div>
                         <Select
                           value={editForm.discountMode}
+                          items={[
+                            { value: "value", label: "Value" },
+                            { value: "percentage", label: "Percent" },
+                          ]}
                           onValueChange={(value) => {
                             if (!value) return;
                             setEditForm({
@@ -935,6 +947,10 @@ export default function ReservationsPage() {
                         </div>
                         <Select
                           value={editForm.taxMode}
+                          items={[
+                            { value: "value", label: "Value" },
+                            { value: "percentage", label: "Percent" },
+                          ]}
                           onValueChange={(value) => {
                             if (!value) return;
                             setEditForm({
@@ -1053,6 +1069,12 @@ export default function ReservationsPage() {
                         <div className="flex flex-wrap items-center gap-2 mt-2.5">
                           <Select
                             value={refundMethod}
+                            items={[
+                              { value: "cash", label: "Cash" },
+                              { value: "mobile_money", label: "Mobile money" },
+                              { value: "card", label: "Card" },
+                              { value: "bank_transfer", label: "Bank transfer" },
+                            ]}
                             onValueChange={(value) => {
                               if (value) setRefundMethod(value);
                             }}

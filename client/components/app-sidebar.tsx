@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  ChevronRight,
   LogOut,
   Loader2,
   Building2,
@@ -16,20 +15,19 @@ import {
   Sidebar,
   SidebarHeader,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
+  SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
+
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+
 import { navItems } from "@/utils/nav-items";
 import { cn } from "@/lib/utils";
 
@@ -38,179 +36,116 @@ import AuthService from "@/services/auth.service";
 
 function getInitials(value?: string) {
   if (!value) return "?";
+
   const parts = value.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+
   const { state, isMobile, setOpen } = useSidebar();
+
   const isCollapsed = state === "collapsed";
 
-  const [openMenus, setOpenMenus] = useState<Set<string>>(new Set());
-  const [pinnedMenus, setPinnedMenus] = useState<Set<string>>(new Set());
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [locked, setLocked] = useState(false);
 
   const user = useAuthStore((s) => s.user);
 
-  const visibleNavItems = (() => {
-    const role = user?.role;
-    return navItems
-      .map((item) => ({
+  /**
+   * Filter navigation based on the authenticated user's role.
+   *
+   * Parent items act as navigation sections when they contain children.
+   * Their children remain permanently visible.
+   */
+  const visibleNavItems = navItems
+    .map((item) => {
+      const role = user?.role;
+
+      const children = item.children?.filter(
+        (child) =>
+          !child.allowedRoles ||
+          !role ||
+          child.allowedRoles.includes(role),
+      );
+
+      return {
         ...item,
-        children: item.children
-          ? item.children.filter(
-              (c) => !c.allowedRoles || !role || c.allowedRoles.includes(role),
-            )
-          : undefined,
-      }))
-      .filter((item) => {
-        if (item.allowedRoles && role && !item.allowedRoles.includes(role))
-          return false;
-        if (
-          item.children &&
-          item.children.length === 0 &&
-          item.children !== undefined
-        )
-          return false;
-        return true;
-      });
-  })();
+        children,
+      };
+    })
+    .filter((item) => {
+      const role = user?.role;
 
-  // Refs for hover-intent timers
-  const openTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
-  const closeTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
+      if (
+        item.allowedRoles &&
+        role &&
+        !item.allowedRoles.includes(role)
+      ) {
+        return false;
+      }
 
-  const clearOpenTimeout = (href: string) => {
-    const timeout = openTimeouts.current.get(href);
-    if (timeout) {
-      clearTimeout(timeout);
-      openTimeouts.current.delete(href);
-    }
-  };
+      if (
+        item.children &&
+        item.children.length === 0
+      ) {
+        return false;
+      }
 
-  const clearCloseTimeout = (href: string) => {
-    const timeout = closeTimeouts.current.get(href);
-    if (timeout) {
-      clearTimeout(timeout);
-      closeTimeouts.current.delete(href);
-    }
-  };
-
-  const openSubmenu = useCallback(
-    (href: string) => {
-      // Cancel any pending close for this href
-      clearCloseTimeout(href);
-
-      // Clear any pending open for this href (avoid duplicates)
-      clearOpenTimeout(href);
-
-      // Schedule open after 120ms
-      const timeout = setTimeout(() => {
-        setOpenMenus((prev) => {
-          const newOpen = new Set([...pinnedMenus]);
-          newOpen.add(href);
-          return newOpen;
-        });
-        openTimeouts.current.delete(href);
-      }, 120);
-
-      openTimeouts.current.set(href, timeout);
-    },
-    [pinnedMenus],
-  );
-
-  const closeSubmenu = useCallback(
-    (href: string) => {
-      // Cancel any pending open for this href
-      clearOpenTimeout(href);
-
-      // If pinned, don't close
-      if (pinnedMenus.has(href)) return;
-
-      // Cancel any existing close timeout
-      clearCloseTimeout(href);
-
-      // Schedule close after 300ms
-      const timeout = setTimeout(() => {
-        setOpenMenus((prev) => {
-          const next = new Set(prev);
-          next.delete(href);
-          return next;
-        });
-        closeTimeouts.current.delete(href);
-      }, 300);
-
-      closeTimeouts.current.set(href, timeout);
-    },
-    [pinnedMenus],
-  );
-
-  const togglePin = useCallback((href: string) => {
-    setPinnedMenus((prev) => {
-      const next = new Set(prev);
-      if (next.has(href)) next.delete(href);
-      else next.add(href);
-      return next;
+      return true;
     });
-    setOpenMenus((prev) => new Set(prev).add(href));
-  }, []);
 
   const handleMouseEnterSidebar = () => {
-    if (!isMobile && isCollapsed && !locked) setOpen(true);
+    if (!isMobile && isCollapsed && !locked) {
+      setOpen(true);
+    }
   };
 
   const handleMouseLeaveSidebar = () => {
-    if (!isMobile && !locked && pinnedMenus.size === 0) {
+    if (!isMobile && !locked) {
       setOpen(false);
-      setOpenMenus(new Set());
-      openTimeouts.current.forEach((timeout) => clearTimeout(timeout));
-      closeTimeouts.current.forEach((timeout) => clearTimeout(timeout));
-      openTimeouts.current.clear();
-      closeTimeouts.current.clear();
     }
   };
 
   const toggleLock = () => {
     const nextLocked = !locked;
+
     setLocked(nextLocked);
+
     if (nextLocked) {
       setOpen(true);
     } else {
-      if (pinnedMenus.size === 0) {
-        setOpen(false);
-        setOpenMenus(new Set());
-      }
+      setOpen(false);
     }
   };
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
+
     setIsLoggingOut(true);
+
     try {
       await AuthService().logout();
     } catch {
-      // Graceful failure
+      // Graceful failure.
     } finally {
       setIsLoggingOut(false);
       router.replace("/login");
     }
   };
 
-  // Clean up timers on unmount
-  useEffect(() => {
-    return () => {
-      openTimeouts.current.forEach((timeout) => clearTimeout(timeout));
-      closeTimeouts.current.forEach((timeout) => clearTimeout(timeout));
-      openTimeouts.current.clear();
-      closeTimeouts.current.clear();
-    };
-  }, []);
-
-  // ─── COLLAPSED RENDER ─────────────────────────────────────
+  /**
+   * ─────────────────────────────────────────────
+   * COLLAPSED SIDEBAR
+   * ─────────────────────────────────────────────
+   */
   if (isCollapsed) {
     return (
       <Sidebar
@@ -219,91 +154,163 @@ export function AppSidebar() {
         onMouseLeave={handleMouseLeaveSidebar}
         className="border-r shadow-sm"
       >
-        <SidebarHeader className="flex items-center justify-center py-3 px-0">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-md">
+        <SidebarHeader className="flex items-center justify-center px-0 py-4">
+          <div
+            className={cn(
+              "flex h-9 w-9 items-center justify-center",
+              "rounded-lg bg-primary text-primary-foreground",
+              "shadow-sm",
+            )}
+          >
             <Building2 className="h-5 w-5" />
           </div>
         </SidebarHeader>
 
-        <SidebarContent className="flex flex-col items-center gap-1 py-2 px-0">
-          {visibleNavItems.map((item) => {
-            const isActive =
-              pathname === item.href ||
-              (item.children &&
-                item.children.some((child) => pathname === child.href));
+        <SidebarContent className="px-2 py-3">
+          <SidebarGroup className="p-0">
+            <SidebarMenu className="gap-1">
+              {visibleNavItems.map((item) => {
+                /**
+                 * Parent with children:
+                 * show every child directly.
+                 */
+                if (item.children?.length) {
+                  return item.children.map((child) => {
+                    const isActive = pathname === child.href;
 
-            if (!item.children) {
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={item.label}
-                  className={cn(
-                    "flex h-9 w-9 items-center justify-center rounded-md transition-colors",
-                    "hover:bg-accent hover:text-accent-foreground",
-                    isActive
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  <item.icon className="h-4 w-4 shrink-0" />
-                </Link>
-              );
-            }
+                    return (
+                      <SidebarMenuItem key={child.href}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Link
+                              href={child.href}
+                              className={cn(
+                                "flex h-9 w-9 items-center justify-center",
+                                "rounded-md transition-all duration-200",
+                                "hover:bg-accent hover:text-accent-foreground",
+                                isActive
+                                  ? "bg-accent text-accent-foreground"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              <child.icon className="h-4 w-4 shrink-0" />
+                            </Link>
+                          </TooltipTrigger>
 
-            return (
-              <button
-                key={item.href}
-                title={item.label}
-                className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-md transition-colors",
-                  "hover:bg-accent hover:text-accent-foreground",
-                  isActive
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground",
-                )}
-              >
-                <item.icon className="h-4 w-4 shrink-0" />
-              </button>
-            );
-          })}
+                          <TooltipContent
+                            side="right"
+                            align="center"
+                            sideOffset={8}
+                          >
+                            {child.label}
+                          </TooltipContent>
+                        </Tooltip>
+                      </SidebarMenuItem>
+                    );
+                  });
+                }
+
+                const isActive = pathname === item.href;
+
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Link
+                          href={item.href}
+                          className={cn(
+                            "flex h-9 w-9 items-center justify-center",
+                            "rounded-md transition-all duration-200",
+                            "hover:bg-accent hover:text-accent-foreground",
+                            isActive
+                              ? "bg-accent text-accent-foreground"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          <item.icon className="h-4 w-4 shrink-0" />
+                        </Link>
+                      </TooltipTrigger>
+
+                      <TooltipContent
+                        side="right"
+                        align="center"
+                        sideOffset={8}
+                      >
+                        {item.label}
+                      </TooltipContent>
+                    </Tooltip>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroup>
         </SidebarContent>
 
-        <SidebarFooter className="flex flex-col items-center gap-2 border-t border-border py-3 px-0">
-          {user ? (
+        <SidebarFooter className="border-t border-border px-2 py-3">
+          <div className="flex flex-col items-center gap-2">
+            {user ? (
+              <Tooltip>
+                <TooltipTrigger
+                  aria-label={user.name || user.email}
+                  className={cn(
+                    "flex h-9 w-9 items-center justify-center",
+                    "rounded-full bg-primary/10",
+                    "text-sm font-semibold text-primary",
+                    "ring-1 ring-primary/20",
+                  )}
+                >
+                  {getInitials(user.name || user.email)}
+                </TooltipTrigger>
+
+                <TooltipContent side="right" align="center">
+                  <p className="font-medium">
+                    {user.name || "My Account"}
+                  </p>
+
+                  <p className="text-xs opacity-70">
+                    {user.email}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <div className="h-9 w-9 animate-pulse rounded-full bg-muted" />
+            )}
+
             <Tooltip>
-              <TooltipTrigger
-                aria-label={user.name || user.email}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary ring-1 ring-primary/20"
-              >
-                {getInitials(user?.name || user?.email)}
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleLogout}
+                  disabled={isLoggingOut}
+                  className={cn(
+                    "flex h-9 w-9 items-center justify-center",
+                    "rounded-md text-muted-foreground",
+                    "transition-colors",
+                    "hover:bg-destructive/10 hover:text-destructive",
+                  )}
+                >
+                  {isLoggingOut ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <LogOut className="h-4 w-4" />
+                  )}
+                </button>
               </TooltipTrigger>
-              <TooltipContent side="right" align="center">
-                <p className="font-medium">{user?.name || "My Account"}</p>
-                <p className="text-xs opacity-70">{user?.email}</p>
+
+              <TooltipContent side="right">
+                Log out
               </TooltipContent>
             </Tooltip>
-          ) : (
-            <div className="h-9 w-9 animate-pulse rounded-full bg-muted" />
-          )}
-          <button
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-            title="Log out"
-            className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-          >
-            {isLoggingOut ? (
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-            ) : (
-              <LogOut className="h-4 w-4 shrink-0" />
-            )}
-          </button>
+          </div>
         </SidebarFooter>
       </Sidebar>
     );
   }
 
-  // ─── EXPANDED RENDER ─────────────────────────────────────
+  /**
+   * ─────────────────────────────────────────────
+   * EXPANDED SIDEBAR
+   * ─────────────────────────────────────────────
+   */
   return (
     <Sidebar
       collapsible="icon"
@@ -311,122 +318,208 @@ export function AppSidebar() {
       onMouseLeave={handleMouseLeaveSidebar}
       className="border-r shadow-sm"
     >
-      <SidebarHeader className="pt-4 pb-2 px-3">
-        <div className="flex items-center gap-3 px-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-md">
+      {/* ───────────────── HEADER ───────────────── */}
+
+      <SidebarHeader className="px-4 pb-3 pt-4">
+        <div className="flex items-center gap-3">
+          <div
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center",
+              "rounded-lg bg-primary text-primary-foreground",
+              "shadow-sm",
+            )}
+          >
             <Building2 className="h-5 w-5" />
           </div>
-          <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-sm font-bold leading-tight">
+
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold leading-tight">
               Hotel Manager
-            </span>
-            <span className="truncate text-xs text-muted-foreground">
+            </p>
+
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
               Admin Portal
-            </span>
+            </p>
           </div>
+
           <button
             onClick={toggleLock}
-            className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-            title={locked ? "Unlock sidebar" : "Lock sidebar open"}
+            title={
+              locked
+                ? "Unlock sidebar"
+                : "Lock sidebar open"
+            }
+            className={cn(
+              "flex h-7 w-7 shrink-0 items-center justify-center",
+              "rounded-md text-muted-foreground",
+              "transition-all duration-200",
+              "hover:bg-accent hover:text-foreground",
+              locked && "bg-accent text-foreground",
+            )}
           >
             {locked ? (
-              <Lock className="h-4 w-4" />
+              <Lock className="h-3.5 w-3.5" />
             ) : (
-              <Unlock className="h-4 w-4" />
+              <Unlock className="h-3.5 w-3.5" />
             )}
           </button>
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-3 py-2">
-        <SidebarGroup>
-          <SidebarMenu className="space-y-1">
-            {visibleNavItems.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.children &&
-                  item.children.some((child) => pathname === child.href));
+      {/* ───────────────── NAVIGATION ───────────────── */}
 
-              if (!item.children) {
+      <SidebarContent className="px-3 py-2">
+        <SidebarGroup className="p-0">
+          <SidebarMenu className="gap-0">
+            {visibleNavItems.map((item, index) => {
+              /**
+               * ─────────────────────────────
+               * SECTION WITH CHILDREN
+               * ─────────────────────────────
+               */
+              if (item.children?.length) {
+                const hasActiveChild = item.children.some(
+                  (child) => pathname === child.href,
+                );
+
                 return (
-                  <SidebarMenuItem key={item.href}>
-                    <Link
-                      href={item.href}
+                  <SidebarMenuItem
+                    key={item.href}
+                    className={cn(
+                      "group/section mb-5",
+                      index === 0 && "mt-1",
+                    )}
+                  >
+                    {/* Section heading */}
+
+                    <div
                       className={cn(
-                        "flex h-9 items-center gap-3 rounded-md px-3 text-sm transition-colors",
-                        "hover:bg-accent hover:text-accent-foreground",
-                        isActive
-                          ? "bg-accent text-accent-foreground font-medium"
-                          : "text-muted-foreground",
+                        "mb-1.5 flex items-center gap-2 px-3",
+                        "text-[10px] font-semibold uppercase",
+                        "tracking-[0.12em]",
+                        "text-muted-foreground/70",
+                        "transition-colors duration-200",
+                        hasActiveChild &&
+                          "text-muted-foreground",
                       )}
                     >
-                      <item.icon className="h-4 w-4 shrink-0" />
                       <span>{item.label}</span>
-                    </Link>
+
+                      <div className="h-px flex-1 bg-border/60" />
+                    </div>
+
+                    {/* Always-visible children */}
+
+                    <div className="space-y-0.5">
+                      {item.children.map((child) => {
+                        const isActive =
+                          pathname === child.href;
+
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            className={cn(
+                              "group/item relative flex h-9",
+                              "items-center gap-3",
+                              "rounded-md px-3",
+                              "text-sm",
+                              "transition-all duration-200",
+                              "hover:bg-accent",
+                              "hover:text-accent-foreground",
+
+                              isActive
+                                ? "bg-accent text-accent-foreground font-medium"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            {/* Active indicator */}
+
+                            <span
+                              className={cn(
+                                "absolute left-0 top-1/2",
+                                "h-5 w-0.5 -translate-y-1/2",
+                                "rounded-full bg-primary",
+                                "transition-all duration-200",
+                                isActive
+                                  ? "opacity-100"
+                                  : "opacity-0",
+                              )}
+                            />
+
+                            <child.icon
+                              className={cn(
+                                "h-4 w-4 shrink-0",
+                                "transition-transform duration-200",
+                                "group-hover/item:scale-105",
+                              )}
+                            />
+
+                            <span className="truncate">
+                              {child.label}
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </div>
                   </SidebarMenuItem>
                 );
               }
 
-              const isOpen = openMenus.has(item.href);
+              /**
+               * ─────────────────────────────
+               * NORMAL TOP-LEVEL ITEM
+               * ─────────────────────────────
+               */
+
+              const isActive =
+                pathname === item.href;
 
               return (
                 <SidebarMenuItem
                   key={item.href}
-                  onMouseEnter={() => openSubmenu(item.href)}
-                  onMouseLeave={() => closeSubmenu(item.href)}
+                  className="mb-1"
                 >
-                  <SidebarMenuButton
-                    isActive={isActive}
-                    tooltip={item.label}
-                    onClick={() => togglePin(item.href)}
+                  <Link
+                    href={item.href}
                     className={cn(
-                      "rounded-md transition-colors",
+                      "group/item relative flex h-9",
+                      "items-center gap-3",
+                      "rounded-md px-3",
+                      "text-sm",
+                      "transition-all duration-200",
+                      "hover:bg-accent",
+                      "hover:text-accent-foreground",
+
                       isActive
                         ? "bg-accent text-accent-foreground font-medium"
-                        : "hover:bg-accent hover:text-accent-foreground",
+                        : "text-muted-foreground",
                     )}
                   >
-                    <span className="flex min-w-0 items-center gap-3">
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{item.label}</span>
-                    </span>
-                    <ChevronRight
+                    <span
                       className={cn(
-                        "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
-                        isOpen && "rotate-90",
+                        "absolute left-0 top-1/2",
+                        "h-5 w-0.5 -translate-y-1/2",
+                        "rounded-full bg-primary",
+                        "transition-all duration-200",
+                        isActive
+                          ? "opacity-100"
+                          : "opacity-0",
                       )}
                     />
-                  </SidebarMenuButton>
 
-                  <div
-                    className="grid transition-[grid-template-rows] duration-200 ease-in-out"
-                    style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
-                  >
-                    <div className="overflow-hidden">
-                      <SidebarMenuSub className="mt-1 ml-4 border-l border-border pl-2 space-y-1">
-                        {item.children.map((child) => {
-                          const childActive = pathname === child.href;
-                          return (
-                            <SidebarMenuSubItem key={child.href}>
-                              <Link
-                                href={child.href}
-                                className={cn(
-                                  "flex h-8 items-center gap-2 rounded-md px-3 text-sm transition-colors",
-                                  "hover:bg-accent hover:text-accent-foreground",
-                                  childActive
-                                    ? "bg-accent text-accent-foreground font-medium"
-                                    : "text-muted-foreground",
-                                )}
-                              >
-                                <child.icon className="h-3.5 w-3.5 shrink-0" />
-                                <span className="truncate">{child.label}</span>
-                              </Link>
-                            </SidebarMenuSubItem>
-                          );
-                        })}
-                      </SidebarMenuSub>
-                    </div>
-                  </div>
+                    <item.icon
+                      className={cn(
+                        "h-4 w-4 shrink-0",
+                        "transition-transform duration-200",
+                        "group-hover/item:scale-105",
+                      )}
+                    />
+
+                    <span className="truncate">
+                      {item.label}
+                    </span>
+                  </Link>
                 </SidebarMenuItem>
               );
             })}
@@ -434,24 +527,42 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
+      {/* ───────────────── FOOTER ───────────────── */}
+
       <SidebarFooter className="border-t border-border p-3">
         {user ? (
-          <div className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-accent">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary ring-1 ring-primary/20">
-              {getInitials(user?.name || user?.email)}
+          <div
+            className={cn(
+              "flex items-center gap-3 rounded-md p-2",
+              "transition-colors duration-200",
+              "hover:bg-accent",
+            )}
+          >
+            <div
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center",
+                "rounded-full bg-primary/10",
+                "text-sm font-semibold text-primary",
+                "ring-1 ring-primary/20",
+              )}
+            >
+              {getInitials(user.name || user.email)}
             </div>
+
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">
-                {user?.name || "My Account"}
+                {user.name || "My Account"}
               </p>
+
               <p className="truncate text-xs text-muted-foreground">
-                {user?.email}
+                {user.email}
               </p>
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-3 rounded-lg p-2">
+          <div className="flex items-center gap-3 rounded-md p-2">
             <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-muted" />
+
             <div className="min-w-0 flex-1 space-y-1.5">
               <div className="h-3.5 w-24 animate-pulse rounded bg-muted" />
               <div className="h-3 w-32 animate-pulse rounded bg-muted" />
@@ -459,23 +570,30 @@ export function AppSidebar() {
           </div>
         )}
 
-        <SidebarMenu className="mt-2">
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              tooltip="Log out"
-              className="rounded-md transition-colors hover:bg-destructive/10 hover:text-destructive"
-            >
-              {isLoggingOut ? (
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-              ) : (
-                <LogOut className="h-4 w-4 shrink-0" />
-              )}
-              <span>Log out</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <div className="mt-2">
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className={cn(
+              "flex h-9 w-full items-center gap-3",
+              "rounded-md px-3",
+              "text-sm text-muted-foreground",
+              "transition-colors duration-200",
+              "hover:bg-destructive/10",
+              "hover:text-destructive",
+              "disabled:pointer-events-none",
+              "disabled:opacity-50",
+            )}
+          >
+            {isLoggingOut ? (
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            ) : (
+              <LogOut className="h-4 w-4 shrink-0" />
+            )}
+
+            <span>Log out</span>
+          </button>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

@@ -1,33 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  LogOut,
-  Loader2,
-  Building2,
-  Lock,
-  Unlock,
-} from "lucide-react";
+import { LogOut, Loader2, Building2, Lock, Unlock } from "lucide-react";
 
 import {
   Sidebar,
   SidebarHeader,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
-  SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
 import { navItems } from "@/utils/nav-items";
 import { cn } from "@/lib/utils";
 
@@ -36,22 +29,15 @@ import AuthService from "@/services/auth.service";
 
 function getInitials(value?: string) {
   if (!value) return "?";
-
   const parts = value.trim().split(/\s+/);
-
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-
   const { state, isMobile, setOpen } = useSidebar();
-
   const isCollapsed = state === "collapsed";
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -59,75 +45,43 @@ export function AppSidebar() {
 
   const user = useAuthStore((s) => s.user);
 
-  /**
-   * Filter navigation according to the
-   * authenticated user's role.
-   */
-  const visibleNavItems = navItems
-    .map((item) => {
-      const role = user?.role;
-
-      const children = item.children?.filter(
-        (child) =>
-          !child.allowedRoles ||
-          !role ||
-          child.allowedRoles.includes(role),
-      );
-
-      return {
+  const visibleNavItems = (() => {
+    const role = user?.role;
+    return navItems
+      .map((item) => ({
         ...item,
-        children,
-      };
-    })
-    .filter((item) => {
-      const role = user?.role;
+        children: item.children
+          ? item.children.filter(
+              (c) => !c.allowedRoles || !role || c.allowedRoles.includes(role),
+            )
+          : undefined,
+      }))
+      .filter((item) => {
+        if (item.allowedRoles && role && !item.allowedRoles.includes(role))
+          return false;
+        if (
+          item.children &&
+          item.children.length === 0 &&
+          item.children !== undefined
+        )
+          return false;
+        return true;
+      });
+  })();
 
-      if (
-        item.allowedRoles &&
-        role &&
-        !item.allowedRoles.includes(role)
-      ) {
-        return false;
-      }
-
-      /**
-       * Hide empty navigation groups.
-       */
-      if (item.children && item.children.length === 0) {
-        return false;
-      }
-
-      return true;
-    });
-
-  /**
-   * Expand the sidebar when the mouse enters
-   * while it is collapsed.
-   */
   const handleMouseEnterSidebar = () => {
-    if (!isMobile && isCollapsed && !locked) {
-      setOpen(true);
-    }
+    if (!isMobile && isCollapsed && !locked) setOpen(true);
   };
 
-  /**
-   * Collapse the sidebar when the mouse leaves,
-   * unless it has been locked open.
-   */
   const handleMouseLeaveSidebar = () => {
     if (!isMobile && !locked) {
       setOpen(false);
     }
   };
 
-  /**
-   * Lock/unlock the sidebar.
-   */
   const toggleLock = () => {
     const nextLocked = !locked;
-
     setLocked(nextLocked);
-
     if (nextLocked) {
       setOpen(true);
     } else {
@@ -135,30 +89,20 @@ export function AppSidebar() {
     }
   };
 
-  /**
-   * Logout.
-   */
   const handleLogout = async () => {
     if (isLoggingOut) return;
-
     setIsLoggingOut(true);
-
     try {
       await AuthService().logout();
     } catch {
-      // Graceful failure.
+      // Graceful failure
     } finally {
       setIsLoggingOut(false);
       router.replace("/login");
     }
   };
 
-  /**
-   * ============================================================
-   * COLLAPSED SIDEBAR
-   * ============================================================
-   */
-
+  // ─── COLLAPSED RENDER ─────────────────────────────────────
   if (isCollapsed) {
     return (
       <Sidebar
@@ -167,201 +111,108 @@ export function AppSidebar() {
         onMouseLeave={handleMouseLeaveSidebar}
         className="border-r shadow-sm"
       >
-        {/* ======================================================
-            LOGO
-        ====================================================== */}
-
-        <SidebarHeader className="flex items-center justify-center px-0 py-4">
-          <div
-            className={cn(
-              "flex h-9 w-9 items-center justify-center",
-              "rounded-lg bg-primary text-primary-foreground",
-              "shadow-sm",
-            )}
-          >
+        <SidebarHeader className="flex items-center justify-center py-3 px-0">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-md">
             <Building2 className="h-5 w-5" />
           </div>
         </SidebarHeader>
 
-        {/* ======================================================
-            COLLAPSED NAVIGATION
-        ====================================================== */}
+        <SidebarContent className="flex flex-col items-center gap-1 py-2 px-0">
+          {visibleNavItems.map((item) => {
+            const isActive =
+              pathname === item.href ||
+              (item.children &&
+                item.children.some((child) => pathname === child.href));
 
-        <SidebarContent className="px-2 py-3">
-          <SidebarGroup className="p-0">
-            <SidebarMenu className="gap-1">
-              {visibleNavItems.map((item) => {
-                /**
-                 * Groups:
-                 *
-                 * When collapsed, we show all children as
-                 * individual icon buttons.
-                 */
-                if (item.children?.length) {
-                  return item.children.map((child) => {
-                    const isActive = pathname === child.href;
-
-                    return (
-                      <SidebarMenuItem key={child.href}>
-                        <Tooltip>
-                          <TooltipTrigger
-                            aria-label={child.label}
-                            className={cn(
-                              "flex h-9 w-9 items-center justify-center",
-                              "rounded-md",
-                              "transition-all duration-200",
-                              "hover:bg-accent",
-                              "hover:text-accent-foreground",
-                              isActive
-                                ? "bg-accent text-accent-foreground"
-                                : "text-muted-foreground",
-                            )}
-                            onClick={() =>
-                              router.push(child.href)
-                            }
-                          >
-                            <child.icon
-                              className={cn(
-                                "h-4 w-4 shrink-0",
-                                "transition-transform duration-200",
-                              )}
-                            />
-                          </TooltipTrigger>
-
-                          <TooltipContent
-                            side="right"
-                            align="center"
-                            sideOffset={8}
-                          >
-                            {child.label}
-                          </TooltipContent>
-                        </Tooltip>
-                      </SidebarMenuItem>
-                    );
-                  });
-                }
-
-                /**
-                 * Normal top-level item.
-                 */
-
-                const isActive = pathname === item.href;
-
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <Tooltip>
-                      <TooltipTrigger
-                        aria-label={item.label}
-                        className={cn(
-                          "flex h-9 w-9 items-center justify-center",
-                          "rounded-md",
-                          "transition-all duration-200",
-                          "hover:bg-accent",
-                          "hover:text-accent-foreground",
-                          isActive
-                            ? "bg-accent text-accent-foreground"
-                            : "text-muted-foreground",
-                        )}
-                        onClick={() =>
-                          router.push(item.href)
-                        }
-                      >
-                        <item.icon
-                          className="h-4 w-4 shrink-0"
-                        />
-                      </TooltipTrigger>
-
-                      <TooltipContent
-                        side="right"
-                        align="center"
-                        sideOffset={8}
-                      >
-                        {item.label}
-                      </TooltipContent>
-                    </Tooltip>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroup>
-        </SidebarContent>
-
-        {/* ======================================================
-            COLLAPSED FOOTER
-        ====================================================== */}
-
-        <SidebarFooter className="border-t border-border px-2 py-3">
-          <div className="flex flex-col items-center gap-2">
-            {user ? (
-              <Tooltip>
-                <TooltipTrigger
-                  aria-label={user.name || user.email}
+            // Leaf item — clickable icon link (unchanged)
+            if (!item.children) {
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  title={item.label}
                   className={cn(
-                    "flex h-9 w-9 items-center justify-center",
-                    "rounded-full bg-primary/10",
-                    "text-sm font-semibold text-primary",
-                    "ring-1 ring-primary/20",
+                    "flex h-9 w-9 items-center justify-center rounded-md transition-colors",
+                    "hover:bg-accent hover:text-accent-foreground",
+                    isActive
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground",
                   )}
                 >
-                  {getInitials(user.name || user.email)}
-                </TooltipTrigger>
+                  <item.icon className="h-4 w-4 shrink-0" />
+                </Link>
+              );
+            }
 
-                <TooltipContent
-                  side="right"
-                  align="center"
+            // Section with children — non-clickable icon, tooltip shows label
+            return (
+              <Tooltip key={item.href}>
+                <TooltipTrigger
+                  aria-label={item.label}
+                  className={cn(
+                    "flex h-9 w-9 cursor-default items-center justify-center rounded-md transition-colors",
+                    isActive
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground",
+                  )}
                 >
-                  <p className="font-medium">
-                    {user.name || "My Account"}
-                  </p>
-
-                  <p className="text-xs opacity-70">
-                    {user.email}
-                  </p>
+                  <item.icon className="h-4 w-4 shrink-0" />
+                </TooltipTrigger>
+                <TooltipContent side="right" align="center">
+                  <p className="font-medium">{item.label}</p>
+                  {item.children && (
+                    <ul className="mt-1 space-y-0.5">
+                      {item.children.map((child) => (
+                        <li
+                          key={child.href}
+                          className="text-xs opacity-80"
+                        >
+                          {child.label}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </TooltipContent>
               </Tooltip>
-            ) : (
-              <div className="h-9 w-9 animate-pulse rounded-full bg-muted" />
-            )}
+            );
+          })}
+        </SidebarContent>
 
+        <SidebarFooter className="flex flex-col items-center gap-2 border-t border-border py-3 px-0">
+          {user ? (
             <Tooltip>
               <TooltipTrigger
-                aria-label="Log out"
-                className={cn(
-                  "flex h-9 w-9 items-center justify-center",
-                  "rounded-md text-muted-foreground",
-                  "transition-colors duration-200",
-                  "hover:bg-destructive/10",
-                  "hover:text-destructive",
-                )}
-                onClick={handleLogout}
-                disabled={isLoggingOut}
+                aria-label={user.name || user.email}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary ring-1 ring-primary/20"
               >
-                {isLoggingOut ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <LogOut className="h-4 w-4" />
-                )}
+                {getInitials(user?.name || user?.email)}
               </TooltipTrigger>
-
-              <TooltipContent
-                side="right"
-                align="center"
-              >
-                Log out
+              <TooltipContent side="right" align="center">
+                <p className="font-medium">{user?.name || "My Account"}</p>
+                <p className="text-xs opacity-70">{user?.email}</p>
               </TooltipContent>
             </Tooltip>
-          </div>
+          ) : (
+            <div className="h-9 w-9 animate-pulse rounded-full bg-muted" />
+          )}
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            title="Log out"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          >
+            {isLoggingOut ? (
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            ) : (
+              <LogOut className="h-4 w-4 shrink-0" />
+            )}
+          </button>
         </SidebarFooter>
       </Sidebar>
     );
   }
 
-  /**
-   * ============================================================
-   * EXPANDED SIDEBAR
-   * ============================================================
-   */
-
+  // ─── EXPANDED RENDER ─────────────────────────────────────
   return (
     <Sidebar
       collapsible="icon"
@@ -369,240 +220,95 @@ export function AppSidebar() {
       onMouseLeave={handleMouseLeaveSidebar}
       className="border-r shadow-sm"
     >
-      {/* ========================================================
-          HEADER
-      ======================================================== */}
-
-      <SidebarHeader className="px-4 pb-3 pt-4">
-        <div className="flex items-center gap-3">
-          {/* Logo */}
-
-          <div
-            className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center",
-              "rounded-lg bg-primary text-primary-foreground",
-              "shadow-sm",
-            )}
-          >
+      <SidebarHeader className="pt-4 pb-2 px-3">
+        <div className="flex items-center gap-3 px-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-md">
             <Building2 className="h-5 w-5" />
           </div>
-
-          {/* Brand */}
-
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold leading-tight">
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-sm font-bold leading-tight">
               Hotel Manager
-            </p>
-
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            </span>
+            <span className="truncate text-xs text-muted-foreground">
               Admin Portal
-            </p>
+            </span>
           </div>
-
-          {/* Lock */}
-
           <button
-            type="button"
             onClick={toggleLock}
-            title={
-              locked
-                ? "Unlock sidebar"
-                : "Lock sidebar open"
-            }
-            className={cn(
-              "flex h-7 w-7 shrink-0 items-center justify-center",
-              "rounded-md text-muted-foreground",
-              "transition-all duration-200",
-              "hover:bg-accent hover:text-foreground",
-              locked &&
-                "bg-accent text-foreground",
-            )}
+            className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            title={locked ? "Unlock sidebar" : "Lock sidebar open"}
           >
             {locked ? (
-              <Lock className="h-3.5 w-3.5" />
+              <Lock className="h-4 w-4" />
             ) : (
-              <Unlock className="h-3.5 w-3.5" />
+              <Unlock className="h-4 w-4" />
             )}
           </button>
         </div>
       </SidebarHeader>
 
-      {/* ========================================================
-          NAVIGATION
-      ======================================================== */}
-
       <SidebarContent className="px-3 py-2">
-        <SidebarGroup className="p-0">
-          <SidebarMenu className="gap-0">
-            {visibleNavItems.map((item, index) => {
-              /**
-               * ==================================================
-               * NAVIGATION GROUP
-               * ==================================================
-               *
-               * Parent items with children are now section
-               * headings.
-               *
-               * They NEVER collapse.
-               */
+        <SidebarGroup>
+          <SidebarMenu className="space-y-3">
+            {visibleNavItems.map((item) => {
+              const isActive =
+                pathname === item.href ||
+                (item.children?.some((c) => pathname === c.href) ?? false);
 
-              if (item.children?.length) {
-                const hasActiveChild = item.children.some(
-                  (child) => pathname === child.href,
-                );
-
+              // ── Leaf item (no children) — unchanged pill styling ──
+              if (!item.children) {
                 return (
-                  <SidebarMenuItem
-                    key={item.href}
-                    className={cn(
-                      "group/section mb-5",
-                      index === 0 && "mt-1",
-                    )}
-                  >
-                    {/* ------------------------------------------
-                        SECTION HEADING
-                    ------------------------------------------ */}
-
-                    <div
+                  <SidebarMenuItem key={item.href}>
+                    <Link
+                      href={item.href}
                       className={cn(
-                        "mb-1.5 flex items-center gap-2 px-3",
-                        "text-[10px] font-semibold uppercase",
-                        "tracking-[0.12em]",
-                        "text-muted-foreground/70",
-                        "transition-colors duration-200",
-                        hasActiveChild &&
-                          "text-muted-foreground",
+                        "flex h-9 items-center gap-3 rounded-md px-3 text-sm transition-colors",
+                        "hover:bg-accent hover:text-accent-foreground",
+                        isActive
+                          ? "bg-accent text-accent-foreground font-medium"
+                          : "text-muted-foreground",
                       )}
                     >
+                      <item.icon className="h-4 w-4 shrink-0" />
                       <span>{item.label}</span>
-
-                      <div className="h-px flex-1 bg-border/60" />
-                    </div>
-
-                    {/* ------------------------------------------
-                        ALWAYS VISIBLE CHILDREN
-                    ------------------------------------------ */}
-
-                    <div className="space-y-0.5">
-                      {item.children.map((child) => {
-                        const isActive =
-                          pathname === child.href;
-
-                        return (
-                          <Link
-                            key={child.href}
-                            href={child.href}
-                            className={cn(
-                              "group/item relative flex h-9",
-                              "items-center gap-3",
-                              "rounded-md px-3",
-                              "text-sm",
-                              "transition-all duration-200",
-                              "hover:bg-accent",
-                              "hover:text-accent-foreground",
-                              isActive
-                                ? "bg-accent text-accent-foreground font-medium"
-                                : "text-muted-foreground",
-                            )}
-                          >
-                            {/* Active indicator */}
-
-                            <span
-                              className={cn(
-                                "absolute left-0 top-1/2",
-                                "h-5 w-0.5",
-                                "-translate-y-1/2",
-                                "rounded-full bg-primary",
-                                "transition-all duration-200",
-                                isActive
-                                  ? "opacity-100"
-                                  : "opacity-0",
-                              )}
-                            />
-
-                            {/* Icon */}
-
-                            <child.icon
-                              className={cn(
-                                "h-4 w-4 shrink-0",
-                                "transition-transform duration-200",
-                                "group-hover/item:scale-105",
-                              )}
-                            />
-
-                            {/* Label */}
-
-                            <span className="truncate">
-                              {child.label}
-                            </span>
-                          </Link>
-                        );
-                      })}
-                    </div>
+                    </Link>
                   </SidebarMenuItem>
                 );
               }
 
-              /**
-               * ==================================================
-               * NORMAL TOP LEVEL ITEM
-               * ==================================================
-               */
-
-              const isActive =
-                pathname === item.href;
-
+              // ── Section with children — always visible ──
               return (
-                <SidebarMenuItem
-                  key={item.href}
-                  className="mb-1"
-                >
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "group/item relative flex h-9",
-                      "items-center gap-3",
-                      "rounded-md px-3",
-                      "text-sm",
-                      "transition-all duration-200",
-                      "hover:bg-accent",
-                      "hover:text-accent-foreground",
-                      isActive
-                        ? "bg-accent text-accent-foreground font-medium"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {/* Active indicator */}
-
-                    <span
-                      className={cn(
-                        "absolute left-0 top-1/2",
-                        "h-5 w-0.5",
-                        "-translate-y-1/2",
-                        "rounded-full bg-primary",
-                        "transition-all duration-200",
-                        isActive
-                          ? "opacity-100"
-                          : "opacity-0",
-                      )}
-                    />
-
-                    {/* Icon */}
-
-                    <item.icon
-                      className={cn(
-                        "h-4 w-4 shrink-0",
-                        "transition-transform duration-200",
-                        "group-hover/item:scale-105",
-                      )}
-                    />
-
-                    {/* Label */}
-
-                    <span className="truncate">
+                <SidebarMenuItem key={item.href} className="space-y-1">
+                  {/* Non-clickable section label */}
+                  <div className="flex items-center gap-2 px-3 pb-1.5 pt-1">
+                    <item.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
                       {item.label}
                     </span>
-                  </Link>
+                  </div>
+
+                  {/* Children with left rail */}
+                  <div className="ml-[18px] space-y-0.5 border-l border-border pl-2">
+                    {item.children.map((child) => {
+                      const childActive = pathname === child.href;
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className={cn(
+                            "flex h-8 items-center gap-2 rounded-md px-3 text-sm transition-colors",
+                            "hover:bg-accent hover:text-accent-foreground",
+                            childActive
+                              ? "bg-accent text-accent-foreground font-medium"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          <child.icon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{child.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
                 </SidebarMenuItem>
               );
             })}
@@ -610,89 +316,48 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* ========================================================
-          FOOTER
-      ======================================================== */}
-
       <SidebarFooter className="border-t border-border p-3">
-        {/* ------------------------------------------------------
-            USER
-        ------------------------------------------------------ */}
-
         {user ? (
-          <div
-            className={cn(
-              "flex items-center gap-3 rounded-md p-2",
-              "transition-colors duration-200",
-              "hover:bg-accent",
-            )}
-          >
-            {/* Avatar */}
-
-            <div
-              className={cn(
-                "flex h-9 w-9 shrink-0 items-center justify-center",
-                "rounded-full bg-primary/10",
-                "text-sm font-semibold text-primary",
-                "ring-1 ring-primary/20",
-              )}
-            >
-              {getInitials(user.name || user.email)}
+          <div className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-accent">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary ring-1 ring-primary/20">
+              {getInitials(user?.name || user?.email)}
             </div>
-
-            {/* User information */}
-
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">
-                {user.name || "My Account"}
+                {user?.name || "My Account"}
               </p>
-
               <p className="truncate text-xs text-muted-foreground">
-                {user.email}
+                {user?.email}
               </p>
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-3 rounded-md p-2">
+          <div className="flex items-center gap-3 rounded-lg p-2">
             <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-muted" />
-
             <div className="min-w-0 flex-1 space-y-1.5">
               <div className="h-3.5 w-24 animate-pulse rounded bg-muted" />
-
               <div className="h-3 w-32 animate-pulse rounded bg-muted" />
             </div>
           </div>
         )}
 
-        {/* ------------------------------------------------------
-            LOGOUT
-        ------------------------------------------------------ */}
-
-        <div className="mt-2">
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-            className={cn(
-              "flex h-9 w-full items-center gap-3",
-              "rounded-md px-3",
-              "text-sm text-muted-foreground",
-              "transition-colors duration-200",
-              "hover:bg-destructive/10",
-              "hover:text-destructive",
-              "disabled:pointer-events-none",
-              "disabled:opacity-50",
-            )}
-          >
-            {isLoggingOut ? (
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-            ) : (
-              <LogOut className="h-4 w-4 shrink-0" />
-            )}
-
-            <span>Log out</span>
-          </button>
-        </div>
+        <SidebarMenu className="mt-2">
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              tooltip="Log out"
+              className="rounded-md transition-colors hover:bg-destructive/10 hover:text-destructive"
+            >
+              {isLoggingOut ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              ) : (
+                <LogOut className="h-4 w-4 shrink-0" />
+              )}
+              <span>Log out</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   );

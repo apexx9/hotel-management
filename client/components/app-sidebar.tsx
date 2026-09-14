@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -60,10 +60,8 @@ export function AppSidebar() {
   const user = useAuthStore((s) => s.user);
 
   /**
-   * Filter navigation based on the authenticated user's role.
-   *
-   * Parent items act as navigation sections when they contain children.
-   * Their children remain permanently visible.
+   * Filter navigation according to the
+   * authenticated user's role.
    */
   const visibleNavItems = navItems
     .map((item) => {
@@ -92,28 +90,39 @@ export function AppSidebar() {
         return false;
       }
 
-      if (
-        item.children &&
-        item.children.length === 0
-      ) {
+      /**
+       * Hide empty navigation groups.
+       */
+      if (item.children && item.children.length === 0) {
         return false;
       }
 
       return true;
     });
 
+  /**
+   * Expand the sidebar when the mouse enters
+   * while it is collapsed.
+   */
   const handleMouseEnterSidebar = () => {
     if (!isMobile && isCollapsed && !locked) {
       setOpen(true);
     }
   };
 
+  /**
+   * Collapse the sidebar when the mouse leaves,
+   * unless it has been locked open.
+   */
   const handleMouseLeaveSidebar = () => {
     if (!isMobile && !locked) {
       setOpen(false);
     }
   };
 
+  /**
+   * Lock/unlock the sidebar.
+   */
   const toggleLock = () => {
     const nextLocked = !locked;
 
@@ -126,6 +135,9 @@ export function AppSidebar() {
     }
   };
 
+  /**
+   * Logout.
+   */
   const handleLogout = async () => {
     if (isLoggingOut) return;
 
@@ -142,10 +154,11 @@ export function AppSidebar() {
   };
 
   /**
-   * ─────────────────────────────────────────────
+   * ============================================================
    * COLLAPSED SIDEBAR
-   * ─────────────────────────────────────────────
+   * ============================================================
    */
+
   if (isCollapsed) {
     return (
       <Sidebar
@@ -154,6 +167,10 @@ export function AppSidebar() {
         onMouseLeave={handleMouseLeaveSidebar}
         className="border-r shadow-sm"
       >
+        {/* ======================================================
+            LOGO
+        ====================================================== */}
+
         <SidebarHeader className="flex items-center justify-center px-0 py-4">
           <div
             className={cn(
@@ -166,13 +183,19 @@ export function AppSidebar() {
           </div>
         </SidebarHeader>
 
+        {/* ======================================================
+            COLLAPSED NAVIGATION
+        ====================================================== */}
+
         <SidebarContent className="px-2 py-3">
           <SidebarGroup className="p-0">
             <SidebarMenu className="gap-1">
               {visibleNavItems.map((item) => {
                 /**
-                 * Parent with children:
-                 * show every child directly.
+                 * Groups:
+                 *
+                 * When collapsed, we show all children as
+                 * individual icon buttons.
                  */
                 if (item.children?.length) {
                   return item.children.map((child) => {
@@ -181,20 +204,28 @@ export function AppSidebar() {
                     return (
                       <SidebarMenuItem key={child.href}>
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Link
-                              href={child.href}
+                          <TooltipTrigger
+                            aria-label={child.label}
+                            className={cn(
+                              "flex h-9 w-9 items-center justify-center",
+                              "rounded-md",
+                              "transition-all duration-200",
+                              "hover:bg-accent",
+                              "hover:text-accent-foreground",
+                              isActive
+                                ? "bg-accent text-accent-foreground"
+                                : "text-muted-foreground",
+                            )}
+                            onClick={() =>
+                              router.push(child.href)
+                            }
+                          >
+                            <child.icon
                               className={cn(
-                                "flex h-9 w-9 items-center justify-center",
-                                "rounded-md transition-all duration-200",
-                                "hover:bg-accent hover:text-accent-foreground",
-                                isActive
-                                  ? "bg-accent text-accent-foreground"
-                                  : "text-muted-foreground",
+                                "h-4 w-4 shrink-0",
+                                "transition-transform duration-200",
                               )}
-                            >
-                              <child.icon className="h-4 w-4 shrink-0" />
-                            </Link>
+                            />
                           </TooltipTrigger>
 
                           <TooltipContent
@@ -210,25 +241,34 @@ export function AppSidebar() {
                   });
                 }
 
+                /**
+                 * Normal top-level item.
+                 */
+
                 const isActive = pathname === item.href;
 
                 return (
                   <SidebarMenuItem key={item.href}>
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Link
-                          href={item.href}
-                          className={cn(
-                            "flex h-9 w-9 items-center justify-center",
-                            "rounded-md transition-all duration-200",
-                            "hover:bg-accent hover:text-accent-foreground",
-                            isActive
-                              ? "bg-accent text-accent-foreground"
-                              : "text-muted-foreground",
-                          )}
-                        >
-                          <item.icon className="h-4 w-4 shrink-0" />
-                        </Link>
+                      <TooltipTrigger
+                        aria-label={item.label}
+                        className={cn(
+                          "flex h-9 w-9 items-center justify-center",
+                          "rounded-md",
+                          "transition-all duration-200",
+                          "hover:bg-accent",
+                          "hover:text-accent-foreground",
+                          isActive
+                            ? "bg-accent text-accent-foreground"
+                            : "text-muted-foreground",
+                        )}
+                        onClick={() =>
+                          router.push(item.href)
+                        }
+                      >
+                        <item.icon
+                          className="h-4 w-4 shrink-0"
+                        />
                       </TooltipTrigger>
 
                       <TooltipContent
@@ -246,6 +286,10 @@ export function AppSidebar() {
           </SidebarGroup>
         </SidebarContent>
 
+        {/* ======================================================
+            COLLAPSED FOOTER
+        ====================================================== */}
+
         <SidebarFooter className="border-t border-border px-2 py-3">
           <div className="flex flex-col items-center gap-2">
             {user ? (
@@ -262,7 +306,10 @@ export function AppSidebar() {
                   {getInitials(user.name || user.email)}
                 </TooltipTrigger>
 
-                <TooltipContent side="right" align="center">
+                <TooltipContent
+                  side="right"
+                  align="center"
+                >
                   <p className="font-medium">
                     {user.name || "My Account"}
                   </p>
@@ -277,26 +324,29 @@ export function AppSidebar() {
             )}
 
             <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={handleLogout}
-                  disabled={isLoggingOut}
-                  className={cn(
-                    "flex h-9 w-9 items-center justify-center",
-                    "rounded-md text-muted-foreground",
-                    "transition-colors",
-                    "hover:bg-destructive/10 hover:text-destructive",
-                  )}
-                >
-                  {isLoggingOut ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <LogOut className="h-4 w-4" />
-                  )}
-                </button>
+              <TooltipTrigger
+                aria-label="Log out"
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center",
+                  "rounded-md text-muted-foreground",
+                  "transition-colors duration-200",
+                  "hover:bg-destructive/10",
+                  "hover:text-destructive",
+                )}
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+              >
+                {isLoggingOut ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <LogOut className="h-4 w-4" />
+                )}
               </TooltipTrigger>
 
-              <TooltipContent side="right">
+              <TooltipContent
+                side="right"
+                align="center"
+              >
                 Log out
               </TooltipContent>
             </Tooltip>
@@ -307,10 +357,11 @@ export function AppSidebar() {
   }
 
   /**
-   * ─────────────────────────────────────────────
+   * ============================================================
    * EXPANDED SIDEBAR
-   * ─────────────────────────────────────────────
+   * ============================================================
    */
+
   return (
     <Sidebar
       collapsible="icon"
@@ -318,10 +369,14 @@ export function AppSidebar() {
       onMouseLeave={handleMouseLeaveSidebar}
       className="border-r shadow-sm"
     >
-      {/* ───────────────── HEADER ───────────────── */}
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
 
       <SidebarHeader className="px-4 pb-3 pt-4">
         <div className="flex items-center gap-3">
+          {/* Logo */}
+
           <div
             className={cn(
               "flex h-9 w-9 shrink-0 items-center justify-center",
@@ -331,6 +386,8 @@ export function AppSidebar() {
           >
             <Building2 className="h-5 w-5" />
           </div>
+
+          {/* Brand */}
 
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold leading-tight">
@@ -342,7 +399,10 @@ export function AppSidebar() {
             </p>
           </div>
 
+          {/* Lock */}
+
           <button
+            type="button"
             onClick={toggleLock}
             title={
               locked
@@ -354,7 +414,8 @@ export function AppSidebar() {
               "rounded-md text-muted-foreground",
               "transition-all duration-200",
               "hover:bg-accent hover:text-foreground",
-              locked && "bg-accent text-foreground",
+              locked &&
+                "bg-accent text-foreground",
             )}
           >
             {locked ? (
@@ -366,17 +427,25 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      {/* ───────────────── NAVIGATION ───────────────── */}
+      {/* ========================================================
+          NAVIGATION
+      ======================================================== */}
 
       <SidebarContent className="px-3 py-2">
         <SidebarGroup className="p-0">
           <SidebarMenu className="gap-0">
             {visibleNavItems.map((item, index) => {
               /**
-               * ─────────────────────────────
-               * SECTION WITH CHILDREN
-               * ─────────────────────────────
+               * ==================================================
+               * NAVIGATION GROUP
+               * ==================================================
+               *
+               * Parent items with children are now section
+               * headings.
+               *
+               * They NEVER collapse.
                */
+
               if (item.children?.length) {
                 const hasActiveChild = item.children.some(
                   (child) => pathname === child.href,
@@ -390,7 +459,9 @@ export function AppSidebar() {
                       index === 0 && "mt-1",
                     )}
                   >
-                    {/* Section heading */}
+                    {/* ------------------------------------------
+                        SECTION HEADING
+                    ------------------------------------------ */}
 
                     <div
                       className={cn(
@@ -408,7 +479,9 @@ export function AppSidebar() {
                       <div className="h-px flex-1 bg-border/60" />
                     </div>
 
-                    {/* Always-visible children */}
+                    {/* ------------------------------------------
+                        ALWAYS VISIBLE CHILDREN
+                    ------------------------------------------ */}
 
                     <div className="space-y-0.5">
                       {item.children.map((child) => {
@@ -427,7 +500,6 @@ export function AppSidebar() {
                               "transition-all duration-200",
                               "hover:bg-accent",
                               "hover:text-accent-foreground",
-
                               isActive
                                 ? "bg-accent text-accent-foreground font-medium"
                                 : "text-muted-foreground",
@@ -438,7 +510,8 @@ export function AppSidebar() {
                             <span
                               className={cn(
                                 "absolute left-0 top-1/2",
-                                "h-5 w-0.5 -translate-y-1/2",
+                                "h-5 w-0.5",
+                                "-translate-y-1/2",
                                 "rounded-full bg-primary",
                                 "transition-all duration-200",
                                 isActive
@@ -447,6 +520,8 @@ export function AppSidebar() {
                               )}
                             />
 
+                            {/* Icon */}
+
                             <child.icon
                               className={cn(
                                 "h-4 w-4 shrink-0",
@@ -454,6 +529,8 @@ export function AppSidebar() {
                                 "group-hover/item:scale-105",
                               )}
                             />
+
+                            {/* Label */}
 
                             <span className="truncate">
                               {child.label}
@@ -467,9 +544,9 @@ export function AppSidebar() {
               }
 
               /**
-               * ─────────────────────────────
-               * NORMAL TOP-LEVEL ITEM
-               * ─────────────────────────────
+               * ==================================================
+               * NORMAL TOP LEVEL ITEM
+               * ==================================================
                */
 
               const isActive =
@@ -490,16 +567,18 @@ export function AppSidebar() {
                       "transition-all duration-200",
                       "hover:bg-accent",
                       "hover:text-accent-foreground",
-
                       isActive
                         ? "bg-accent text-accent-foreground font-medium"
                         : "text-muted-foreground",
                     )}
                   >
+                    {/* Active indicator */}
+
                     <span
                       className={cn(
                         "absolute left-0 top-1/2",
-                        "h-5 w-0.5 -translate-y-1/2",
+                        "h-5 w-0.5",
+                        "-translate-y-1/2",
                         "rounded-full bg-primary",
                         "transition-all duration-200",
                         isActive
@@ -508,6 +587,8 @@ export function AppSidebar() {
                       )}
                     />
 
+                    {/* Icon */}
+
                     <item.icon
                       className={cn(
                         "h-4 w-4 shrink-0",
@@ -515,6 +596,8 @@ export function AppSidebar() {
                         "group-hover/item:scale-105",
                       )}
                     />
+
+                    {/* Label */}
 
                     <span className="truncate">
                       {item.label}
@@ -527,9 +610,15 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* ───────────────── FOOTER ───────────────── */}
+      {/* ========================================================
+          FOOTER
+      ======================================================== */}
 
       <SidebarFooter className="border-t border-border p-3">
+        {/* ------------------------------------------------------
+            USER
+        ------------------------------------------------------ */}
+
         {user ? (
           <div
             className={cn(
@@ -538,6 +627,8 @@ export function AppSidebar() {
               "hover:bg-accent",
             )}
           >
+            {/* Avatar */}
+
             <div
               className={cn(
                 "flex h-9 w-9 shrink-0 items-center justify-center",
@@ -548,6 +639,8 @@ export function AppSidebar() {
             >
               {getInitials(user.name || user.email)}
             </div>
+
+            {/* User information */}
 
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">
@@ -565,13 +658,19 @@ export function AppSidebar() {
 
             <div className="min-w-0 flex-1 space-y-1.5">
               <div className="h-3.5 w-24 animate-pulse rounded bg-muted" />
+
               <div className="h-3 w-32 animate-pulse rounded bg-muted" />
             </div>
           </div>
         )}
 
+        {/* ------------------------------------------------------
+            LOGOUT
+        ------------------------------------------------------ */}
+
         <div className="mt-2">
           <button
+            type="button"
             onClick={handleLogout}
             disabled={isLoggingOut}
             className={cn(

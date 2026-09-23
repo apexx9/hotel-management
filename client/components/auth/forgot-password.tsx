@@ -101,7 +101,9 @@ const ForgotPassword = () => {
         await import("@/actions/auth")
       ).authApi.requestReset(identifier);
       toast.success("Verification code sent");
-      router.push("/forgot-password/verify");
+      router.push(
+        `/forgot-password/verify?target=${encodeURIComponent(identifier)}`,
+      );
     } catch {
       toast.error("Unable to process your request. Please try again.");
     } finally {

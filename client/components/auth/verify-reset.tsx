@@ -19,10 +19,19 @@ const VerifyReset = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendTimer, setResendTimer] = useState(RESEND_COOLDOWN);
+  const [target, setTarget] = useState("");
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const otpValue = otp.join("");
   const isComplete = otpValue.length === OTP_LENGTH;
+
+  useEffect(() => {
+    const fromQuery =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("target")
+        : null;
+    if (fromQuery) setTarget(fromQuery);
+  }, []);
 
   useEffect(() => {
     if (resendTimer <= 0) return;
@@ -140,7 +149,7 @@ const VerifyReset = () => {
               Verification code sent to
             </p>
             <p className="mt-1 text-sm font-semibold text-[#0C0332]">
-              ******@hotel.com
+              {target || "your email or phone number"}
             </p>
           </div>
 

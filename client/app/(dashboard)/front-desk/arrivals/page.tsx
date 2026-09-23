@@ -160,7 +160,7 @@ export default function ArrivalsPage() {
                 </div>
               </CardHeader>
               <CardContent className="flex flex-1 flex-col gap-4 pt-5">
-                <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-2 text-sm">
                   <div className="space-y-1">
                     <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1.5"><BedDouble className="h-3 w-3" /> Room</span>
                     <p className="font-semibold">{stay.roomNumber || "Unassigned"} <span className="text-muted-foreground font-normal text-xs">({stay.roomTypeName || "N/A"})</span></p>

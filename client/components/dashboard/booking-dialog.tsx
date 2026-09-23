@@ -387,7 +387,7 @@ export function NewBookingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[880px] w-[95vw] max-h-[90vh] max-h-[850px] flex flex-col overflow-hidden rounded-2xl border border-slate-200 p-0 shadow-xl bg-white">
+      <DialogContent className="sm:max-w-[880px] w-[95vw] max-h-[min(90vh,850px)] flex flex-col overflow-hidden rounded-2xl border border-slate-200 p-0 shadow-xl bg-white">
         {/* Header */}
         <DialogHeader className="px-8 pt-8 pb-4 border-b border-slate-100 shrink-0">
           <DialogTitle className="text-xl font-semibold text-slate-900">

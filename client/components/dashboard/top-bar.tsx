@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Bell, Plus, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -211,10 +212,13 @@ export function Topbar() {
   return (
     <>
       <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-100 bg-white px-4 md:px-8">
+        {/* Mobile sidebar trigger - only visible below md */}
+        <SidebarTrigger className="md:hidden" />
+
         {/* Search trigger button - styled like the hero card buttons */}
         <button
           onClick={() => setSearchModalOpen(true)}
-          className="flex h-10 w-full max-w-md items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 text-left text-sm text-slate-400 transition-all hover:border-slate-300 hover:bg-white hover:text-slate-600"
+          className="flex h-10 min-w-0 flex-1 max-w-md items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 text-left text-sm text-slate-400 transition-all hover:border-slate-300 hover:bg-white hover:text-slate-600"
         >
           <Search className="h-4 w-4" />
           <span className="flex-1">Search guests, rooms, stays...</span>

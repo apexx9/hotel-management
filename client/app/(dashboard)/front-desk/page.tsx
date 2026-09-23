@@ -180,14 +180,14 @@ export default function FrontDeskOverviewPage() {
               {activeStays.slice(0, 8).map((stay) => (
                 <div
                   key={stay.id}
-                  className="flex items-center justify-between p-4 hover:bg-muted/20 transition-colors"
+                  className="flex items-center justify-between gap-4 p-4 hover:bg-muted/20 transition-colors"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+                  <div className="flex min-w-0 items-center gap-4">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold shrink-0">
                       {stay.guestName?.charAt(0) || "G"}
                     </div>
-                    <div>
-                      <p className="font-semibold text-foreground text-sm">{stay.guestName}</p>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-foreground text-sm">{stay.guestName}</p>
                       <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
                         <Badge variant="secondary" className="rounded-md font-mono text-[10px] bg-muted/60 px-1.5 py-0">
                           Room {stay.roomNumber}
@@ -196,7 +196,7 @@ export default function FrontDeskOverviewPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="shrink-0 text-right">
                     <p className="text-xs text-muted-foreground mb-1">
                       Check-out: <span className="font-medium text-foreground">{formatDateTime(stay.expectedCheckoutAt)}</span>
                     </p>

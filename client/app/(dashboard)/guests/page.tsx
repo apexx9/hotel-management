@@ -294,7 +294,7 @@ export default function GuestsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="rounded-full h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        className="rounded-full h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
                         onClick={() => openEditDialog(guest)}
                       >
                         <Pencil className="h-4 w-4" />

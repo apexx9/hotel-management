@@ -197,7 +197,7 @@ export default function RoomAvailabilityPage() {
               type="date"
               value={date}
               onChange={(e) => e.target.value && setDate(e.target.value)}
-              className="h-11 w-56 rounded-xl border-border/60 bg-background shadow-sm"
+              className="h-11 w-full sm:w-56 rounded-xl border-border/60 bg-background shadow-sm"
             />
           </div>
           <Button

@@ -37,8 +37,8 @@ function getInitials(value?: string) {
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { state, isMobile, setOpen } = useSidebar();
-  const isCollapsed = state === "collapsed";
+  const { state, isMobile, setOpen, setOpenMobile } = useSidebar();
+  const isCollapsed = state === "collapsed" && !isMobile;
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [locked, setLocked] = useState(false);
@@ -261,6 +261,7 @@ export function AppSidebar() {
                   <SidebarMenuItem key={item.href}>
                     <Link
                       href={item.href}
+                      onClick={() => isMobile && setOpenMobile(false)}
                       className={cn(
                         "flex h-9 items-center gap-3 rounded-md px-3 text-sm transition-colors",
                         "hover:bg-accent hover:text-accent-foreground",
@@ -295,6 +296,7 @@ export function AppSidebar() {
                         <Link
                           key={child.href}
                           href={child.href}
+                          onClick={() => isMobile && setOpenMobile(false)}
                           className={cn(
                             "flex h-8 items-center gap-2 rounded-md px-3 text-sm transition-colors",
                             "hover:bg-accent hover:text-accent-foreground",

@@ -6,13 +6,20 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Mail, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 
 import Wrapper from "./wrapper";
 import Input from "../input";
 import Button from "../button";
 import AuthFooter from "./auth-footer";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const forgotPasswordSchema = z
   .object({
@@ -53,6 +60,21 @@ const forgotPasswordSchema = z
   });
 
 type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
+
+const resetMethodOptions = [
+  {
+    value: "email",
+    label: "Email address",
+    description: "Send a code to my email",
+    icon: Mail,
+  },
+  {
+    value: "phone",
+    label: "Phone number",
+    description: "Send a code via SMS",
+    icon: Smartphone,
+  },
+] as const;
 
 const ForgotPassword = () => {
   const router = useRouter();
@@ -118,22 +140,69 @@ const ForgotPassword = () => {
             className="flex flex-col gap-5"
             noValidate
           >
-            <Input
-              type="drop"
-              label="Reset method"
-              placeholder="Select reset method"
-              options={[
-                { value: "email", label: "Email" },
-                { value: "phone", label: "Phone number" },
-              ]}
-              value={resetMode}
-              onValueChange={(value) => {
-                setValue("resetMode", value as "email" | "phone", {
-                  shouldValidate: true,
-                });
-              }}
-              error={errors.resetMode?.message}
-            />
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-[#0C0332]">
+                Reset method
+              </label>
+              <Select
+                value={resetMode}
+                onValueChange={(value) => {
+                  if (value) {
+                    setValue("resetMode", value as "email" | "phone", {
+                      shouldValidate: true,
+                    });
+                  }
+                }}
+              >
+                <SelectTrigger className="h-12 w-full rounded-2xl border-slate-200 bg-white px-4 shadow-sm transition-all hover:border-slate-300 focus-visible:border-[#1900FF] focus-visible:ring-4 focus-visible:ring-[#1900FF]/15 text-[15px]">
+                  <SelectValue>
+                    {(value) => {
+                      const selected = resetMethodOptions.find(
+                        (option) => option.value === value,
+                      );
+                      return (
+                        <span className="flex items-center gap-2.5">
+                          {selected ? (
+                            <>
+                              <selected.icon className="h-4.5 w-4.5 text-[#1900FF]" />
+                              <span className="text-[#0C0332]">
+                                {selected.label}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-slate-400">
+                              Select reset method
+                            </span>
+                          )}
+                        </span>
+                      );
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent align="start">
+                  {resetMethodOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <span className="flex items-center gap-2.5 py-0.5">
+                        <option.icon className="h-4.5 w-4.5 text-[#1900FF]" />
+                        <span className="flex flex-col items-start">
+                          <span className="font-medium text-[#0C0332]">
+                            {option.label}
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            {option.description}
+                          </span>
+                        </span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.resetMode?.message && (
+                <p className="text-xs font-medium text-red-500">
+                  {errors.resetMode.message}
+                </p>
+              )}
+            </div>
 
             {resetMode === "email" ? (
               <Input

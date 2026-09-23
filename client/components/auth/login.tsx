@@ -112,13 +112,7 @@ const Login = () => {
               error={errors.password?.message}
             />
 
-            <div className="-mt-1 flex justify-between">
-              <Link
-                href="/signup/verify"
-                className="text-xs font-semibold text-[#6B6B6B] transition-colors hover:text-[#1900FF]"
-              >
-                Resend verification code
-              </Link>
+            <div className="-mt-1 flex justify-end">
               <Link
                 href="/forgot-password"
                 className="text-xs font-semibold text-[#6B6B6B] transition-colors hover:text-[#1900FF]"
